@@ -13,6 +13,7 @@ public class IndustriousVillagers {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public IndustriousVillagers(IEventBus modEventBus, ModContainer modContainer) {
+        ModProfessions.register(modEventBus);
         LOGGER.info("Industrious Villagers initialising");
     }
 }

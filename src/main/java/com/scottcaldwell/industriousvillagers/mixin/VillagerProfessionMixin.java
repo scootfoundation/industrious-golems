@@ -1,6 +1,8 @@
 package com.scottcaldwell.industriousvillagers.mixin;
 
+import com.scottcaldwell.industriousvillagers.IndustriousVillagers;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,9 +22,13 @@ public class VillagerProfessionMixin {
     public static Predicate<Holder<PoiType>> ALL_ACQUIRABLE_JOBS;
 
     @Inject(method = "<clinit>", at = @At("TAIL"))
-    private static void suppressAllAcquirableJobs(CallbackInfo ci) {
-        // Prevent unemployed villagers from seeking any vanilla job site block.
-        // Updated in later milestones to match only our custom POI types.
-        ALL_ACQUIRABLE_JOBS = holder -> false;
+    private static void redirectAllAcquirableJobs(CallbackInfo ci) {
+        // Only match POI types belonging to our professions.
+        // The lambda is evaluated lazily at runtime (after DeferredRegister has fired),
+        // so our custom professions are visible when it executes.
+        ALL_ACQUIRABLE_JOBS = poiHolder ->
+                BuiltInRegistries.VILLAGER_PROFESSION.entrySet().stream()
+                        .filter(e -> e.getKey().identifier().getNamespace().equals(IndustriousVillagers.MODID))
+                        .anyMatch(e -> e.getValue().acquirableJobSite().test(poiHolder));
     }
 }
