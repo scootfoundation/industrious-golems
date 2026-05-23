@@ -30,7 +30,10 @@ public class AssignProfessionFromJobSiteMixin {
         return BehaviorBuilder.triggerIf((level, villager) -> {
             if (villager.isBaby()) return false;
 
-            Optional<GlobalPos> jobSiteOpt = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE);
+            // Vanilla AssignProfessionFromJobSite requires POTENTIAL_JOB_SITE (not JOB_SITE).
+            // Skip if already employed (JOB_SITE already set).
+            if (villager.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE)) return false;
+            Optional<GlobalPos> jobSiteOpt = villager.getBrain().getMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
             if (jobSiteOpt.isEmpty()) return false;
 
             GlobalPos claimedSite = jobSiteOpt.get();
