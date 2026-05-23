@@ -38,6 +38,8 @@ public class AssignProfessionFromJobSiteMixin {
 
             GlobalPos claimedSite = jobSiteOpt.get();
             if (!claimedSite.dimension().equals(level.dimension())) return false;
+            // Only assign once the villager is actually at the potential job site.
+            if (claimedSite.pos().distSqr(villager.blockPosition()) > 4) return false;
 
             Optional<Holder<PoiType>> poiTypeOpt = level.getPoiManager()
                     .getInSquare(_ -> true, claimedSite.pos(), 0, PoiManager.Occupancy.ANY)
