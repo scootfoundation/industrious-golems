@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousvillagers.mixin.client;
 
+import com.scottcaldwell.industriousvillagers.client.SwingingState;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.npc.VillagerModel;
 import net.minecraft.client.renderer.entity.state.VillagerRenderState;
