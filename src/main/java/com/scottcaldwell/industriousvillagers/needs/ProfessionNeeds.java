@@ -44,6 +44,9 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Wo
                     Items.BREAD, v -> false)
     ), s -> false, null);
 
+    /** The needs shared by every villager without a profession of ours. */
+    public static final ProfessionNeeds BASIC_NEEDS = BASIC;
+
     // ---- lookup -----------------------------------------------------------------------------------------------
 
     /** The needs of this villager's profession, or null when it has none (vanilla or unemployed). */

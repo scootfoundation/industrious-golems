@@ -72,7 +72,7 @@ public class VillagerMenu extends AbstractContainerMenu {
 
     /** General slots start after the tool slots, leaving one column as a gap. */
     public int firstGeneralColumn() {
-        return toolSlots + 1;
+        return toolSlots == 0 ? 0 : toolSlots + 1;
     }
 
     public int generalSlots() {
@@ -81,7 +81,7 @@ public class VillagerMenu extends AbstractContainerMenu {
 
     /** Server side: the menu over a real villager's inventory. */
     public static VillagerMenu forVillager(MenuType<VillagerMenu> type, int id, Inventory playerInventory, Villager villager) {
-        return new VillagerMenu(type, id, playerInventory, new VillagerInventoryContainer(villager), ProfessionNeeds.of(villager));
+        return new VillagerMenu(type, id, playerInventory, new VillagerInventoryContainer(villager), ProfessionNeeds.effective(villager));
     }
 
     /** Client side: contents arrive through normal slot sync; the layout comes from the profession's menu type. */

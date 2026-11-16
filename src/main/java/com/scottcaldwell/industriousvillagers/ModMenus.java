@@ -26,6 +26,12 @@ public class ModMenus {
 
     private static final Map<ResourceKey<VillagerProfession>, DeferredHolder<MenuType<?>, MenuType<VillagerMenu>>> BY_PROFESSION = new HashMap<>();
 
+    /** The menu for villagers without a profession of ours (unemployed, nitwit, vanilla professions). */
+    private static final DeferredHolder<MenuType<?>, MenuType<VillagerMenu>> BASIC = MENUS.register("villager",
+            () -> new MenuType<VillagerMenu>(
+                    (id, inventory) -> VillagerMenu.client(ModMenus.BASIC.get(), id, inventory, ProfessionNeeds.BASIC_NEEDS),
+                    FeatureFlags.DEFAULT_FLAGS));
+
     static {
         for (ResourceKey<VillagerProfession> key : ProfessionNeeds.professions()) {
             BY_PROFESSION.put(key, MENUS.register(key.identifier().getPath(),
@@ -38,11 +44,13 @@ public class ModMenus {
     /** The menu type for a profession villager's inventory screen, or null if it has none. */
     public static MenuType<VillagerMenu> typeFor(Villager villager) {
         return villager.getVillagerData().profession().unwrapKey()
-                .map(BY_PROFESSION::get).map(DeferredHolder::get).orElse(null);
+                .map(BY_PROFESSION::get).orElse(BASIC).get();
     }
 
     public static Iterable<DeferredHolder<MenuType<?>, MenuType<VillagerMenu>>> all() {
-        return BY_PROFESSION.values();
+        java.util.List<DeferredHolder<MenuType<?>, MenuType<VillagerMenu>>> all = new java.util.ArrayList<>(BY_PROFESSION.values());
+        all.add(BASIC);
+        return all;
     }
 
     public static void register(IEventBus modEventBus) {

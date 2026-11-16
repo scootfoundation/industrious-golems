@@ -24,7 +24,11 @@ public class VillagerInteractionMixin {
     private void industriousvillagers$interact(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
         if (player.getItemInHand(hand).is(Items.VILLAGER_SPAWN_EGG)) return;
         Villager villager = (Villager) (Object) this;
-        if (ProfessionNeeds.of(villager) == null || !villager.isAlive() || villager.isBaby() || villager.isSleeping()) {
+        // our professions and villagers with nothing to trade open the inventory; the rest still trade, and opens it when sneaking
+        boolean ours = ProfessionNeeds.of(villager) != null
+                || villager.getVillagerData().profession().is(net.minecraft.world.entity.npc.villager.VillagerProfession.NONE)
+                || villager.getVillagerData().profession().is(net.minecraft.world.entity.npc.villager.VillagerProfession.NITWIT);
+        if ((!ours && !player.isShiftKeyDown()) || !villager.isAlive() || villager.isBaby() || villager.isSleeping()) {
             cir.setReturnValue(InteractionResult.PASS);
             return;
         }
