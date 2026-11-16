@@ -1,6 +1,8 @@
 package com.scottcaldwell.industriousvillagers.mixin;
 
-import com.scottcaldwell.industriousvillagers.inventory.VillagerInventoryContainer;
+import com.scottcaldwell.industriousvillagers.ModMenus;
+import com.scottcaldwell.industriousvillagers.inventory.VillagerMenu;
+import net.minecraft.world.inventory.MenuType;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -29,10 +31,12 @@ public class VillagerInteractionMixin {
             return;
         }
         if (player instanceof ServerPlayer serverPlayer && villager.getTradingPlayer() == null) {
-            VillagerInventoryContainer container = new VillagerInventoryContainer(villager);
-            serverPlayer.openMenu(new SimpleMenuProvider(
-                    (id, playerInventory, p) -> new ChestMenu(MenuType.GENERIC_9x1, id, playerInventory, container, 1),
-                    villager.getDisplayName()));
+            MenuType<VillagerMenu> type = ModMenus.typeFor(villager);
+            if (type != null) {
+                serverPlayer.openMenu(new SimpleMenuProvider(
+                        (id, playerInventory, p) -> VillagerMenu.forVillager(type, id, playerInventory, villager),
+                        villager.getDisplayName()));
+            }
         }
         cir.setReturnValue(InteractionResult.SUCCESS);
     }

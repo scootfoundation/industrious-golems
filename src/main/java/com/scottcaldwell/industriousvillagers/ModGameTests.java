@@ -36,6 +36,7 @@ public class ModGameTests {
         FUNCTIONS.register("farmer_inventory_menu", () -> ModGameTests::farmerInventoryMenu);
         FUNCTIONS.register("farmer_eats_when_hungry", () -> ModGameTests::farmerEatsWhenHungry);
         FUNCTIONS.register("hungry_farmer_without_food_stops_and_shows_food", () -> ModGameTests::hungryFarmerWithoutFood);
+        FUNCTIONS.register("farmer_keeps_tool_in_tool_slot", () -> ModGameTests::farmerKeepsToolInToolSlot);
         FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
     }
 
@@ -190,7 +191,8 @@ public class ModGameTests {
     private static void farmerInventoryMenu(GameTestHelper helper) {
         buildFarm(helper);
         Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
+        farmer.getInventory().setItem(0, new ItemStack(Items.IRON_HOE));
+        farmer.getInventory().setItem(1, new ItemStack(Items.WHEAT, 5));
         var player = helper.makeMockServerPlayerInLevel();
         // Keep the mock player far away: it has no real connection, so it must never be a tracker of the farmer
         // (the farmer's status attachment syncs to trackers). interactOn does not check reach.
@@ -200,8 +202,15 @@ public class ModGameTests {
         // Everything in one tick: the far-away mock player would otherwise have the menu closed as out of reach.
         helper.runAtTickTime(5, () -> {
             player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
-            helper.assertTrue(player.containerMenu instanceof net.minecraft.world.inventory.ChestMenu, "right-click should open a chest menu");
-            helper.assertTrue(player.containerMenu.getSlot(0).getItem().is(Items.WHEAT), "menu slot 0 should show the farmer's wheat");
+            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.VillagerMenu, "right-click should open the villager menu");
+            var menu = (com.scottcaldwell.industriousvillagers.inventory.VillagerMenu) player.containerMenu;
+            helper.assertTrue(menu.getSlot(0).getItem().is(Items.IRON_HOE), "slot 0 is the tool slot and shows the hoe");
+            helper.assertTrue(menu.getSlot(1).getItem().is(Items.WHEAT), "first general slot shows the wheat");
+            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_HOE)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.WHEAT)),
+                    "the tool slot accepts only hoes");
+            helper.assertTrue(menu.generalSlots() == 7, "farmer allows 7 general slots, has " + menu.generalSlots());
+            // 1 tool + 7 general + 36 player slots
+            helper.assertTrue(menu.slots.size() == 1 + 7 + 36, "slot count should match the allowance, was " + menu.slots.size());
             helper.assertTrue(farmer.getTradingPlayer() == player, "farmer should be held for the player while open");
             held[0] = true;
             player.closeContainer();
@@ -209,6 +218,19 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(held[0], "menu should have been checked");
             helper.assertTrue(farmer.getTradingPlayer() == null, "farmer should be released when the menu closes");
+        });
+    }
+
+    /** Wheat sitting in the tool slot and the hoe elsewhere: the farmer tidies its inventory so the hoe is in slot 0. */
+    private static void farmerKeepsToolInToolSlot(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 3));
+        farmer.getInventory().setItem(4, new ItemStack(Items.IRON_HOE));
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(farmer.getInventory().getItem(0).is(Items.IRON_HOE), "hoe should be in the tool slot");
+            helper.assertTrue(count(farmer.getInventory(), Items.WHEAT) == 3, "wheat should still be carried");
         });
     }
 

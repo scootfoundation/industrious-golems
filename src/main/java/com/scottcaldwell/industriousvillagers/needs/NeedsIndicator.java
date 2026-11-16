@@ -42,6 +42,7 @@ public final class NeedsIndicator {
         if (isIcon(villager.getItemBySlot(EquipmentSlot.HEAD))) villager.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
 
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        com.scottcaldwell.industriousvillagers.inventory.InventoryLayout.organize(villager);
         if (needs == null || villager.isBaby()) {
             if (!villager.getData(ModAttachments.STATUS).equals(StatusData.NONE)) villager.setData(ModAttachments.STATUS, StatusData.NONE);
             return;
