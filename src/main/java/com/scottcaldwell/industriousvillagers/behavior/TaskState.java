@@ -1,25 +1,26 @@
 package com.scottcaldwell.industriousvillagers.behavior;
 
-import net.minecraft.core.BlockPos;
+import java.util.HashMap;
+import java.util.Map;
 
-/** Transient per-villager hand-over between {@link StartTask} and the behaviours of the task activity. */
+/**
+ * Transient per-villager hand-over between {@link StartTask} and the runners of the task activity: the plan chosen
+ * (whose type says which runner takes it) and when each kind of task may next be planned.
+ */
 public class TaskState {
-    public enum Type { NONE, VISIT, EAT, WORK }
 
-    public Type type = Type.NONE;
-    public BlockPos chest;
-    public boolean deposit;
-    public boolean take;
-    public long nextVisit;
-    /** Profession work plan handed to that profession's task runner (type WORK). */
-    public Object work;
-    public long nextWork;
+    /** What to do next, or null when idle. Runners recognise their own plan type. */
+    public Object plan;
+    private final Map<String, Long> nextAt = new HashMap<>();
 
     public void clear() {
-        type = Type.NONE;
-        chest = null;
-        deposit = false;
-        take = false;
-        work = null;
+        plan = null;
+    }
+
+    /** True (and re-arms the cooldown) when a task of this kind may be planned now. */
+    boolean due(String kind, long now, long interval) {
+        if (now < nextAt.getOrDefault(kind, 0L)) return false;
+        nextAt.put(kind, now + interval);
+        return true;
     }
 }

@@ -1,10 +1,7 @@
 package com.scottcaldwell.industriousvillagers.lumber;
 
-import com.google.common.collect.ImmutableMap;
-import com.scottcaldwell.industriousvillagers.ModAttachments;
 import com.scottcaldwell.industriousvillagers.behavior.Drops;
-import com.scottcaldwell.industriousvillagers.behavior.TaskState;
-import com.scottcaldwell.industriousvillagers.behavior.Tasks;
+import com.scottcaldwell.industriousvillagers.behavior.TaskRunner;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import com.scottcaldwell.industriousvillagers.needs.ToolWear;
 import net.minecraft.core.BlockPos;
@@ -18,9 +15,7 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
-import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -35,7 +30,7 @@ import java.util.List;
  * Fells a natural tree log by log, bottom first: walk up, stop and look at the log, chop it (the axe wears), pause,
  * and repeat; then replant a sapling where the trunk stood. Runs in the exclusive task activity.
  */
-public class FellTree extends Behavior<Villager> {
+public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     private static final double REACH = 5.0;
     private static final int LOOK_TICKS = 12;
@@ -48,7 +43,6 @@ public class FellTree extends Behavior<Villager> {
     /** The tree chosen by {@link #plan}: chop {@code logs}, then replant at {@code replant}. */
     public record FellPlan(List<BlockPos> logs, BlockPos replant, net.minecraft.world.level.block.Block logType) { }
 
-    private FellPlan plan;
     private final List<BlockPos> remaining = new ArrayList<>();
     private BlockPos current;
     private boolean planting;
@@ -57,7 +51,7 @@ public class FellTree extends Behavior<Villager> {
     private int stalled;
 
     public FellTree() {
-        super(ImmutableMap.of(), 1800);
+        super(FellPlan.class, 1800);
     }
 
     // ---- choosing work ----------------------------------------------------------------------------------------
@@ -68,9 +62,7 @@ public class FellTree extends Behavior<Villager> {
         GlobalPos site = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
         if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, villager)) return null;
-        for (ProfessionNeeds.Need need : needs.toolNeeds()) {
-            if (need.id().equals("axe") && need.have(villager.getInventory()) == 0) return null;
-        }
+        if (!needs.has(villager, "axe")) return null;
         TreeFinder.Tree tree = TreeFinder.find(level, site.pos(), villager.blockPosition());
         return tree == null ? null : new FellPlan(tree.logs(), tree.base(), tree.logType());
     }
@@ -78,15 +70,7 @@ public class FellTree extends Behavior<Villager> {
     // ---- the job ------------------------------------------------------------------------------------------------
 
     @Override
-    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
-        TaskState state = villager.getData(ModAttachments.TASK);
-        return state.type == TaskState.Type.WORK && state.work instanceof FellPlan;
-    }
-
-    @Override
-    protected void start(ServerLevel level, Villager villager, long time) {
-        plan = (FellPlan) villager.getData(ModAttachments.TASK).work;
-        Tasks.stopOthers(level, villager, this, time);
+    protected void begin(ServerLevel level, Villager villager, long time) {
         remaining.clear();
         remaining.addAll(plan.logs());
         current = null;
@@ -96,10 +80,9 @@ public class FellTree extends Behavior<Villager> {
     }
 
     @Override
-    protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
-        return phase != Phase.DONE && plan != null && Tasks.active(villager) && Tasks.scheduleAllowsWork(level, villager);
+    protected boolean allowedNow(ServerLevel level, Villager villager) {
+        return phase != Phase.DONE && super.allowedNow(level, villager);
     }
-
     @Override
     protected void tick(ServerLevel level, Villager villager, long time) {
         if (phase == Phase.PAUSE) {
@@ -107,9 +90,9 @@ public class FellTree extends Behavior<Villager> {
             if (--timer <= 0) { phase = Phase.WORK; current = null; }
             return;
         }
-        if (current == null && !nextTarget(level, villager)) { phase = Phase.DONE; return; }
+        if (current == null && !nextTarget(level, villager)) { finish(); return; }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(Vec3.atCenterOf(current)));
+        lookAt(villager, new BlockPosTracker(Vec3.atCenterOf(current)));
         double reach = villager.getEyePosition().distanceTo(Vec3.atCenterOf(current));
         if (reach > REACH) {
             phase = Phase.WORK;
@@ -119,9 +102,7 @@ public class FellTree extends Behavior<Villager> {
                 current = null;
                 return;
             }
-            if (!villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) {
-                villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(current), 0.5F, 2));
-            }
+            walkTo(villager, new BlockPosTracker(current), 2);
             return;
         }
 
@@ -135,7 +116,7 @@ public class FellTree extends Behavior<Villager> {
         villager.swing(InteractionHand.MAIN_HAND);
         if (planting) {
             plant(level, villager, current);
-            phase = Phase.DONE;
+            finish();
             return;
         }
         chop(level, villager, current);
@@ -164,7 +145,7 @@ public class FellTree extends Behavior<Villager> {
     }
 
     private boolean hasAxe(Villager villager) {
-        return slotOf(villager, s -> s.is(ItemTags.AXES)) >= 0;
+        return ProfessionNeeds.of(villager).has(villager, "axe");
     }
 
     private void chop(ServerLevel level, Villager villager, BlockPos log) {
@@ -201,27 +182,10 @@ public class FellTree extends Behavior<Villager> {
         return any;
     }
 
-    private static int slotOf(Villager villager, java.util.function.Predicate<ItemStack> match) {
-        SimpleContainer inv = villager.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (!inv.getItem(i).isEmpty() && match.test(inv.getItem(i))) return i;
-        }
-        return -1;
-    }
-
-    private static void holdStill(Villager villager) {
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
-    }
-
     @Override
-    protected void stop(ServerLevel level, Villager villager, long time) {
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
-        plan = null;
+    protected void end(ServerLevel level, Villager villager, long time) {
         current = null;
         remaining.clear();
         phase = Phase.DONE;
-        Tasks.finish(level, villager);
     }
 }

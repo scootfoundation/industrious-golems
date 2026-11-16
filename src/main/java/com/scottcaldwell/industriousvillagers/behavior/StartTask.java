@@ -11,16 +11,20 @@ import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.npc.villager.Villager;
 
 /**
- * Lives in the work activity. Decides whether the villager should now eat or visit a container and, if so, hands it
- * over to the exclusive task activity.
+ * Decides what the villager should do next and hands it over to the exclusive task activity, in priority order: eat,
+ * visit a container, then the profession's own work. Lives in the work activity (and the idle activity for villagers
+ * without a job, who only ever eat).
  */
 public class StartTask extends Behavior<Villager> {
+
+    private static final long VISIT_INTERVAL = ContainerInteraction.COOLDOWN_TICKS;
+    private static final long WORK_INTERVAL = 60;
 
     public StartTask() {
         this(true);
     }
 
-    /** @param requiresJobSite false for villagers without a job, who only ever eat */
+    /** @param requiresJobSite false for villagers without a job */
     public StartTask(boolean requiresJobSite) {
         super(requiresJobSite ? ImmutableMap.of(MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT) : ImmutableMap.of(), 1);
     }
@@ -28,36 +32,17 @@ public class StartTask extends Behavior<Villager> {
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
         ProfessionNeeds needs = ProfessionNeeds.effective(villager);
-        if (needs == null) return false;
         TaskState state = villager.getData(ModAttachments.TASK);
-        if (state.type != TaskState.Type.NONE) return false;
+        if (needs == null || state.plan != null) return false;
 
-        if (EatFood.shouldEat(villager)) {
-            state.type = TaskState.Type.EAT;
-            return true;
-        }
         long now = level.getGameTime();
-        if (now >= state.nextVisit) {
-            state.nextVisit = now + ContainerInteraction.COOLDOWN_TICKS;
-            ContainerInteraction.Plan plan = ContainerInteraction.plan(level, villager);
-            if (plan != null) {
-                state.type = TaskState.Type.VISIT;
-                state.chest = plan.pos();
-                state.deposit = plan.deposit();
-                state.take = plan.take();
-                return true;
-            }
+        Object plan = EatFood.plan(villager);
+        if (plan == null && state.due("visit", now, VISIT_INTERVAL)) plan = ContainerInteraction.plan(level, villager);
+        if (plan == null && needs.work() != null && !needs.workBlocked(villager) && state.due("work", now, WORK_INTERVAL)) {
+            plan = needs.work().planner().plan(level, villager);
         }
-        if (needs.planner() != null && now >= state.nextWork && !needs.workBlocked(villager)) {
-            state.nextWork = now + ProfessionNeeds.WORK_INTERVAL;
-            Object work = needs.planner().plan(level, villager);
-            if (work != null) {
-                state.type = TaskState.Type.WORK;
-                state.work = work;
-                return true;
-            }
-        }
-        return false;
+        state.plan = plan;
+        return plan != null;
     }
 
     @Override

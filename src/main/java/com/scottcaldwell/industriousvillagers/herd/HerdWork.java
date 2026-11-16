@@ -1,9 +1,10 @@
 package com.scottcaldwell.industriousvillagers.herd;
 
-import com.google.common.collect.ImmutableMap;
+import com.scottcaldwell.industriousvillagers.ModTags;
+import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.ModAttachments;
-import com.scottcaldwell.industriousvillagers.behavior.TaskState;
-import com.scottcaldwell.industriousvillagers.behavior.Tasks;
+import com.scottcaldwell.industriousvillagers.behavior.Drops;
+import com.scottcaldwell.industriousvillagers.behavior.TaskRunner;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import com.scottcaldwell.industriousvillagers.needs.ToolWear;
 import net.minecraft.core.GlobalPos;
@@ -14,19 +15,14 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.animal.sheep.Sheep;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -40,7 +36,7 @@ import java.util.Map;
  * species (never below a breeding pair); below it, it feeds adults so they breed. It also shears ready sheep and
  * milks cows. Each job needs its tool (sword, shears, bucket, feed) and is skipped without it.
  */
-public class HerdWork extends Behavior<Villager> {
+public class HerdWork extends TaskRunner<HerdPlan> {
 
     /** Cull above one animal per this many pen cells; breed below one per {@link #BREED_BELOW_CELLS_PER_ANIMAL}. */
     static final int CULL_ABOVE_CELLS_PER_ANIMAL = 5;
@@ -55,13 +51,12 @@ public class HerdWork extends Behavior<Villager> {
 
     private enum Phase { APPROACH, LOOK, PAUSE, DONE }
 
-    private HerdPlan plan;
     private Phase phase = Phase.DONE;
     private long deadline;
     private int timer;
 
     public HerdWork() {
-        super(ImmutableMap.of(), 600);
+        super(HerdPlan.class, 600);
     }
 
     // ---- choosing work ----------------------------------------------------------------------------------------
@@ -72,9 +67,9 @@ public class HerdWork extends Behavior<Villager> {
         GlobalPos site = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
 
-        boolean sword = hasTool(needs, villager, "sword");
-        boolean shears = hasTool(needs, villager, "shears");
-        boolean bucket = hasTool(needs, villager, "bucket");
+        boolean sword = needs.has(villager, "sword");
+        boolean shears = needs.has(villager, "shears");
+        boolean bucket = needs.has(villager, "bucket");
 
         for (HerdPen pen : HerdPen.find(level, site.pos())) {
             HerdPlan plan = planFor(level, villager, pen, sword, shears, bucket);
@@ -154,44 +149,26 @@ public class HerdWork extends Behavior<Villager> {
         return best;
     }
 
-    private static boolean hasTool(ProfessionNeeds needs, Villager villager, String id) {
-        for (ProfessionNeeds.Need need : needs.toolNeeds()) {
-            if (need.id().equals(id)) return need.have(villager.getInventory()) > 0;
-        }
-        return false;
-    }
-
-    private static int slotOf(Villager villager, java.util.function.Predicate<ItemStack> match) {
+    private static int feedSlot(Villager villager, Animal animal) {
         SimpleContainer inv = villager.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (!inv.getItem(i).isEmpty() && match.test(inv.getItem(i))) return i;
+            ItemStack s = inv.getItem(i);
+            if (!s.isEmpty() && s.is(ModTags.ANIMAL_FEED) && animal.isFood(s)) return i;
         }
         return -1;
-    }
-
-    private static int feedSlot(Villager villager, Animal animal) {
-        return slotOf(villager, s -> s.is(ProfessionNeeds.ANIMAL_FEED) && animal.isFood(s));
     }
 
     // ---- the job (runs in the exclusive task activity) ---------------------------------------------------------
 
     @Override
-    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
-        TaskState state = villager.getData(ModAttachments.TASK);
-        return state.type == TaskState.Type.WORK && state.work instanceof HerdPlan;
-    }
-
-    @Override
-    protected void start(ServerLevel level, Villager villager, long time) {
-        plan = (HerdPlan) villager.getData(ModAttachments.TASK).work;
-        Tasks.stopOthers(level, villager, this, time);
+    protected void begin(ServerLevel level, Villager villager, long time) {
         phase = Phase.APPROACH;
         deadline = time + APPROACH_TICKS;
     }
 
     @Override
-    protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
-        return phase != Phase.DONE && plan != null && Tasks.active(villager) && Tasks.scheduleAllowsWork(level, villager);
+    protected boolean allowedNow(ServerLevel level, Villager villager) {
+        return phase != Phase.DONE && super.allowedNow(level, villager);
     }
 
     @Override
@@ -199,19 +176,17 @@ public class HerdWork extends Behavior<Villager> {
         Entity target = level.getEntity(plan.targetId());
         if (phase == Phase.PAUSE) {
             holdStill(villager);
-            if (target != null) villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(target, true));
-            if (--timer <= 0) phase = Phase.DONE;
+            if (target != null) lookAt(villager, new EntityTracker(target, true));
+            if (--timer <= 0) finish();
             return;
         }
-        if (!(target instanceof Animal animal) || !animal.isAlive()) { phase = Phase.DONE; return; }
+        if (!(target instanceof Animal animal) || !animal.isAlive()) { finish(); return; }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(animal, true));
+        lookAt(villager, new EntityTracker(animal, true));
         if (villager.distanceToSqr(animal) > REACH_SQR) {
-            if (time > deadline) { phase = Phase.DONE; return; }
+            if (time > deadline) { finish(); return; }
             if (phase == Phase.LOOK) phase = Phase.APPROACH; // it moved out of reach: follow it
-            if (!villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) {
-                villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new EntityTracker(animal, false), 0.5F, 3));
-            }
+            walkTo(villager, new EntityTracker(animal, false), 3);
             return;
         }
         holdStill(villager);
@@ -225,33 +200,34 @@ public class HerdWork extends Behavior<Villager> {
             phase = Phase.PAUSE;
             timer = PAUSE_TICKS;
         } else {
-            phase = Phase.DONE;
+            finish();
         }
     }
 
     private boolean perform(ServerLevel level, Villager villager, Animal animal, long time) {
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
         if (needs == null) return false;
+        SimpleContainer inv = villager.getInventory();
         switch (plan.action()) {
             case CULL -> {
-                if (!hasTool(needs, villager, "sword")) return false;
+                if (!needs.has(villager, "sword")) return false;
                 ToolWear.use(level, villager, "sword");
                 animal.hurtServer(level, level.damageSources().mobAttack(villager), animal.getMaxHealth() * 2);
-                com.scottcaldwell.industriousvillagers.behavior.Drops.collectFresh(level, villager, animal.position());
+                Drops.collectFresh(level, villager, animal.position());
                 return true;
             }
             case SHEAR -> {
-                int slot = slotOf(villager, s -> s.is(Items.SHEARS));
+                int slot = needs.need("shears").slot(inv);
                 if (slot < 0 || !(animal instanceof Sheep sheep) || !sheep.readyForShearing()) return false;
-                sheep.shear(level, SoundSource.NEUTRAL, villager.getInventory().getItem(slot).copyWithCount(1));
+                sheep.shear(level, SoundSource.NEUTRAL, inv.getItem(slot).copyWithCount(1));
                 ToolWear.use(level, villager, "shears");
-                com.scottcaldwell.industriousvillagers.behavior.Drops.collectFresh(level, villager, animal.position());
+                Drops.collectFresh(level, villager, animal.position());
                 return true;
             }
             case MILK -> {
-                int slot = slotOf(villager, s -> s.is(Items.BUCKET));
+                int slot = needs.need("bucket").slot(inv);
                 if (slot < 0 || !(animal instanceof Cow)) return false;
-                villager.getInventory().removeItem(slot, 1);
+                inv.removeItem(slot, 1);
                 give(level, villager, new ItemStack(Items.MILK_BUCKET));
                 animal.setData(ModAttachments.MILKED_AT, time);
                 animal.playSound(SoundEvents.COW_MILK, 1.0F, 1.0F);
@@ -260,7 +236,7 @@ public class HerdWork extends Behavior<Villager> {
             case BREED -> {
                 int slot = feedSlot(villager, animal);
                 if (slot < 0 || animal.isInLove()) return false;
-                villager.getInventory().removeItem(slot, 1);
+                inv.removeItem(slot, 1);
                 animal.setInLove(null);
                 animal.playSound(SoundEvents.GENERIC_EAT.value(), 0.5F, 1.0F);
                 return true;
@@ -275,17 +251,8 @@ public class HerdWork extends Behavior<Villager> {
         villager.getInventory().setChanged();
     }
 
-    private static void holdStill(Villager villager) {
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
-    }
-
     @Override
-    protected void stop(ServerLevel level, Villager villager, long time) {
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
-        plan = null;
+    protected void end(ServerLevel level, Villager villager, long time) {
         phase = Phase.DONE;
-        Tasks.finish(level, villager);
     }
 }

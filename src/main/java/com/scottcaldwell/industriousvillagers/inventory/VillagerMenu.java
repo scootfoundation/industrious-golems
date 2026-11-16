@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousvillagers.inventory;
 
+import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.IndustriousVillagers;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.resources.Identifier;
@@ -35,15 +36,14 @@ public class VillagerMenu extends AbstractContainerMenu {
     public VillagerMenu(MenuType<VillagerMenu> type, int id, Inventory playerInventory, Container container, ProfessionNeeds needs) {
         super(type, id);
         this.container = container;
-        java.util.List<ProfessionNeeds.Need> tools = needs.toolNeeds();
+        java.util.List<Need> tools = needs.toolNeeds();
         this.toolSlots = tools.size();
-        this.generalSlots = Math.max(0, Math.min(needs.generalSlots(),
-                Math.min(CONTAINER_SIZE - toolSlots, ROW_COLUMNS - firstGeneralColumn())));
+        this.generalSlots = Math.max(0, Math.min(CONTAINER_SIZE - toolSlots, ROW_COLUMNS - firstGeneralColumn()));
         container.startOpen(playerInventory.player);
 
         // one dedicated slot per tool, then a gap column, then the general slots
         for (int i = 0; i < toolSlots; i++) {
-            ProfessionNeeds.Need tool = tools.get(i);
+            Need tool = tools.get(i);
             addSlot(new ToolSlot(container, i, slotX(i), ROW_Y, tool.match(),
                     Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "container/slot/" + tool.id())));
         }

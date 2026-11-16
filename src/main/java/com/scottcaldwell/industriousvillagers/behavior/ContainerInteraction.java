@@ -1,7 +1,6 @@
 package com.scottcaldwell.industriousvillagers.behavior;
 
-import com.google.common.collect.ImmutableMap;
-import com.scottcaldwell.industriousvillagers.ModAttachments;
+import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -32,7 +31,7 @@ import java.util.Set;
  * chests, each falling back to the other kind. Vanilla copper golems carry items from copper chests into regular
  * chests, so this makes a golem ferry the villager's output to a regular chest that the villager restocks from.
  */
-public class ContainerInteraction extends Behavior<Villager> {
+public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> {
 
     /** Containers within this many blocks (horizontally; +-2 vertically) of the job site count as "adjacent". */
     public static final int SEARCH_RADIUS = 3;
@@ -59,7 +58,7 @@ public class ContainerInteraction extends Behavior<Villager> {
     private final Set<String> restocking = new HashSet<>();
 
     public ContainerInteraction() {
-        super(ImmutableMap.of(), DURATION);
+        super(Plan.class, DURATION);
     }
 
     // ---- choosing a container ---------------------------------------------------------------------------------
@@ -109,7 +108,7 @@ public class ContainerInteraction extends Behavior<Villager> {
     }
 
     private static boolean canTakeSomething(ProfessionNeeds needs, Container inv, Container chest) {
-        for (ProfessionNeeds.Need need : needs.needs()) {
+        for (Need need : needs.needs()) {
             if (!need.unmet(inv)) continue;
             for (int i = 0; i < chest.getContainerSize(); i++) {
                 ItemStack s = chest.getItem(i);
@@ -122,18 +121,10 @@ public class ContainerInteraction extends Behavior<Villager> {
     // ---- the visit (runs in the exclusive task activity) --------------------------------------------------------
 
     @Override
-    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
-        TaskState state = villager.getData(ModAttachments.TASK);
-        return state.type == TaskState.Type.VISIT && state.chest != null;
-    }
-
-    @Override
-    protected void start(ServerLevel level, Villager villager, long time) {
-        TaskState state = villager.getData(ModAttachments.TASK);
-        chestPos = state.chest;
-        deposit = state.deposit;
-        take = state.take;
-        Tasks.stopOthers(level, villager, this, time);
+    protected void begin(ServerLevel level, Villager villager, long time) {
+        chestPos = plan.pos();
+        deposit = plan.deposit();
+        take = plan.take();
         phase = Phase.APPROACH;
         failedSlots.clear();
         doneNeeds.clear();
@@ -143,9 +134,8 @@ public class ContainerInteraction extends Behavior<Villager> {
     }
 
     @Override
-    protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
-        return phase != Phase.DONE && chestPos != null && Tasks.active(villager)
-                && Tasks.scheduleAllowsWork(level, villager);
+    protected boolean allowedNow(ServerLevel level, Villager villager) {
+        return phase != Phase.DONE && chestPos != null && super.allowedNow(level, villager);
     }
 
     private void lookAtChest(Villager villager) {
@@ -154,12 +144,6 @@ public class ContainerInteraction extends Behavior<Villager> {
 
     private void walkToChest(Villager villager) {
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(chestPos), 0.5F, 1));
-    }
-
-    /** Stand still: nothing else is running, but make sure no leftover target pulls the villager away. */
-    private static void holdStill(Villager villager) {
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
     }
 
     @Override
@@ -226,13 +210,10 @@ public class ContainerInteraction extends Behavior<Villager> {
     }
 
     @Override
-    protected void stop(ServerLevel level, Villager villager, long time) {
+    protected void end(ServerLevel level, Villager villager, long time) {
         closeChest(villager); // also covers interruptions (night, panic, damage, timeout)
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         chestPos = null;
         phase = Phase.DONE;
-        Tasks.finish(level, villager);
     }
 
     private void closeChest(Villager villager) {
@@ -263,7 +244,7 @@ public class ContainerInteraction extends Behavior<Villager> {
 
     private boolean takeOne(ProfessionNeeds needs, Villager villager, Container chest) {
         SimpleContainer inv = villager.getInventory();
-        for (ProfessionNeeds.Need need : needs.needs()) {
+        for (Need need : needs.needs()) {
             if (doneNeeds.contains(need.id())) continue;
             int have = need.have(inv);
             boolean wanted = have < need.refillBelow() || (restocking.contains(need.id()) && have < need.target());

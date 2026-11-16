@@ -90,13 +90,18 @@ public class ModGameTests {
         helper.setBlock(CHEST, Blocks.CHEST);
     }
 
-    private static Villager spawnFarmer(GameTestHelper helper, BlockPos at) {
+    /** Spawns a villager of the given profession with its job site at {@code site}. */
+    private static Villager spawnWorker(GameTestHelper helper, net.neoforged.neoforge.registries.DeferredHolder<net.minecraft.world.entity.npc.villager.VillagerProfession, net.minecraft.world.entity.npc.villager.VillagerProfession> profession,
+                                        BlockPos site, BlockPos at) {
         Villager villager = helper.spawn(EntityType.VILLAGER, at);
-        villager.setVillagerData(villager.getVillagerData().withProfession(ModProfessions.FARMER.getDelegate()));
+        villager.setVillagerData(villager.getVillagerData().withProfession(profession.getDelegate()));
         villager.refreshBrain(helper.getLevel());
-        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE,
-                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(COMPOSTER)));
+        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(site)));
         return villager;
+    }
+
+    private static Villager spawnFarmer(GameTestHelper helper, BlockPos at) {
+        return spawnWorker(helper, ModProfessions.FARMER, COMPOSTER, at);
     }
 
     private static int count(Container c, net.minecraft.world.item.Item item) {
@@ -299,12 +304,7 @@ public class ModGameTests {
     }
 
     private static Villager spawnHerder(GameTestHelper helper, BlockPos at) {
-        Villager villager = helper.spawn(EntityType.VILLAGER, at);
-        villager.setVillagerData(villager.getVillagerData().withProfession(ModProfessions.HERDER.getDelegate()));
-        villager.refreshBrain(helper.getLevel());
-        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE,
-                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(LOOM)));
-        return villager;
+        return spawnWorker(helper, ModProfessions.HERDER, LOOM, at);
     }
 
     private static <T extends net.minecraft.world.entity.animal.Animal> java.util.List<T> alive(GameTestHelper helper, Class<T> type) {
@@ -473,12 +473,7 @@ public class ModGameTests {
 
     private static Villager spawnLumberjack(GameTestHelper helper, BlockPos at) {
         helper.setBlock(COMPOSTER, Blocks.FLETCHING_TABLE);
-        Villager villager = helper.spawn(EntityType.VILLAGER, at);
-        villager.setVillagerData(villager.getVillagerData().withProfession(ModProfessions.LUMBERJACK.getDelegate()));
-        villager.refreshBrain(helper.getLevel());
-        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE,
-                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(COMPOSTER)));
-        return villager;
+        return spawnWorker(helper, ModProfessions.LUMBERJACK, COMPOSTER, at);
     }
 
     /** A 4-log oak with natural leaves rooted in grass at (x, z). */

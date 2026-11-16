@@ -1,156 +1,64 @@
 package com.scottcaldwell.industriousvillagers.needs;
 
-import com.scottcaldwell.industriousvillagers.IndustriousVillagers;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
+import com.scottcaldwell.industriousvillagers.ModTags;
 import net.minecraft.core.Holder;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.tags.ItemTags;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
- * What a profession needs in order to work: tools, inputs and food it should keep topped up from containers, plus
- * which items it produces (always deposited). Shared by container interaction, work preconditions and the
- * "missing something" indicator, so a new profession only has to declare one of these.
+ * What a profession needs in order to work: tools, supplies and food it keeps topped up from containers, which items
+ * it produces (always deposited) and, optionally, its own kind of work. Declared once per profession in
+ * {@link ModProfessions}; container visits, the work gate, the inventory screen, the status plate and the brain are
+ * all derived from it.
+ *
+ * <p>Tool needs, in declaration order, get the dedicated inventory slots 0..n-1.
+ *
+ * @param work what the profession does besides eating and restocking; null for none
  */
-public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, List<String> toolIds, int generalSlots,
-                              WorkPlanner planner, java.util.function.Supplier<net.minecraft.world.entity.ai.behavior.Behavior<Villager>> runner) {
+public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Work work) {
 
-    /** Decides what profession-specific work to do next; the plan is handed to that profession's task runner. */
-    @FunctionalInterface
-    public interface WorkPlanner {
-        /** @return an opaque plan, or null when there is nothing to do right now */
-        Object plan(net.minecraft.server.level.ServerLevel level, Villager villager);
-    }
-
-    /** Ticks between profession work plans. */
-    public static final int WORK_INTERVAL = 60;
-
-    /** The needs that are tools, in slot order (shown on the status plate and given dedicated slots). */
-    public List<Need> toolNeeds() {
-        List<Need> out = new java.util.ArrayList<>();
-        for (String id : toolIds) {
-            for (Need need : needs) {
-                if (need.id().equals(id)) out.add(need);
-            }
+    /** A profession's own work: decides what to do next, and the task that does it. */
+    public record Work(Planner planner, Supplier<Behavior<Villager>> runner) {
+        @FunctionalInterface
+        public interface Planner {
+            /** @return a plan for the runner (a type it recognises), or null when there is nothing to do right now */
+            Object plan(ServerLevel level, Villager villager);
         }
-        return out;
-    }
-
-    /** Icon of the food need (shown beside the hunger meter), defaulting to bread. */
-    public Item foodIcon() {
-        for (Need need : needs) {
-            if (need.id().equals("food")) return need.icon().getItem();
-        }
-        return Items.BREAD;
-    }
-
-    /** The need that is the profession's tool (shown on the status plate), or null. */
-    public Need toolNeed() {
-        List<Need> tools = toolNeeds();
-        return tools.isEmpty() ? null : tools.get(0);
-    }
-
-    /**
-     * @param target         how many the villager tops up to when restocking
-     * @param refillBelow    restocking starts when it holds fewer than this
-     * @param depositSurplus items beyond {@code target} are deposited
-     * @param blocks         when this holds and the villager has none, the shortfall is shown to the player
-     * @param gatesWork      such a shortfall also stops the villager working
-     */
-    public record Need(String id, Predicate<ItemStack> match, ItemStack icon, int target, int refillBelow,
-                       boolean depositSurplus, Predicate<Villager> blocks, boolean gatesWork) {
-
-        public boolean missing(Villager villager) {
-            return blocks.test(villager) && have(villager.getInventory()) == 0;
-        }
-
-        public int have(Container inventory) {
-            int n = 0;
-            for (int i = 0; i < inventory.getContainerSize(); i++) {
-                ItemStack s = inventory.getItem(i);
-                if (!s.isEmpty() && match.test(s)) n += s.getCount();
-            }
-            return n;
-        }
-
-        public boolean unmet(Container inventory) {
-            return have(inventory) < refillBelow;
-        }
-    }
-
-    private static final ProfessionNeeds FARMER = new ProfessionNeeds(List.of(
-            new Need("hoe", s -> s.is(ItemTags.HOES), new ItemStack(Items.IRON_HOE), 1, 1, false, v -> true, true),
-            new Need("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), new ItemStack(Items.WHEAT_SEEDS), 16, 8, true, v -> true, false),
-            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
-    ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
-            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), List.of("hoe"), 7, null, null);
-
-    /** Food villagers will eat and fetch from containers: the data-driven tag industriousvillagers:villager_food. */
-    public static final TagKey<Item> VILLAGER_FOOD = TagKey.create(Registries.ITEM,
-            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "villager_food"));
-
-    public static boolean isFood(ItemStack stack) {
-        return stack.is(VILLAGER_FOOD);
-    }
-
-    /**
-     * Every profession that has needs. Adding an entry here is all the shared machinery needs: menu type and screen,
-     * work-package task hook, brain activity, status plate and container visits are all derived from this map.
-     */
-    public static final TagKey<Item> ANIMAL_FEED = TagKey.create(Registries.ITEM,
-            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "animal_feed"));
-    public static final TagKey<Item> HERDER_OUTPUT = TagKey.create(Registries.ITEM,
-            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "herder_output"));
-
-    /** Herder: shears, a sword and buckets (each skipped when missing), animal feed, and food for itself. */
-    private static final ProfessionNeeds HERDER = new ProfessionNeeds(List.of(
-            new Need("shears", s -> s.is(Items.SHEARS), new ItemStack(Items.SHEARS), 1, 1, false, v -> true, false),
-            new Need("sword", s -> s.is(ItemTags.SWORDS), new ItemStack(Items.IRON_SWORD), 1, 1, false, v -> true, false),
-            new Need("bucket", s -> s.is(Items.BUCKET), new ItemStack(Items.BUCKET), 3, 2, false, v -> true, false),
-            new Need("feed", s -> s.is(ANIMAL_FEED), new ItemStack(Items.WHEAT), 16, 8, true, v -> true, false),
-            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
-    ), s -> s.is(HERDER_OUTPUT), List.of("shears", "sword", "bucket"), 5,
-            com.scottcaldwell.industriousvillagers.herd.HerdWork::plan, com.scottcaldwell.industriousvillagers.herd.HerdWork::new);
-
-    public static final TagKey<Item> LUMBERJACK_OUTPUT = TagKey.create(Registries.ITEM,
-            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "lumberjack_output"));
-
-    /** Lumberjack: an axe to fell with (no axe, no felling), saplings to replant with, and food for itself. */
-    private static final ProfessionNeeds LUMBERJACK = new ProfessionNeeds(List.of(
-            new Need("axe", s -> s.is(ItemTags.AXES), new ItemStack(Items.IRON_AXE), 1, 1, false, v -> true, true),
-            new Need("saplings", s -> s.is(ItemTags.SAPLINGS), new ItemStack(Items.OAK_SAPLING), 8, 4, true, v -> true, false),
-            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
-    ), s -> s.is(LUMBERJACK_OUTPUT), List.of("axe"), 7,
-            com.scottcaldwell.industriousvillagers.lumber.FellTree::plan, com.scottcaldwell.industriousvillagers.lumber.FellTree::new);
-
-    private static final Map<ResourceKey<VillagerProfession>, ProfessionNeeds> BY_PROFESSION =
-            Map.of(ModProfessions.FARMER_KEY, FARMER, ModProfessions.HERDER_KEY, HERDER,
-                    ModProfessions.LUMBERJACK_KEY, LUMBERJACK);
-
-    public static java.util.Set<ResourceKey<VillagerProfession>> professions() {
-        return BY_PROFESSION.keySet();
-    }
-    public static ProfessionNeeds byKey(ResourceKey<VillagerProfession> key) {
-        return BY_PROFESSION.get(key);
     }
 
     /** Everyone without a profession of ours: just hunger and health, no tools, nothing to deposit. */
     private static final ProfessionNeeds BASIC = new ProfessionNeeds(List.of(
-            new Need("food", s -> isFood(s) || s.is(Items.CARROT) || s.is(Items.POTATO) || s.is(Items.BEETROOT),
-                    new ItemStack(Items.BREAD), 6, 3, false, v -> false, false)
-    ), s -> false, List.of(), 0, null, null);
+            Need.food(s -> s.is(ModTags.VILLAGER_FOOD) || s.is(Items.CARROT) || s.is(Items.POTATO) || s.is(Items.BEETROOT),
+                    Items.BREAD, v -> false)
+    ), s -> false, null);
+
+    // ---- lookup -----------------------------------------------------------------------------------------------
+
+    /** The needs of this villager's profession, or null when it has none (vanilla or unemployed). */
+    public static ProfessionNeeds of(Villager villager) {
+        Holder<VillagerProfession> profession = villager.getVillagerData().profession();
+        return profession.unwrapKey().map(ModProfessions::needsFor).orElse(null);
+    }
+
+    public static ProfessionNeeds byKey(ResourceKey<VillagerProfession> key) {
+        return ModProfessions.needsFor(key);
+    }
+
+    public static Set<ResourceKey<VillagerProfession>> professions() {
+        return ModProfessions.withNeeds();
+    }
 
     /**
      * The needs that apply to this villager: its profession's, or the basic hunger-and-health needs for any other
@@ -162,10 +70,29 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
         return villager.isBaby() ? null : BASIC;
     }
 
-    /** The needs of this villager's profession, or null when it has none (vanilla or unemployed). */
-    public static ProfessionNeeds of(Villager villager) {
-        Holder<VillagerProfession> profession = villager.getVillagerData().profession();
-        return profession.unwrapKey().map(BY_PROFESSION::get).orElse(null);
+    // ---- queries ----------------------------------------------------------------------------------------------
+
+    /** The needs that are tools, in slot order. */
+    public List<Need> toolNeeds() {
+        return needs.stream().filter(Need::tool).toList();
+    }
+
+    public Need need(String id) {
+        for (Need need : needs) {
+            if (need.id().equals(id)) return need;
+        }
+        return null;
+    }
+
+    /** The villager's own food need (every profession and the basic villager have one). */
+    public Need food() {
+        return need(Need.FOOD);
+    }
+
+    /** Whether the villager carries something that satisfies the need with this id. */
+    public boolean has(Villager villager, String id) {
+        Need need = need(id);
+        return need != null && need.have(villager.getInventory()) > 0;
     }
 
     /** True when the villager will not work: too hungry (whatever it carries), or a work-gating need is missing. */

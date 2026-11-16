@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousvillagers.client;
 
+import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.IndustriousVillagers;
 import com.scottcaldwell.industriousvillagers.ModAttachments;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
@@ -87,7 +88,7 @@ public final class StatusPlate {
         MutableComponent line = Component.empty();
         line.append(villager.getVillagerData().profession().value().name().copy().withStyle(ChatFormatting.WHITE));
         line.append(Component.literal("  "));
-        java.util.List<ProfessionNeeds.Need> tools = needs.toolNeeds();
+        java.util.List<Need> tools = needs.toolNeeds();
         for (int t = 0; t < tools.size(); t++) {
             line.append(itemSprite(tools.get(t).icon().getItem()));
             if ((status.tools() & (1 << t)) == 0) line.append(Component.literal("✘").withStyle(ChatFormatting.RED));

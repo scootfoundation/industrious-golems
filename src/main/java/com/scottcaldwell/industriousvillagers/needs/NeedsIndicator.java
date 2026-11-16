@@ -42,9 +42,6 @@ public final class NeedsIndicator {
     /** Called every tick on the server for each villager. */
     public static void tick(Villager villager) {
         if (villager.tickCount % CHECK_INTERVAL != 0) return;
-        // An earlier version showed the missing item as a head-slot item; clear any left over in saved villagers.
-        if (isIcon(villager.getItemBySlot(EquipmentSlot.HEAD))) villager.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
-
         ProfessionNeeds needs = ProfessionNeeds.effective(villager);
         com.scottcaldwell.industriousvillagers.inventory.InventoryLayout.organize(villager);
         if (needs == null || villager.isBaby()) {
@@ -57,12 +54,12 @@ public final class NeedsIndicator {
 
         // Synced for the client's status plate: hunger, health, whether blocked, and the tools carried.
         boolean blocked = false;
-        for (ProfessionNeeds.Need need : needs.needs()) {
+        for (Need need : needs.needs()) {
             if (need.missing(villager)) { blocked = true; break; }
         }
         int status = StatusData.pack(hunger, Math.round(villager.getHealth()), blocked);
         int tools = 0;
-        java.util.List<ProfessionNeeds.Need> toolNeeds = needs.toolNeeds();
+        java.util.List<Need> toolNeeds = needs.toolNeeds();
         for (int t = 0; t < toolNeeds.size(); t++) {
             if (toolNeeds.get(t).have(villager.getInventory()) > 0) tools |= 1 << t;
         }
@@ -102,8 +99,6 @@ public final class NeedsIndicator {
 
     /** The icon is not a real item: never let it drop on death. */
     public static void clearOnDeath(Villager villager) {
-        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.HEAD, EquipmentSlot.MAINHAND}) {
-            if (isIcon(villager.getItemBySlot(slot))) villager.setItemSlot(slot, ItemStack.EMPTY);
-        }
+        if (isIcon(villager.getItemBySlot(EquipmentSlot.MAINHAND))) villager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
     }
 }

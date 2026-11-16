@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousvillagers.inventory;
 
+import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -18,7 +19,7 @@ public final class InventoryLayout {
     public static void organize(Villager villager) {
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
         if (needs == null || villager.getTradingPlayer() != null) return;
-        List<ProfessionNeeds.Need> tools = needs.toolNeeds();
+        List<Need> tools = needs.toolNeeds();
         if (tools.isEmpty()) return;
         SimpleContainer inv = villager.getInventory();
         int reserved = tools.size();

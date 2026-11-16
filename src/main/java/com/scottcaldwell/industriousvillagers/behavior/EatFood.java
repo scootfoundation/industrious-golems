@@ -1,7 +1,5 @@
 package com.scottcaldwell.industriousvillagers.behavior;
 
-import com.google.common.collect.ImmutableMap;
-import com.scottcaldwell.industriousvillagers.ModAttachments;
 import com.scottcaldwell.industriousvillagers.needs.Hunger;
 import com.scottcaldwell.industriousvillagers.needs.NeedsIndicator;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
@@ -9,57 +7,43 @@ import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.ai.behavior.Behavior;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * A hungry villager stops, holds up a piece of food from its inventory and eats it (sound and crumbs), then is fed
- * until the next hunger interval. Interrupting the meal (sleep, damage) wastes nothing.
+ * A hungry villager stops, holds up a piece of food from its inventory and eats it (sound and crumbs), restoring the
+ * food's nutrition. Interrupting the meal (sleep, damage) wastes nothing.
  */
-public class EatFood extends Behavior<Villager> {
+public class EatFood extends TaskRunner<EatFood.Meal> {
 
+    /** The plan: nothing to say but "eat". */
+    public record Meal() { }
+
+    private static final Meal MEAL = new Meal();
     private static final int EAT_TICKS = 32;
 
     private long endsAt;
     private ItemStack previousMainHand = ItemStack.EMPTY;
 
     public EatFood() {
-        super(ImmutableMap.of(), EAT_TICKS);
+        super(Meal.class, EAT_TICKS);
     }
 
     private static int foodSlot(Villager villager) {
         ProfessionNeeds needs = ProfessionNeeds.effective(villager);
-        ProfessionNeeds.Need food = null;
-        if (needs != null) {
-            for (ProfessionNeeds.Need need : needs.needs()) if (need.id().equals("food")) food = need;
-        }
-        SimpleContainer inv = villager.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack s = inv.getItem(i);
-            if (!s.isEmpty() && (food != null ? food.match().test(s) : ProfessionNeeds.isFood(s))) return i;
-        }
-        return -1;
+        return needs == null ? -1 : needs.food().slot(villager.getInventory());
     }
 
-    /** True when the villager is hungry and has something to eat. Used by {@link StartTask}. */
-    public static boolean shouldEat(Villager villager) {
-        if (ProfessionNeeds.effective(villager) == null || villager.isSleeping()) return false;
+    /** A meal when the villager is awake, has food, and wants it (see {@link Hunger#wantsToEat}); otherwise null. */
+    public static Meal plan(Villager villager) {
+        if (villager.isSleeping()) return null;
         int slot = foodSlot(villager);
-        return slot >= 0 && Hunger.wantsToEat(villager, villager.getInventory().getItem(slot));
+        return slot >= 0 && Hunger.wantsToEat(villager, villager.getInventory().getItem(slot)) ? MEAL : null;
     }
 
     @Override
-    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
-        return villager.getData(ModAttachments.TASK).type == TaskState.Type.EAT;
-    }
-
-    @Override
-    protected void start(ServerLevel level, Villager villager, long time) {
-        Tasks.stopOthers(level, villager, this, time);
+    protected void begin(ServerLevel level, Villager villager, long time) {
         endsAt = time + EAT_TICKS;
         previousMainHand = villager.getItemBySlot(EquipmentSlot.MAINHAND);
         int slot = foodSlot(villager);
@@ -67,18 +51,17 @@ public class EatFood extends Behavior<Villager> {
             villager.setItemSlot(EquipmentSlot.MAINHAND,
                     NeedsIndicator.markAsDisplay(villager.getInventory().getItem(slot).copyWithCount(1)));
         }
-        pause(villager);
+        holdStill(villager);
     }
 
     @Override
-    protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
-        return !villager.isSleeping() && foodSlot(villager) >= 0 && Tasks.active(villager)
-                && Tasks.scheduleAllowsEating(level, villager);
+    protected boolean allowedNow(ServerLevel level, Villager villager) {
+        return !villager.isSleeping() && foodSlot(villager) >= 0 && Tasks.scheduleAllowsEating(level, villager);
     }
 
     @Override
     protected void tick(ServerLevel level, Villager villager, long time) {
-        pause(villager);
+        holdStill(villager);
         if ((endsAt - time) % 4 == 0) {
             ItemStack held = villager.getItemBySlot(EquipmentSlot.MAINHAND);
             villager.playSound(SoundEvents.GENERIC_EAT.value(), 0.5F, 0.9F + villager.getRandom().nextFloat() * 0.2F);
@@ -87,13 +70,8 @@ public class EatFood extends Behavior<Villager> {
         }
     }
 
-    private static void pause(Villager villager) {
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
-    }
-
     @Override
-    protected void stop(ServerLevel level, Villager villager, long time) {
+    protected void end(ServerLevel level, Villager villager, long time) {
         villager.setItemSlot(EquipmentSlot.MAINHAND, previousMainHand);
         previousMainHand = ItemStack.EMPTY;
         if (time >= endsAt) { // not interrupted before swallowing
@@ -104,6 +82,5 @@ public class EatFood extends Behavior<Villager> {
                 villager.playSound(SoundEvents.PLAYER_BURP, 0.5F, 1.0F);
             }
         }
-        Tasks.finish(level, villager);
     }
 }

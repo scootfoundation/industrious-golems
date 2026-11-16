@@ -14,31 +14,27 @@ public final class ToolWear {
     /** Wears the profession's first tool. */
     public static void use(ServerLevel level, Villager villager) {
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        use(level, villager, needs == null ? null : needs.toolNeed());
+        if (needs != null && !needs.toolNeeds().isEmpty()) use(level, villager, needs.toolNeeds().get(0));
     }
 
     /** Wears the tool matching the need with this id. */
     public static void use(ServerLevel level, Villager villager, String toolId) {
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        if (needs == null) return;
-        for (ProfessionNeeds.Need need : needs.toolNeeds()) {
-            if (need.id().equals(toolId)) { use(level, villager, need); return; }
-        }
+        Need tool = needs == null ? null : needs.need(toolId);
+        if (tool != null) use(level, villager, tool);
     }
 
-    private static void use(ServerLevel level, Villager villager, ProfessionNeeds.Need tool) {
-        if (tool == null) return;
+    private static void use(ServerLevel level, Villager villager, Need tool) {
         SimpleContainer inv = villager.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (stack.isEmpty() || !tool.match().test(stack) || !stack.isDamageableItem()) continue;
-            stack.setDamageValue(stack.getDamageValue() + 1);
-            if (stack.getDamageValue() >= stack.getMaxDamage()) {
-                inv.setItem(i, ItemStack.EMPTY);
-                level.playSound(null, villager.blockPosition(), SoundEvents.ITEM_BREAK.value(), SoundSource.NEUTRAL, 0.8F, 0.8F);
-            }
-            inv.setChanged();
-            return;
+        int slot = tool.slot(inv);
+        if (slot < 0) return;
+        ItemStack stack = inv.getItem(slot);
+        if (!stack.isDamageableItem()) return;
+        stack.setDamageValue(stack.getDamageValue() + 1);
+        if (stack.getDamageValue() >= stack.getMaxDamage()) {
+            inv.setItem(slot, ItemStack.EMPTY);
+            level.playSound(null, villager.blockPosition(), SoundEvents.ITEM_BREAK.value(), SoundSource.NEUTRAL, 0.8F, 0.8F);
         }
+        inv.setChanged();
     }
 }
