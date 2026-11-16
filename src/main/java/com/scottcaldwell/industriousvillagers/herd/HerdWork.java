@@ -50,9 +50,10 @@ public class HerdWork extends Behavior<Villager> {
     static final long MILK_COOLDOWN = 6000;
     private static final double REACH_SQR = 4.0 * 4.0;
     private static final int APPROACH_TICKS = 400;
+    private static final int LOOK_TICKS = 15;
     private static final int PAUSE_TICKS = 25;
 
-    private enum Phase { APPROACH, PAUSE, DONE }
+    private enum Phase { APPROACH, LOOK, PAUSE, DONE }
 
     private HerdPlan plan;
     private Phase phase = Phase.DONE;
@@ -195,23 +196,30 @@ public class HerdWork extends Behavior<Villager> {
 
     @Override
     protected void tick(ServerLevel level, Villager villager, long time) {
+        Entity target = level.getEntity(plan.targetId());
         if (phase == Phase.PAUSE) {
             holdStill(villager);
+            if (target != null) villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(target, true));
             if (--timer <= 0) phase = Phase.DONE;
             return;
         }
-        Entity target = level.getEntity(plan.targetId());
         if (!(target instanceof Animal animal) || !animal.isAlive()) { phase = Phase.DONE; return; }
 
         villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(animal, true));
         if (villager.distanceToSqr(animal) > REACH_SQR) {
             if (time > deadline) { phase = Phase.DONE; return; }
+            if (phase == Phase.LOOK) phase = Phase.APPROACH; // it moved out of reach: follow it
             if (!villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) {
                 villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new EntityTracker(animal, false), 0.5F, 3));
             }
             return;
         }
         holdStill(villager);
+        if (phase == Phase.APPROACH) { // arrived: stop and look at the animal before doing anything to it
+            phase = Phase.LOOK;
+            timer = LOOK_TICKS;
+        }
+        if (--timer > 0) return;
         villager.swing(InteractionHand.MAIN_HAND);
         if (perform(level, villager, animal, time)) {
             phase = Phase.PAUSE;
