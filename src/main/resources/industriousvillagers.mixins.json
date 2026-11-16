@@ -9,6 +9,9 @@
     "VillagerInteractionMixin",
     "VillagerProfessionMixin"
   ],
+  "client": [
+    "client.VillagerProfessionLayerMixin"
+  ],
   "refmap": "industriousvillagers.refmap.json",
   "injectors": {
     "defaultRequire": 1

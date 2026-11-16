@@ -21,6 +21,7 @@ import java.util.Optional;
 @Mixin(AssignProfessionFromJobSite.class)
 public class AssignProfessionFromJobSiteMixin {
 
+
     /**
      * @author IndustriousVillagers
      * @reason Only assign professions that belong to this mod; vanilla professions are suppressed.
@@ -57,6 +58,11 @@ public class AssignProfessionFromJobSiteMixin {
                             .flatMap(e -> BuiltInRegistries.VILLAGER_PROFESSION.get(e.getKey()));
             if (professionOpt.isEmpty()) return false;
 
+            // Mirror vanilla: claim the site as JOB_SITE and clear POTENTIAL_JOB_SITE. Without JOB_SITE,
+            // vanilla's ResetProfession behaviour reverts a zero-xp villager to unemployed immediately.
+            villager.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+            villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, claimedSite);
+            level.broadcastEntityEvent(villager, (byte) 14);
             villager.setVillagerData(villager.getVillagerData().withProfession(professionOpt.get()));
             villager.refreshBrain(level);
             return true;
