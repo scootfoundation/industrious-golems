@@ -9,28 +9,28 @@ import net.minecraft.world.attribute.EnvironmentAttributes;
 
 import java.util.ArrayList;
 
-final class Tasks {
+public final class Tasks {
     private Tasks() { }
 
     /** Stops everything else that is running so the task starts from a clean slate (core behaviours restart next tick). */
     @SuppressWarnings("deprecation")
-    static void stopOthers(ServerLevel level, Villager villager, BehaviorControl<?> self, long time) {
+    public static void stopOthers(ServerLevel level, Villager villager, BehaviorControl<?> self, long time) {
         for (BehaviorControl<? super Villager> running : new ArrayList<>(villager.getBrain().getRunningBehaviors())) {
             if (running != self) running.doStop(level, villager, time);
         }
     }
 
-    static boolean active(Villager villager) {
+    public static boolean active(Villager villager) {
         return villager.getBrain().isActive(ModActivities.TASK.get());
     }
 
     /** The task only continues while the villager's schedule still says it is time to work. */
-    static boolean scheduleAllowsWork(ServerLevel level, Villager villager) {
+    public static boolean scheduleAllowsWork(ServerLevel level, Villager villager) {
         return level.environmentAttributes().getValue(EnvironmentAttributes.VILLAGER_ACTIVITY, villager.position()) == Activity.WORK;
     }
 
     /** Ends the task: forgets it and hands the villager back to whatever its schedule says. */
-    static void finish(ServerLevel level, Villager villager) {
+    public static void finish(ServerLevel level, Villager villager) {
         villager.getData(com.scottcaldwell.industriousvillagers.ModAttachments.TASK).clear();
         if (!active(villager)) return; // something else (panic, raid) already took over
         Activity scheduled = level.environmentAttributes().getValue(EnvironmentAttributes.VILLAGER_ACTIVITY, villager.position());

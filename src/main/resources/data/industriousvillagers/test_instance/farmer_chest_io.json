@@ -4,5 +4,5 @@
   "function": "industriousvillagers:farmer_chest_io",
   "max_ticks": 1000,
   "setup_ticks": 1,
-  "structure": "minecraft:empty"
+  "structure": "industriousvillagers:arena"
 }

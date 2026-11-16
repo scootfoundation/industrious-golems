@@ -11,9 +11,22 @@ import net.minecraft.world.item.ItemStack;
 public final class ToolWear {
     private ToolWear() {}
 
+    /** Wears the profession's first tool. */
     public static void use(ServerLevel level, Villager villager) {
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        ProfessionNeeds.Need tool = needs == null ? null : needs.toolNeed();
+        use(level, villager, needs == null ? null : needs.toolNeed());
+    }
+
+    /** Wears the tool matching the need with this id. */
+    public static void use(ServerLevel level, Villager villager, String toolId) {
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        if (needs == null) return;
+        for (ProfessionNeeds.Need need : needs.toolNeeds()) {
+            if (need.id().equals(toolId)) { use(level, villager, need); return; }
+        }
+    }
+
+    private static void use(ServerLevel level, Villager villager, ProfessionNeeds.Need tool) {
         if (tool == null) return;
         SimpleContainer inv = villager.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {

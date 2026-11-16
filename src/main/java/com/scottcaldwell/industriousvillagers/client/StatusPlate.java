@@ -62,11 +62,13 @@ public final class StatusPlate {
         line.append(Component.literal("█".repeat(Math.max(0, BAR_SEGMENTS - full))).withStyle(ChatFormatting.DARK_GRAY));
         line.append(Component.literal("  "));
 
-        // tool
-        int tool = status.tool();
-        Item toolItem = tool > 0 ? BuiltInRegistries.ITEM.byId(tool - 1) : needs.toolNeed().icon().getItem();
-        line.append(sprite(toolItem));
-        if (tool == 0) line.append(Component.literal("✘").withStyle(ChatFormatting.RED));
+        // tools: each shows its icon, with a red cross when the villager does not carry it
+        java.util.List<ProfessionNeeds.Need> toolNeeds = needs.toolNeeds();
+        for (int t = 0; t < toolNeeds.size(); t++) {
+            line.append(sprite(toolNeeds.get(t).icon().getItem()));
+            if ((status.tools() & (1 << t)) == 0) line.append(Component.literal("✘").withStyle(ChatFormatting.RED));
+            line.append(Component.literal(" "));
+        }
         return line;
     }
 

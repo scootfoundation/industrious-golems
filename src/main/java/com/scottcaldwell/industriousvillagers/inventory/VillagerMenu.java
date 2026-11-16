@@ -25,25 +25,30 @@ public class VillagerMenu extends AbstractContainerMenu {
     public static final int CONTAINER_SIZE = 8;
     /** Columns in the single container row (matches the vanilla chest texture). */
     public static final int ROW_COLUMNS = 9;
-    /** The tool sits in column 0; general slots start at column 2, leaving column 1 as a gap. */
-    public static final int FIRST_GENERAL_COLUMN = 2;
     public static final int ROW_Y = 18;
     public static final int IMAGE_HEIGHT = 132;
 
     private final Container container;
+    private final int toolSlots;
     private final int generalSlots;
 
     public VillagerMenu(MenuType<VillagerMenu> type, int id, Inventory playerInventory, Container container, ProfessionNeeds needs) {
         super(type, id);
         this.container = container;
-        this.generalSlots = Math.min(needs.generalSlots(), Math.min(CONTAINER_SIZE - 1, ROW_COLUMNS - FIRST_GENERAL_COLUMN));
+        java.util.List<ProfessionNeeds.Need> tools = needs.toolNeeds();
+        this.toolSlots = tools.size();
+        this.generalSlots = Math.max(0, Math.min(needs.generalSlots(),
+                Math.min(CONTAINER_SIZE - toolSlots, ROW_COLUMNS - firstGeneralColumn())));
         container.startOpen(playerInventory.player);
 
-        ProfessionNeeds.Need tool = needs.toolNeed();
-        addSlot(new ToolSlot(container, 0, slotX(0), ROW_Y, tool == null ? s -> false : tool.match(),
-                Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "container/slot/" + needs.toolId())));
+        // one dedicated slot per tool, then a gap column, then the general slots
+        for (int i = 0; i < toolSlots; i++) {
+            ProfessionNeeds.Need tool = tools.get(i);
+            addSlot(new ToolSlot(container, i, slotX(i), ROW_Y, tool.match(),
+                    Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "container/slot/" + tool.id())));
+        }
         for (int i = 0; i < this.generalSlots; i++) {
-            addSlot(new Slot(container, 1 + i, slotX(FIRST_GENERAL_COLUMN + i), ROW_Y));
+            addSlot(new Slot(container, toolSlots + i, slotX(firstGeneralColumn() + i), ROW_Y));
         }
         // player inventory and hotbar, positioned as in a one-row chest
         for (int row = 0; row < 3; row++) {
@@ -58,6 +63,16 @@ public class VillagerMenu extends AbstractContainerMenu {
 
     public static int slotX(int column) {
         return 8 + column * 18;
+    }
+
+    /** Number of dedicated tool slots (columns 0..n-1). */
+    public int toolSlots() {
+        return toolSlots;
+    }
+
+    /** General slots start after the tool slots, leaving one column as a gap. */
+    public int firstGeneralColumn() {
+        return toolSlots + 1;
     }
 
     public int generalSlots() {
@@ -92,7 +107,7 @@ public class VillagerMenu extends AbstractContainerMenu {
         if (slot.hasItem()) {
             ItemStack stack = slot.getItem();
             moved = stack.copy();
-            int villagerSlots = 1 + generalSlots;
+            int villagerSlots = toolSlots + generalSlots;
             if (index < villagerSlots) {
                 if (!moveItemStackTo(stack, villagerSlots, this.slots.size(), true)) return ItemStack.EMPTY;
             } else if (!moveItemStackTo(stack, 0, villagerSlots, false)) {

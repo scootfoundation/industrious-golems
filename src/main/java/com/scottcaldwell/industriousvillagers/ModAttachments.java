@@ -25,6 +25,12 @@ public class ModAttachments {
                     .sync(com.scottcaldwell.industriousvillagers.needs.StatusData.STREAM_CODEC)
                     .build());
 
+    /** Game time a cow was last milked by a villager; limits how often it can be milked. */
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> MILKED_AT =
+            ATTACHMENTS.register("milked_at", () -> AttachmentType.builder(() -> Long.MIN_VALUE)
+                    .serialize(Codec.LONG.fieldOf("time"))
+                    .build());
+
     /** Transient hand-over between the task trigger and the task activity; not saved. */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousvillagers.behavior.TaskState>> TASK =
             ATTACHMENTS.register("task", () -> AttachmentType.builder(com.scottcaldwell.industriousvillagers.behavior.TaskState::new).build());

@@ -24,7 +24,29 @@ import java.util.function.Predicate;
  * which items it produces (always deposited). Shared by container interaction, work preconditions and the
  * "missing something" indicator, so a new profession only has to declare one of these.
  */
-public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, String toolId, int generalSlots) {
+public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, List<String> toolIds, int generalSlots,
+                              WorkPlanner planner) {
+
+    /** Decides what profession-specific work to do next; the plan is handed to that profession's task runner. */
+    @FunctionalInterface
+    public interface WorkPlanner {
+        /** @return an opaque plan, or null when there is nothing to do right now */
+        Object plan(net.minecraft.server.level.ServerLevel level, Villager villager);
+    }
+
+    /** Ticks between profession work plans. */
+    public static final int WORK_INTERVAL = 60;
+
+    /** The needs that are tools, in slot order (shown on the status plate and given dedicated slots). */
+    public List<Need> toolNeeds() {
+        List<Need> out = new java.util.ArrayList<>();
+        for (String id : toolIds) {
+            for (Need need : needs) {
+                if (need.id().equals(id)) out.add(need);
+            }
+        }
+        return out;
+    }
 
     /** Icon of the food need (shown beside the hunger meter), defaulting to bread. */
     public Item foodIcon() {
@@ -36,10 +58,8 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, St
 
     /** The need that is the profession's tool (shown on the status plate), or null. */
     public Need toolNeed() {
-        for (Need need : needs) {
-            if (need.id().equals(toolId)) return need;
-        }
-        return null;
+        List<Need> tools = toolNeeds();
+        return tools.isEmpty() ? null : tools.get(0);
     }
 
     /**
@@ -75,7 +95,7 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, St
             new Need("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), new ItemStack(Items.WHEAT_SEEDS), 16, 8, true, v -> true, false),
             new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, true)
     ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
-            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), "hoe", 7);
+            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), List.of("hoe"), 7, null);
 
     /** Food villagers will eat and fetch from containers: the data-driven tag industriousvillagers:villager_food. */
     public static final TagKey<Item> VILLAGER_FOOD = TagKey.create(Registries.ITEM,
@@ -89,8 +109,23 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, St
      * Every profession that has needs. Adding an entry here is all the shared machinery needs: menu type and screen,
      * work-package task hook, brain activity, status plate and container visits are all derived from this map.
      */
+    public static final TagKey<Item> ANIMAL_FEED = TagKey.create(Registries.ITEM,
+            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "animal_feed"));
+    public static final TagKey<Item> HERDER_OUTPUT = TagKey.create(Registries.ITEM,
+            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "herder_output"));
+
+    /** Herder: shears, a sword and buckets (each skipped when missing), animal feed, and food for itself. */
+    private static final ProfessionNeeds HERDER = new ProfessionNeeds(List.of(
+            new Need("shears", s -> s.is(Items.SHEARS), new ItemStack(Items.SHEARS), 1, 1, false, v -> true, false),
+            new Need("sword", s -> s.is(ItemTags.SWORDS), new ItemStack(Items.IRON_SWORD), 1, 1, false, v -> true, false),
+            new Need("bucket", s -> s.is(Items.BUCKET), new ItemStack(Items.BUCKET), 3, 2, false, v -> true, false),
+            new Need("feed", s -> s.is(ANIMAL_FEED), new ItemStack(Items.WHEAT), 16, 8, true, v -> true, false),
+            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, true)
+    ), s -> s.is(HERDER_OUTPUT), List.of("shears", "sword", "bucket"), 5,
+            com.scottcaldwell.industriousvillagers.herd.HerdWork::plan);
+
     private static final Map<ResourceKey<VillagerProfession>, ProfessionNeeds> BY_PROFESSION =
-            Map.of(ModProfessions.FARMER_KEY, FARMER);
+            Map.of(ModProfessions.FARMER_KEY, FARMER, ModProfessions.HERDER_KEY, HERDER);
 
     public static java.util.Set<ResourceKey<VillagerProfession>> professions() {
         return BY_PROFESSION.keySet();

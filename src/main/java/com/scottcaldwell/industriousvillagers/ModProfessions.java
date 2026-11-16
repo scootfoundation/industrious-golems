@@ -25,6 +25,11 @@ public class ModProfessions {
             Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "farmer")
     );
 
+    public static final ResourceKey<VillagerProfession> HERDER_KEY = ResourceKey.create(
+            Registries.VILLAGER_PROFESSION,
+            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "herder")
+    );
+
     // PoiTypes.FARMER is the ResourceKey for the Composter POI (named after the vanilla profession it served).
     public static final DeferredHolder<VillagerProfession, VillagerProfession> FARMER =
             PROFESSIONS.register("farmer", () -> new VillagerProfession(
@@ -37,6 +42,17 @@ public class ModProfessions {
                     ),
                     ImmutableSet.of(Blocks.FARMLAND),
                     SoundEvents.VILLAGER_WORK_FARMER
+            ));
+
+    // The shepherd's loom is the herder's job site.
+    public static final DeferredHolder<VillagerProfession, VillagerProfession> HERDER =
+            PROFESSIONS.register("herder", () -> new VillagerProfession(
+                    Component.translatable("entity.minecraft.villager." + IndustriousVillagers.MODID + ".herder"),
+                    holder -> holder.is(PoiTypes.SHEPHERD),
+                    holder -> holder.is(PoiTypes.SHEPHERD),
+                    ImmutableSet.of(Items.SHEARS, Items.BUCKET, Items.WHEAT, Items.CARROT, Items.WHEAT_SEEDS),
+                    ImmutableSet.of(),
+                    SoundEvents.VILLAGER_WORK_SHEPHERD
             ));
 
     public static void register(IEventBus modEventBus) {

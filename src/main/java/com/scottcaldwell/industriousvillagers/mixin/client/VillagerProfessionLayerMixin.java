@@ -20,6 +20,7 @@ public class VillagerProfessionLayerMixin {
 
     private static final Map<String, String> VANILLA_SKIN = Map.of(
             "farmer", "farmer",
+            "herder", "shepherd",
             "lumberjack", "fletcher",
             "miner", "mason"
     );

@@ -31,15 +31,28 @@ public class StartTask extends Behavior<Villager> {
             return true;
         }
         long now = level.getGameTime();
-        if (now < state.nextVisit) return false;
-        state.nextVisit = now + ContainerInteraction.COOLDOWN_TICKS;
-        ContainerInteraction.Plan plan = ContainerInteraction.plan(level, villager);
-        if (plan == null) return false;
-        state.type = TaskState.Type.VISIT;
-        state.chest = plan.pos();
-        state.deposit = plan.deposit();
-        state.take = plan.take();
-        return true;
+        if (now >= state.nextVisit) {
+            state.nextVisit = now + ContainerInteraction.COOLDOWN_TICKS;
+            ContainerInteraction.Plan plan = ContainerInteraction.plan(level, villager);
+            if (plan != null) {
+                state.type = TaskState.Type.VISIT;
+                state.chest = plan.pos();
+                state.deposit = plan.deposit();
+                state.take = plan.take();
+                return true;
+            }
+        }
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        if (needs.planner() != null && now >= state.nextWork) {
+            state.nextWork = now + ProfessionNeeds.WORK_INTERVAL;
+            Object work = needs.planner().plan(level, villager);
+            if (work != null) {
+                state.type = TaskState.Type.WORK;
+                state.work = work;
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -39,18 +39,20 @@ public class VillagerScreen extends AbstractContainerScreen<VillagerMenu> {
         graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, left, top + 18 + 17, 0.0F, 126.0F, this.imageWidth, 96, 256, 256);
 
         // blank every container column that is not a slot of this villager
-        int used = 1 + this.menu.generalSlots();
+        int firstGeneral = this.menu.firstGeneralColumn();
         for (int col = 0; col < VillagerMenu.ROW_COLUMNS; col++) {
-            boolean isTool = col == 0;
-            boolean isGeneral = col >= VillagerMenu.FIRST_GENERAL_COLUMN && col < VillagerMenu.FIRST_GENERAL_COLUMN + this.menu.generalSlots();
+            boolean isTool = col < this.menu.toolSlots();
+            boolean isGeneral = col >= firstGeneral && col < firstGeneral + this.menu.generalSlots();
             if (isTool || isGeneral) continue;
             int x = left + VillagerMenu.slotX(col) - 1;
             int y = top + VillagerMenu.ROW_Y - 1;
             graphics.fill(x, y, x + 18, y + 18, PANEL);
         }
-        // tool slot: tinted so it reads as special
-        int toolX = left + VillagerMenu.slotX(0);
-        int toolY = top + VillagerMenu.ROW_Y;
-        graphics.fill(toolX, toolY, toolX + 16, toolY + 16, TOOL_TINT);
+        // tool slots: tinted so they read as special
+        for (int i = 0; i < this.menu.toolSlots(); i++) {
+            int toolX = left + VillagerMenu.slotX(i);
+            int toolY = top + VillagerMenu.ROW_Y;
+            graphics.fill(toolX, toolY, toolX + 16, toolY + 16, TOOL_TINT);
+        }
     }
 }

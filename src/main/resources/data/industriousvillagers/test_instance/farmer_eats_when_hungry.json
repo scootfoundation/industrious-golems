@@ -4,5 +4,5 @@
   "function": "industriousvillagers:farmer_eats_when_hungry",
   "max_ticks": 600,
   "setup_ticks": 1,
-  "structure": "minecraft:empty"
+  "structure": "industriousvillagers:arena"
 }

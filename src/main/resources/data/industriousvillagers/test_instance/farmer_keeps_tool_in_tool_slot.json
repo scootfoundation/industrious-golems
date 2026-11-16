@@ -4,5 +4,5 @@
   "function": "industriousvillagers:farmer_keeps_tool_in_tool_slot",
   "max_ticks": 300,
   "setup_ticks": 1,
-  "structure": "minecraft:empty"
+  "structure": "industriousvillagers:arena"
 }

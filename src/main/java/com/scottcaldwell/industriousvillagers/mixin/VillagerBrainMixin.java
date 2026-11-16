@@ -21,9 +21,12 @@ public abstract class VillagerBrainMixin {
     @Inject(method = "registerBrainGoals", at = @At("TAIL"))
     private void industriousvillagers$addTaskActivity(Brain<Villager> brain, CallbackInfo ci) {
         Villager villager = (Villager) (Object) this;
-        if (villager.isBaby() || ProfessionNeeds.of(villager) == null) return;
-        brain.addActivity(ModActivities.TASK.get(), ImmutableList.<Pair<Integer, ? extends BehaviorControl<? super Villager>>>of(
-                Pair.of(0, new ContainerInteraction()),
-                Pair.of(0, new EatFood())));
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        if (villager.isBaby() || needs == null) return;
+        ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super Villager>>> tasks = ImmutableList.builder();
+        tasks.add(Pair.of(0, new ContainerInteraction()));
+        tasks.add(Pair.of(0, new EatFood()));
+        if (needs.planner() != null) tasks.add(Pair.of(0, new com.scottcaldwell.industriousvillagers.herd.HerdWork()));
+        brain.addActivity(ModActivities.TASK.get(), tasks.build());
     }
 }

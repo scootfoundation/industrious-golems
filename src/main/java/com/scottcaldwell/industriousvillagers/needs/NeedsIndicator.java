@@ -2,7 +2,6 @@ package com.scottcaldwell.industriousvillagers.needs;
 
 import com.scottcaldwell.industriousvillagers.ModAttachments;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -59,15 +58,12 @@ public final class NeedsIndicator {
             if (need.missing(villager)) { blocked = true; break; }
         }
         int status = Math.max(0, Math.min(10, full)) | StatusData.ENABLED | (blocked ? StatusData.BLOCKED : 0);
-        int tool = 0;
-        ProfessionNeeds.Need toolNeed = needs.toolNeed();
-        if (toolNeed != null) {
-            for (int i = 0; i < villager.getInventory().getContainerSize(); i++) {
-                ItemStack s = villager.getInventory().getItem(i);
-                if (!s.isEmpty() && toolNeed.match().test(s)) { tool = BuiltInRegistries.ITEM.getId(s.getItem()) + 1; break; }
-            }
+        int tools = 0;
+        java.util.List<ProfessionNeeds.Need> toolNeeds = needs.toolNeeds();
+        for (int t = 0; t < toolNeeds.size(); t++) {
+            if (toolNeeds.get(t).have(villager.getInventory()) > 0) tools |= 1 << t;
         }
-        StatusData updated = new StatusData(status, tool);
+        StatusData updated = new StatusData(status, tools);
         if (!villager.getData(ModAttachments.STATUS).equals(updated)) villager.setData(ModAttachments.STATUS, updated);
 
         if (blocked && !villager.isSleeping() && villager.tickCount % SHAKE_INTERVAL == 0 && villager.getUnhappyCounter() == 0) {

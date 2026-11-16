@@ -38,6 +38,13 @@ public class ModGameTests {
         FUNCTIONS.register("hungry_farmer_without_food_stops_and_shows_food", () -> ModGameTests::hungryFarmerWithoutFood);
         FUNCTIONS.register("farmer_keeps_tool_in_tool_slot", () -> ModGameTests::farmerKeepsToolInToolSlot);
         FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
+        FUNCTIONS.register("herder_shears_sheep", () -> ModGameTests::herderShearsSheep);
+        FUNCTIONS.register("herder_milks_cow", () -> ModGameTests::herderMilksCow);
+        FUNCTIONS.register("herder_culls_crowded_pen", () -> ModGameTests::herderCullsCrowdedPen);
+        FUNCTIONS.register("herder_breeds_sparse_pen", () -> ModGameTests::herderBreedsSparsePen);
+        FUNCTIONS.register("herder_inventory_menu", () -> ModGameTests::herderInventoryMenu);
+        FUNCTIONS.register("herder_organizes_tools", () -> ModGameTests::herderOrganizesTools);
+        FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -176,13 +183,13 @@ public class ModGameTests {
         helper.runAtTickTime(60, () -> {
             var status = farmer.getData(ModAttachments.STATUS);
             helper.assertTrue(status.enabled() && status.blocked(), "farmer without a hoe should be flagged as blocked");
-            helper.assertTrue(status.tool() == 0, "no tool should be reported");
+            helper.assertTrue(status.tools() == 0, "no tool should be reported");
         });
         helper.runAtTickTime(61, () -> farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE)));
         helper.succeedWhen(() -> {
             var status = farmer.getData(ModAttachments.STATUS);
             helper.assertTrue(!status.blocked(), "blocked flag should clear once the hoe is in the inventory");
-            helper.assertTrue(status.tool() > 0, "the carried tool should be reported");
+            helper.assertTrue(status.tools() > 0, "the carried tool should be reported");
             helper.assertTrue(status.hunger() == 10, "a freshly seen farmer should be full, was " + status.hunger());
         });
     }
@@ -266,5 +273,154 @@ public class ModGameTests {
             helper.assertTrue(status.blocked() && status.hunger() == 0, "hungry farmer without food should be flagged blocked with an empty meter, hunger " + status.hunger());
             helper.assertTrue(com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds.of(farmer).workBlocked(farmer), "should be blocked from working");
         });
+    }
+
+    // ---- herder ---------------------------------------------------------------------------------------------
+
+    private static final BlockPos LOOM = COMPOSTER;
+
+    /** The farm platform with a loom job site and a 4x4 pen (x 4..7, z 4..7) fenced on its west and north sides. */
+    private static void buildHerdFarm(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(LOOM, Blocks.LOOM);
+        for (int i = 3; i <= 7; i++) {
+            helper.setBlock(new BlockPos(3, 1, i), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(i, 1, 3), Blocks.OAK_FENCE);
+        }
+    }
+
+    private static Villager spawnHerder(GameTestHelper helper, BlockPos at) {
+        Villager villager = helper.spawn(EntityType.VILLAGER, at);
+        villager.setVillagerData(villager.getVillagerData().withProfession(ModProfessions.HERDER.getDelegate()));
+        villager.refreshBrain(helper.getLevel());
+        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(LOOM)));
+        return villager;
+    }
+
+    private static <T extends net.minecraft.world.entity.animal.Animal> java.util.List<T> alive(GameTestHelper helper, Class<T> type) {
+        var box = net.minecraft.world.phys.AABB.encapsulatingFullBlocks(helper.absolutePos(new BlockPos(3, 1, 3)), helper.absolutePos(new BlockPos(8, 3, 8)));
+        return helper.getLevel().getEntitiesOfClass(type, box, e -> e.isAlive());
+    }
+
+    private static int total(Villager herder, Container chest, net.minecraft.world.item.Item item) {
+        return count(herder.getInventory(), item) + count(chest, item);
+    }
+
+    /** A herder with shears shears a ready sheep in the pen, collects the wool and wears the shears. */
+    private static void herderShearsSheep(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5));
+        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        herder.getInventory().addItem(new ItemStack(Items.SHEARS));
+        helper.succeedWhen(() -> {
+            var sheep = alive(helper, net.minecraft.world.entity.animal.sheep.Sheep.class);
+            helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared");
+            helper.assertTrue(total(herder, chest, Items.WHITE_WOOL) > 0, "the herder should hold or have deposited wool");
+            int slot = -1;
+            for (int i = 0; i < herder.getInventory().getContainerSize(); i++) {
+                if (herder.getInventory().getItem(i).is(Items.SHEARS)) slot = i;
+            }
+            helper.assertTrue(slot >= 0 && herder.getInventory().getItem(slot).getDamageValue() > 0, "the shears should be worn");
+        });
+    }
+
+    /** A herder with a bucket milks a cow: the bucket becomes milk. */
+    private static void herderMilksCow(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
+        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        herder.getInventory().addItem(new ItemStack(Items.BUCKET));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 1, "the cow should have been milked once");
+            helper.assertTrue(count(herder.getInventory(), Items.BUCKET) == 0, "the empty bucket was used up");
+        });
+    }
+
+    /** Five pigs in a 16-cell pen is over the density band: the herder culls down to three, collecting the meat. */
+    private static void herderCullsCrowdedPen(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        for (int i = 0; i < 5; i++) helper.spawn(EntityType.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
+        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        herder.getInventory().addItem(new ItemStack(Items.IRON_SWORD));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size() == 3,
+                    "pen should be culled to 3 pigs, has " + alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size());
+            helper.assertTrue(total(herder, chest, Items.PORKCHOP) > 0, "the meat should be collected");
+        });
+    }
+
+    /** Two cows in a 16-cell pen is below the density band: the herder feeds wheat and a calf is born. */
+    private static void herderBreedsSparsePen(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
+        helper.spawn(EntityType.COW, new BlockPos(6, 1, 6));
+        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        herder.getInventory().addItem(new ItemStack(Items.WHEAT, 8));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.cow.Cow.class).size() >= 3, "a calf should have been born");
+            helper.assertTrue(count(herder.getInventory(), Items.WHEAT) < 8, "the herder should have fed wheat");
+        });
+    }
+
+    /** The herder's menu has one dedicated slot per tool (shears, sword, bucket) and five general slots. */
+    private static void herderInventoryMenu(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        var player = helper.makeMockServerPlayerInLevel();
+        player.setPos(herder.getX() + 5000, herder.getY(), herder.getZ());
+        boolean[] checked = {false};
+        helper.runAtTickTime(5, () -> {
+            player.interactOn(herder, net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.VillagerMenu, "right-click should open the villager menu");
+            var menu = (com.scottcaldwell.industriousvillagers.inventory.VillagerMenu) player.containerMenu;
+            helper.assertTrue(menu.toolSlots() == 3 && menu.generalSlots() == 5, "3 tool and 5 general slots, got " + menu.toolSlots() + "/" + menu.generalSlots());
+            helper.assertTrue(menu.slots.size() == 3 + 5 + 36, "slot count should match, was " + menu.slots.size());
+            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.SHEARS)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_SWORD)), "slot 0 takes shears");
+            helper.assertTrue(menu.getSlot(1).mayPlace(new ItemStack(Items.IRON_SWORD)) && !menu.getSlot(1).mayPlace(new ItemStack(Items.BUCKET)), "slot 1 takes a sword");
+            helper.assertTrue(menu.getSlot(2).mayPlace(new ItemStack(Items.BUCKET)) && !menu.getSlot(2).mayPlace(new ItemStack(Items.SHEARS)), "slot 2 takes a bucket");
+            checked[0] = true;
+            player.closeContainer();
+        });
+        helper.succeedWhen(() -> helper.assertTrue(checked[0], "menu should have been checked"));
+    }
+
+    /** Tools scattered through the inventory are tidied into their own slots, and the plate reports which are carried. */
+    private static void herderOrganizesTools(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        herder.getInventory().setItem(0, new ItemStack(Items.BUCKET));
+        herder.getInventory().setItem(5, new ItemStack(Items.SHEARS));
+        herder.getInventory().setItem(6, new ItemStack(Items.IRON_SWORD));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(herder.getInventory().getItem(0).is(Items.SHEARS), "shears belong in slot 0");
+            helper.assertTrue(herder.getInventory().getItem(1).is(Items.IRON_SWORD), "sword belongs in slot 1");
+            helper.assertTrue(herder.getInventory().getItem(2).is(Items.BUCKET), "bucket belongs in slot 2");
+            helper.assertTrue(herder.getData(ModAttachments.STATUS).tools() == 0b111, "all three tools should be reported");
+        });
+    }
+
+    /** A fenced 4x4 area is a pen; the same fence with a gap leaks into open ground and is not. */
+    private static void penDetection(GameTestHelper helper) {
+        for (int x = 0; x < 14; x++) {
+            for (int z = 0; z < 14; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        for (int i = 5; i <= 10; i++) { // fence ring around the 4x4 interior x 6..9, z 6..9
+            for (int j = 5; j <= 10; j++) {
+                if (i == 5 || i == 10 || j == 5 || j == 10) helper.setBlock(new BlockPos(i, 1, j), Blocks.OAK_FENCE);
+            }
+        }
+        var level = helper.getLevel();
+        var closed = com.scottcaldwell.industriousvillagers.herd.HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
+        helper.assertTrue(closed != null && closed.size() == 16, "closed fence should form a 16-cell pen, got " + (closed == null ? "none" : closed.size()));
+        helper.setBlock(new BlockPos(5, 1, 7), Blocks.AIR); // open a gap
+        var leaky = com.scottcaldwell.industriousvillagers.herd.HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
+        helper.assertTrue(leaky == null, "a gap in the fence should leak into open ground");
+        helper.succeed();
     }
 }
