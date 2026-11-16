@@ -31,7 +31,8 @@ public class ModGameTests {
 
     static {
         FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
-        FUNCTIONS.register("farmer_prefers_copper_chest_for_supplies", () -> ModGameTests::farmerPrefersCopper);
+        FUNCTIONS.register("farmer_chest_preference", () -> ModGameTests::farmerChestPreference);
+        FUNCTIONS.register("farmer_shows_missing_hoe", () -> ModGameTests::farmerShowsMissingHoe);
         FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
     }
 
@@ -134,24 +135,38 @@ public class ModGameTests {
 
     private static final BlockPos COPPER_CHEST = new BlockPos(4, 1, 4);
 
-    /** Supplies are taken from the copper chest, and the harvest is deposited into the regular chest. */
-    private static void farmerPrefersCopper(GameTestHelper helper) {
+    /** Supplies are taken from the regular chest, and the harvest is deposited into the copper chest. */
+    private static void farmerChestPreference(GameTestHelper helper) {
         buildFarm(helper);
         helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST);
-        ChestBlockEntity regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        Container regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
-        copper.setItem(0, new ItemStack(Items.IRON_HOE));
-        copper.setItem(1, new ItemStack(Items.BREAD, 10));
+        regular.setItem(0, new ItemStack(Items.IRON_HOE));
+        regular.setItem(1, new ItemStack(Items.BREAD, 10));
 
         Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
 
         helper.succeedWhen(() -> {
-            helper.assertTrue(count(farmer.getInventory(), Items.IRON_HOE) == 1, "farmer should take the hoe from the copper chest");
-            helper.assertTrue(count(copper, Items.IRON_HOE) == 0, "hoe should have left the copper chest");
-            helper.assertTrue(count(regular, Items.WHEAT) == 5, "wheat should go to the regular chest");
-            helper.assertTrue(count(copper, Items.WHEAT) == 0, "wheat should not go to the copper chest");
+            helper.assertTrue(count(farmer.getInventory(), Items.IRON_HOE) == 1, "farmer should take the hoe from the regular chest");
+            helper.assertTrue(count(regular, Items.IRON_HOE) == 0, "hoe should have left the regular chest");
+            helper.assertTrue(count(copper, Items.WHEAT) == 5, "wheat should go to the copper chest");
+            helper.assertTrue(count(regular, Items.WHEAT) == 0, "wheat should not go to the regular chest");
         });
+    }
+
+    /** A farmer with no hoe (and nowhere to get one) shows a hoe over its head; it disappears once it has one. */
+    private static void farmerShowsMissingHoe(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
+
+        helper.runAtTickTime(60, () -> helper.assertTrue(
+                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.isIcon(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)),
+                "farmer without a hoe should show an indicator over its head"));
+        helper.runAtTickTime(61, () -> farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE)));
+        helper.succeedWhen(() -> helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).isEmpty(),
+                "indicator should clear once the hoe is in the inventory"));
     }
 }

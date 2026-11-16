@@ -28,8 +28,9 @@ import java.util.Set;
  * player: walks over, looks at the chest, pauses, opens it (lid animation and sound), moves one stack at a time with
  * pauses between, closes it, looks away and leaves.
  *
- * <p>Chest preference: items to take (tools, food, inputs) are preferred from copper chests and deposits go to regular
- * chests, each falling back to the other kind when there is no better option.
+ * <p>Chest preference: deposits go to copper chests and supplies (tools, food, inputs) are preferred from regular
+ * chests, each falling back to the other kind. Vanilla copper golems carry items from copper chests into regular
+ * chests, so this makes a golem ferry the villager's output to a regular chest that the villager restocks from.
  */
 public class ContainerInteraction extends Behavior<Villager> {
 
@@ -91,8 +92,8 @@ public class ContainerInteraction extends Behavior<Villager> {
             Container c = HopperBlockEntity.getContainerAt(level, p);
             if (c == null) continue;
             boolean copper = level.getBlockState(p).is(BlockTags.COPPER_CHESTS);
-            int depositPref = hasDeposits ? (copper ? 1 : 2) : 0;
-            int takePref = canTakeSomething(needs, inv, c) ? (copper ? 2 : 1) : 0;
+            int depositPref = hasDeposits ? (copper ? 2 : 1) : 0;
+            int takePref = canTakeSomething(needs, inv, c) ? (copper ? 1 : 2) : 0;
             if (depositPref == 0 && takePref == 0) continue;
             bestDeposit = Math.max(bestDeposit, depositPref);
             bestTake = Math.max(bestTake, takePref);

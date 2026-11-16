@@ -1,8 +1,8 @@
 {
   "type": "minecraft:function",
   "environment": "industriousvillagers:work_hours",
-  "function": "industriousvillagers:farmer_prefers_copper_chest_for_supplies",
-  "max_ticks": 1500,
+  "function": "industriousvillagers:farmer_shows_missing_hoe",
+  "max_ticks": 600,
   "setup_ticks": 1,
   "structure": "minecraft:empty"
 }

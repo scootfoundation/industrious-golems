@@ -20,6 +20,16 @@ public class IndustriousVillagers {
         ModGameTests.register(modEventBus);
         // Villagers loaded from saved data or /summon come back with CanPickUpLoot=false, so they
         // never collect crop drops (and so never get seeds to replant). Force it on.
+        NeoForge.EVENT_BUS.addListener(net.neoforged.neoforge.event.tick.EntityTickEvent.Post.class, event -> {
+            if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Villager villager) {
+                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.tick(villager);
+            }
+        });
+        NeoForge.EVENT_BUS.addListener(net.neoforged.neoforge.event.entity.living.LivingDeathEvent.class, event -> {
+            if (event.getEntity() instanceof Villager villager) {
+                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.clearOnDeath(villager);
+            }
+        });
         NeoForge.EVENT_BUS.addListener(EntityJoinLevelEvent.class, event -> {
             if (!event.getLevel().isClientSide() && event.getEntity() instanceof Villager villager) {
                 villager.setCanPickUpLoot(true);
