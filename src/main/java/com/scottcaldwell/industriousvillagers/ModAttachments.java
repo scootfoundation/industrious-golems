@@ -18,6 +18,13 @@ public class ModAttachments {
                     .serialize(Codec.LONG.fieldOf("time"))
                     .build());
 
+    /** Hunger, tool and blocked state for the client's status plate. Recomputed constantly, so not saved. */
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousvillagers.needs.StatusData>> STATUS =
+            ATTACHMENTS.register("status", () -> AttachmentType
+                    .builder(() -> com.scottcaldwell.industriousvillagers.needs.StatusData.NONE)
+                    .sync(com.scottcaldwell.industriousvillagers.needs.StatusData.STREAM_CODEC)
+                    .build());
+
     /** Transient hand-over between the task trigger and the task activity; not saved. */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousvillagers.behavior.TaskState>> TASK =
             ATTACHMENTS.register("task", () -> AttachmentType.builder(com.scottcaldwell.industriousvillagers.behavior.TaskState::new).build());

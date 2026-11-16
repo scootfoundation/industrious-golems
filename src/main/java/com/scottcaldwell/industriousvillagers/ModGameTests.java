@@ -172,12 +172,18 @@ public class ModGameTests {
         Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
 
-        helper.runAtTickTime(60, () -> helper.assertTrue(
-                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.isIcon(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)),
-                "farmer without a hoe should show an indicator over its head"));
+        helper.runAtTickTime(60, () -> {
+            var status = farmer.getData(ModAttachments.STATUS);
+            helper.assertTrue(status.enabled() && status.blocked(), "farmer without a hoe should be flagged as blocked");
+            helper.assertTrue(status.tool() == 0, "no tool should be reported");
+        });
         helper.runAtTickTime(61, () -> farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE)));
-        helper.succeedWhen(() -> helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).isEmpty(),
-                "indicator should clear once the hoe is in the inventory"));
+        helper.succeedWhen(() -> {
+            var status = farmer.getData(ModAttachments.STATUS);
+            helper.assertTrue(!status.blocked(), "blocked flag should clear once the hoe is in the inventory");
+            helper.assertTrue(status.tool() > 0, "the carried tool should be reported");
+            helper.assertTrue(status.hunger() == 10, "a freshly seen farmer should be full, was " + status.hunger());
+        });
     }
 
     /** Right-clicking a farmer opens a chest menu over its inventory instead of the trade screen. */
@@ -186,11 +192,14 @@ public class ModGameTests {
         Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
         var player = helper.makeMockServerPlayerInLevel();
-        player.setPos(farmer.getX() + 1, farmer.getY(), farmer.getZ());
+        // Keep the mock player far away: it has no real connection, so it must never be a tracker of the farmer
+        // (the farmer's status attachment syncs to trackers). interactOn does not check reach.
+        player.setPos(farmer.getX() + 5000, farmer.getY(), farmer.getZ());
 
         boolean[] held = {false};
-        helper.runAtTickTime(5, () -> player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND));
-        helper.runAtTickTime(15, () -> {
+        // Everything in one tick: the far-away mock player would otherwise have the menu closed as out of reach.
+        helper.runAtTickTime(5, () -> {
+            player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
             helper.assertTrue(player.containerMenu instanceof net.minecraft.world.inventory.ChestMenu, "right-click should open a chest menu");
             helper.assertTrue(player.containerMenu.getSlot(0).getItem().is(Items.WHEAT), "menu slot 0 should show the farmer's wheat");
             helper.assertTrue(farmer.getTradingPlayer() == player, "farmer should be held for the player while open");
@@ -231,9 +240,8 @@ public class ModGameTests {
         makeHungry(farmer);
 
         helper.succeedWhen(() -> {
-            helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(Items.BREAD)
-                    && com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.isIcon(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)),
-                    "hungry farmer without food should show bread");
+            var status = farmer.getData(ModAttachments.STATUS);
+            helper.assertTrue(status.blocked() && status.hunger() == 0, "hungry farmer without food should be flagged blocked with an empty meter, hunger " + status.hunger());
             helper.assertTrue(com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds.of(farmer).workBlocked(farmer), "should be blocked from working");
         });
     }

@@ -19,7 +19,15 @@ import java.util.function.Predicate;
  * which items it produces (always deposited). Shared by container interaction, work preconditions and the
  * "missing something" indicator, so a new profession only has to declare one of these.
  */
-public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs) {
+public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, String toolId) {
+
+    /** The need that is the profession's tool (shown on the status plate), or null. */
+    public Need toolNeed() {
+        for (Need need : needs) {
+            if (need.id().equals(toolId)) return need;
+        }
+        return null;
+    }
 
     /**
      * @param target         how many the villager tops up to when restocking
@@ -54,7 +62,7 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs) {
             new Need("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), new ItemStack(Items.WHEAT_SEEDS), 16, 8, true, v -> true, false),
             new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, true)
     ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
-            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES));
+            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), "hoe");
 
     private static final java.util.Set<net.minecraft.world.item.Item> FOODS = java.util.Set.of(
             Items.BREAD, Items.BAKED_POTATO, Items.COOKED_BEEF, Items.COOKED_PORKCHOP, Items.COOKED_CHICKEN,

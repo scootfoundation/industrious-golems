@@ -1,6 +1,8 @@
 package com.scottcaldwell.industriousvillagers.needs;
 
+import com.scottcaldwell.industriousvillagers.ModAttachments;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -9,8 +11,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
 /**
- * Shows what a blocked villager is missing: the first blocking need it holds none of appears on its head (an
- * equipment-slot item, so it renders with no client code), and every few seconds it shakes its head.
+ * Publishes a villager's status (hunger, tool carried, whether blocked) for the client's status plate, and makes a
+ * blocked villager shake its head every few seconds.
  */
 public final class NeedsIndicator {
 
@@ -36,24 +38,38 @@ public final class NeedsIndicator {
     /** Called every tick on the server for each villager. */
     public static void tick(Villager villager) {
         if (villager.tickCount % CHECK_INTERVAL != 0) return;
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        ItemStack head = villager.getItemBySlot(EquipmentSlot.HEAD);
-        boolean showing = isIcon(head);
-        ProfessionNeeds.Need missing = null;
-        if (needs != null && !villager.isSleeping() && !villager.isBaby()) {
-            for (ProfessionNeeds.Need need : needs.needs()) {
-                if (need.missing(villager)) { missing = need; break; }
-            }
-        }
+        // An earlier version showed the missing item as a head-slot item; clear any left over in saved villagers.
+        if (isIcon(villager.getItemBySlot(EquipmentSlot.HEAD))) villager.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
 
-        if (missing == null) {
-            if (showing) villager.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        if (needs == null || villager.isBaby()) {
+            if (!villager.getData(ModAttachments.STATUS).equals(StatusData.NONE)) villager.setData(ModAttachments.STATUS, StatusData.NONE);
             return;
         }
-        if (!showing || !head.is(missing.icon().getItem())) {
-            villager.setItemSlot(EquipmentSlot.HEAD, markAsDisplay(missing.icon().copy()));
+
+        // Synced for the client's status plate: hunger fullness, whether blocked, and the tool carried.
+        Hunger.isHungry(villager); // starts the hunger clock for a villager seen for the first time
+        long last = villager.getData(ModAttachments.LAST_MEAL);
+        long now = villager.level().getGameTime();
+        int full = last == Long.MIN_VALUE ? 10
+                : (int) Math.round(10.0 * (1.0 - Math.min(1.0, (double) (now - last) / Hunger.INTERVAL)));
+        boolean blocked = false;
+        for (ProfessionNeeds.Need need : needs.needs()) {
+            if (need.missing(villager)) { blocked = true; break; }
         }
-        if (villager.tickCount % SHAKE_INTERVAL == 0 && villager.getUnhappyCounter() == 0) {
+        int status = Math.max(0, Math.min(10, full)) | StatusData.ENABLED | (blocked ? StatusData.BLOCKED : 0);
+        int tool = 0;
+        ProfessionNeeds.Need toolNeed = needs.toolNeed();
+        if (toolNeed != null) {
+            for (int i = 0; i < villager.getInventory().getContainerSize(); i++) {
+                ItemStack s = villager.getInventory().getItem(i);
+                if (!s.isEmpty() && toolNeed.match().test(s)) { tool = BuiltInRegistries.ITEM.getId(s.getItem()) + 1; break; }
+            }
+        }
+        StatusData updated = new StatusData(status, tool);
+        if (!villager.getData(ModAttachments.STATUS).equals(updated)) villager.setData(ModAttachments.STATUS, updated);
+
+        if (blocked && !villager.isSleeping() && villager.tickCount % SHAKE_INTERVAL == 0 && villager.getUnhappyCounter() == 0) {
             villager.setUnhappyCounter(40);
             villager.playSound(SoundEvents.VILLAGER_NO, 1.0F, villager.getVoicePitch());
         }
