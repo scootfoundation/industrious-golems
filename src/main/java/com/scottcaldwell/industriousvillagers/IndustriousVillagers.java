@@ -17,6 +17,7 @@ public class IndustriousVillagers {
 
     public IndustriousVillagers(IEventBus modEventBus, ModContainer modContainer) {
         ModProfessions.register(modEventBus);
+        ModGameTests.register(modEventBus);
         // Villagers loaded from saved data or /summon come back with CanPickUpLoot=false, so they
         // never collect crop drops (and so never get seeds to replant). Force it on.
         NeoForge.EVENT_BUS.addListener(EntityJoinLevelEvent.class, event -> {

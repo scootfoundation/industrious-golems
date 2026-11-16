@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousvillagers:work_hours",
+  "function": "industriousvillagers:farmer_chest_io",
+  "max_ticks": 800,
+  "setup_ticks": 1,
+  "structure": "minecraft:empty"
+}
