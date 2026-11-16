@@ -32,16 +32,22 @@ public class EatFood extends Behavior<Villager> {
     }
 
     private static int foodSlot(Villager villager) {
+        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
+        ProfessionNeeds.Need food = null;
+        if (needs != null) {
+            for (ProfessionNeeds.Need need : needs.needs()) if (need.id().equals("food")) food = need;
+        }
         SimpleContainer inv = villager.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (!inv.getItem(i).isEmpty() && ProfessionNeeds.isFood(inv.getItem(i))) return i;
+            ItemStack s = inv.getItem(i);
+            if (!s.isEmpty() && (food != null ? food.match().test(s) : ProfessionNeeds.isFood(s))) return i;
         }
         return -1;
     }
 
     /** True when the villager is hungry and has something to eat. Used by {@link StartTask}. */
     public static boolean shouldEat(Villager villager) {
-        if (ProfessionNeeds.of(villager) == null || villager.isSleeping()) return false;
+        if (ProfessionNeeds.effective(villager) == null || villager.isSleeping()) return false;
         int slot = foodSlot(villager);
         return slot >= 0 && Hunger.wantsToEat(villager, villager.getInventory().getItem(slot));
     }
@@ -67,7 +73,7 @@ public class EatFood extends Behavior<Villager> {
     @Override
     protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
         return !villager.isSleeping() && foodSlot(villager) >= 0 && Tasks.active(villager)
-                && Tasks.scheduleAllowsWork(level, villager);
+                && Tasks.scheduleAllowsEating(level, villager);
     }
 
     @Override

@@ -29,6 +29,11 @@ public final class Tasks {
         return level.environmentAttributes().getValue(EnvironmentAttributes.VILLAGER_ACTIVITY, villager.position()) == Activity.WORK;
     }
 
+    /** Meals are allowed whenever the villager is not meant to be asleep. */
+    public static boolean scheduleAllowsEating(ServerLevel level, Villager villager) {
+        return level.environmentAttributes().getValue(EnvironmentAttributes.VILLAGER_ACTIVITY, villager.position()) != Activity.REST;
+    }
+
     /** Ends the task: forgets it and hands the villager back to whatever its schedule says. */
     public static void finish(ServerLevel level, Villager villager) {
         villager.getData(com.scottcaldwell.industriousvillagers.ModAttachments.TASK).clear();

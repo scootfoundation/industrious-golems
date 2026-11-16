@@ -17,6 +17,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(VillagerGoalPackages.class)
 public class VillagerGoalPackagesMixin {
 
+    /** Villagers without a profession of ours never work, but they still get hungry and eat. */
+    @Inject(method = "getIdlePackage", at = @At("RETURN"), cancellable = true)
+    private static void industriousvillagers$addEating(
+            Holder<VillagerProfession> profession, float speed,
+            CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir) {
+        if (profession.unwrapKey().map(ProfessionNeeds::byKey).isPresent()) return;
+        ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super Villager>>> b = ImmutableList.builder();
+        b.addAll(cir.getReturnValue());
+        b.add(Pair.of(5, new StartTask(false)));
+        cir.setReturnValue(b.build());
+    }
+
     /** Adds the mod's extra work behaviours to the work activity of our professions. */
     @Inject(method = "getWorkPackage", at = @At("RETURN"), cancellable = true)
     private static void industriousvillagers$addWorkBehaviours(

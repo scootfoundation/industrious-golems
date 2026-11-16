@@ -44,7 +44,7 @@ public final class StatusPlate {
     @SubscribeEvent
     public static void onCanRender(RenderNameTagEvent.CanRender event) {
         if (!(event.getEntity() instanceof Villager villager)) return;
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
         StatusData status = villager.getData(ModAttachments.STATUS);
         if (needs == null || !status.enabled()) return;
 

@@ -21,7 +21,7 @@ public abstract class VillagerBrainMixin {
     @Inject(method = "registerBrainGoals", at = @At("TAIL"))
     private void industriousvillagers$addTaskActivity(Brain<Villager> brain, CallbackInfo ci) {
         Villager villager = (Villager) (Object) this;
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
         if (villager.isBaby() || needs == null) return;
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super Villager>>> tasks = ImmutableList.builder();
         tasks.add(Pair.of(0, new ContainerInteraction()));

@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousvillagers:work_hours",
+  "function": "industriousvillagers:basic_villager_starves_without_dying",
+  "max_ticks": 1500,
+  "setup_ticks": 1,
+  "structure": "industriousvillagers:arena"
+}

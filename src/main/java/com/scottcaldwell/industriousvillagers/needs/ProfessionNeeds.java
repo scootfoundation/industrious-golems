@@ -146,6 +146,22 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
         return BY_PROFESSION.get(key);
     }
 
+    /** Everyone without a profession of ours: just hunger and health, no tools, nothing to deposit. */
+    private static final ProfessionNeeds BASIC = new ProfessionNeeds(List.of(
+            new Need("food", s -> isFood(s) || s.is(Items.CARROT) || s.is(Items.POTATO) || s.is(Items.BEETROOT),
+                    new ItemStack(Items.BREAD), 6, 3, false, v -> false, false)
+    ), s -> false, List.of(), 0, null, null);
+
+    /**
+     * The needs that apply to this villager: its profession's, or the basic hunger-and-health needs for any other
+     * adult villager (unemployed, nitwit, vanilla professions). Null for babies.
+     */
+    public static ProfessionNeeds effective(Villager villager) {
+        ProfessionNeeds own = of(villager);
+        if (own != null) return own;
+        return villager.isBaby() ? null : BASIC;
+    }
+
     /** The needs of this villager's profession, or null when it has none (vanilla or unemployed). */
     public static ProfessionNeeds of(Villager villager) {
         Holder<VillagerProfession> profession = villager.getVillagerData().profession();

@@ -45,7 +45,7 @@ public final class NeedsIndicator {
         // An earlier version showed the missing item as a head-slot item; clear any left over in saved villagers.
         if (isIcon(villager.getItemBySlot(EquipmentSlot.HEAD))) villager.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
 
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
         com.scottcaldwell.industriousvillagers.inventory.InventoryLayout.organize(villager);
         if (needs == null || villager.isBaby()) {
             publish(villager, StatusData.NONE);

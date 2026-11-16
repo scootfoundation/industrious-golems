@@ -17,12 +17,18 @@ import net.minecraft.world.entity.npc.villager.Villager;
 public class StartTask extends Behavior<Villager> {
 
     public StartTask() {
-        super(ImmutableMap.of(MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT), 1);
+        this(true);
+    }
+
+    /** @param requiresJobSite false for villagers without a job, who only ever eat */
+    public StartTask(boolean requiresJobSite) {
+        super(requiresJobSite ? ImmutableMap.of(MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT) : ImmutableMap.of(), 1);
     }
 
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
-        if (ProfessionNeeds.of(villager) == null) return false;
+        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
+        if (needs == null) return false;
         TaskState state = villager.getData(ModAttachments.TASK);
         if (state.type != TaskState.Type.NONE) return false;
 
@@ -42,7 +48,6 @@ public class StartTask extends Behavior<Villager> {
                 return true;
             }
         }
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
         if (needs.planner() != null && now >= state.nextWork && !needs.workBlocked(villager)) {
             state.nextWork = now + ProfessionNeeds.WORK_INTERVAL;
             Object work = needs.planner().plan(level, villager);

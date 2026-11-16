@@ -45,6 +45,8 @@ public class ModGameTests {
         FUNCTIONS.register("herder_inventory_menu", () -> ModGameTests::herderInventoryMenu);
         FUNCTIONS.register("herder_organizes_tools", () -> ModGameTests::herderOrganizesTools);
         FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
+        FUNCTIONS.register("basic_villager_eats", () -> ModGameTests::basicVillagerEats);
+        FUNCTIONS.register("basic_villager_starves_without_dying", () -> ModGameTests::basicVillagerStarves);
         FUNCTIONS.register("hunger_gates_work", () -> ModGameTests::hungerGatesWork);
         FUNCTIONS.register("lumberjack_fells_and_replants", () -> ModGameTests::lumberjackFellsAndReplants);
         FUNCTIONS.register("lumberjack_ignores_log_building", () -> ModGameTests::lumberjackIgnoresLogBuilding);
@@ -561,4 +563,31 @@ public class ModGameTests {
             player.closeContainer();
         });
         helper.succeedWhen(() -> helper.assertTrue(checked[0], "menu should have been checked"));
+    }
+    // ---- basic (unemployed) villagers -----------------------------------------------------------------------
+
+    /** A villager without a profession gets the same hunger bar, health bar and eating behaviour. */
+    private static void basicVillagerEats(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 3));
+        villager.getInventory().addItem(new ItemStack(Items.BREAD, 3));
+        makeHungry(villager);
+        helper.succeedWhen(() -> {
+            var status = villager.getData(ModAttachments.STATUS);
+            helper.assertTrue(status.enabled(), "a basic villager should publish hunger and health");
+            helper.assertTrue(count(villager.getInventory(), Items.BREAD) < 3, "it should have eaten bread");
+            helper.assertTrue(com.scottcaldwell.industriousvillagers.needs.Hunger.level(villager) >= 5, "bread should restore hunger");
+        });
+    }
+
+    /** An unemployed villager with an empty bar takes starvation damage but survives. */
+    private static void basicVillagerStarves(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 3));
+        setHunger(villager, 0);
+        helper.runAtTickTime(400, () -> {
+            helper.assertTrue(villager.getHealth() < 20.0F, "a starving villager should take damage, health " + villager.getHealth());
+            helper.assertTrue(villager.isAlive(), "starvation must not kill");
+            helper.succeed();
+        });
     }}
