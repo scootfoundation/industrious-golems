@@ -10,7 +10,10 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -28,6 +31,7 @@ public class ModGameTests {
 
     static {
         FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
+        FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -104,5 +108,22 @@ public class ModGameTests {
             helper.assertTrue(count(farmer.getInventory(), Items.BREAD) > 0, "farmer should have taken bread");
             helper.assertTrue(count(chest, Items.IRON_HOE) == 0, "hoe should have left the chest");
         });
+    }
+
+    private static final BlockPos BED_FOOT = new BlockPos(5, 1, 5);
+    private static final BlockPos BED_HEAD = BED_FOOT.north();
+
+    /** At night a farmer with a bed and a job site should walk to the bed and sleep. */
+    private static void farmerSleepsAtNight(GameTestHelper helper) {
+        buildFarm(helper);
+        var bed = Blocks.RED_BED.defaultBlockState().setValue(BedBlock.FACING, Direction.NORTH);
+        helper.setBlock(BED_FOOT, bed.setValue(BedBlock.PART, BedPart.FOOT));
+        helper.setBlock(BED_HEAD, bed.setValue(BedBlock.PART, BedPart.HEAD));
+
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getBrain().setMemory(MemoryModuleType.HOME,
+                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(BED_HEAD)));
+
+        helper.succeedWhen(() -> helper.assertTrue(farmer.isSleeping(), "farmer should be asleep at night"));
     }
 }

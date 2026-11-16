@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousvillagers:night",
+  "function": "industriousvillagers:farmer_sleeps_at_night",
+  "max_ticks": 1200,
+  "setup_ticks": 1,
+  "structure": "minecraft:empty"
+}
