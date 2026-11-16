@@ -24,7 +24,6 @@ public class EatFood extends TaskRunner<EatFood.Meal> {
     private static final int EAT_TICKS = 32;
 
     private long endsAt;
-    private ItemStack previousMainHand = ItemStack.EMPTY;
 
     public EatFood() {
         super(Meal.class, EAT_TICKS);
@@ -45,12 +44,8 @@ public class EatFood extends TaskRunner<EatFood.Meal> {
     @Override
     protected void begin(ServerLevel level, Villager villager, long time) {
         endsAt = time + EAT_TICKS;
-        previousMainHand = villager.getItemBySlot(EquipmentSlot.MAINHAND);
         int slot = foodSlot(villager);
-        if (slot >= 0) {
-            villager.setItemSlot(EquipmentSlot.MAINHAND,
-                    NeedsIndicator.markAsDisplay(villager.getInventory().getItem(slot).copyWithCount(1)));
-        }
+        if (slot >= 0) HeldItem.hold(villager, villager.getInventory().getItem(slot));
         holdStill(villager);
     }
 
@@ -72,8 +67,6 @@ public class EatFood extends TaskRunner<EatFood.Meal> {
 
     @Override
     protected void end(ServerLevel level, Villager villager, long time) {
-        villager.setItemSlot(EquipmentSlot.MAINHAND, previousMainHand);
-        previousMainHand = ItemStack.EMPTY;
         if (time >= endsAt) { // not interrupted before swallowing
             int slot = foodSlot(villager);
             if (slot >= 0) {

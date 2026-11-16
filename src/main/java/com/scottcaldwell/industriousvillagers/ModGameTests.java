@@ -323,7 +323,10 @@ public class ModGameTests {
         helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5));
         Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.getInventory().addItem(new ItemStack(Items.SHEARS));
+        boolean[] held = {false};
         helper.succeedWhen(() -> {
+            if (herder.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).is(Items.SHEARS)) held[0] = true;
+            helper.assertTrue(held[0], "the herder should visibly hold the shears while shearing");
             var sheep = alive(helper, net.minecraft.world.entity.animal.sheep.Sheep.class);
             helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared");
             helper.assertTrue(total(herder, chest, Items.WHITE_WOOL) > 0, "the herder should hold or have deposited wool");
@@ -332,6 +335,7 @@ public class ModGameTests {
                 if (herder.getInventory().getItem(i).is(Items.SHEARS)) slot = i;
             }
             helper.assertTrue(slot >= 0 && herder.getInventory().getItem(slot).getDamageValue() > 0, "the shears should be worn");
+            helper.assertTrue(herder.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "the tool is put away afterwards");
         });
     }
 
@@ -505,13 +509,17 @@ public class ModGameTests {
         Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
         jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
         jack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING, 2));
+        boolean[] held = {false};
         helper.succeedWhen(() -> {
+            if (jack.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).is(Items.IRON_AXE)) held[0] = true;
+            helper.assertTrue(held[0], "the lumberjack should visibly hold the axe while chopping");
             helper.assertTrue(logsAt(helper, 5, 5) == 0, "all four logs should be felled, " + logsAt(helper, 5, 5) + " left");
             helper.assertTrue(total(jack, chest, Items.OAK_LOG) == 4, "the four logs should be collected, got " + total(jack, chest, Items.OAK_LOG));
             helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood");
             int axe = -1;
             for (int i = 0; i < jack.getInventory().getContainerSize(); i++) if (jack.getInventory().getItem(i).is(Items.IRON_AXE)) axe = i;
             helper.assertTrue(axe >= 0 && jack.getInventory().getItem(axe).getDamageValue() >= 4, "the axe should wear once per log");
+            helper.assertTrue(jack.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "the tool is put away afterwards");
         });
     }
 

@@ -3,6 +3,7 @@ package com.scottcaldwell.industriousvillagers.mixin;
 import com.scottcaldwell.industriousvillagers.needs.ToolWear;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
+import com.scottcaldwell.industriousvillagers.behavior.HeldItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -62,6 +63,8 @@ public class HarvestFarmlandMixin {
     private BlockPos industriousvillagers$lookedAt;
     @Unique
     private int industriousvillagers$lookTicks;
+    @Unique
+    private boolean industriousvillagers$swung;
 
     /**
      * Like a player would, the farmer stops and looks at the crop (or the bare soil) for a moment before reaping or
@@ -74,6 +77,14 @@ public class HarvestFarmlandMixin {
         if (!aboveFarmlandPos.equals(industriousvillagers$lookedAt)) {
             industriousvillagers$lookedAt = aboveFarmlandPos;
             industriousvillagers$lookTicks = LOOK_TICKS;
+            industriousvillagers$swung = false;
+        }
+        if (industriousvillagers$lookTicks == LOOK_TICKS) { // just arrived: take up the hoe to reap, seeds to sow
+            ProfessionNeeds needs = ProfessionNeeds.of(villager);
+            var inventory = villager.getInventory();
+            int slot = level.getBlockState(aboveFarmlandPos).isAir()
+                    ? needs.need("seeds").slot(inventory) : needs.need("hoe").slot(inventory);
+            if (slot >= 0) HeldItem.hold(villager, inventory.getItem(slot));
         }
         if (industriousvillagers$lookTicks > 0) {
             industriousvillagers$lookTicks--;
@@ -81,7 +92,16 @@ public class HarvestFarmlandMixin {
             villager.getNavigation().stop();
             villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(aboveFarmlandPos));
             ci.cancel();
+        } else if (!industriousvillagers$swung) { // done looking: swing the tool as the work happens
+            industriousvillagers$swung = true;
+            villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
         }
+    }
+
+    @Inject(method = "stop", at = @At("HEAD"))
+    private void industriousvillagers$putAwayTool(ServerLevel level, Villager villager, long time, CallbackInfo ci) {
+        HeldItem.release(villager);
+        industriousvillagers$lookedAt = null;
     }
 
     /** Each crop harvested wears the hoe by one use. */

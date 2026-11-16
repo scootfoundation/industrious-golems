@@ -4,6 +4,7 @@ import com.scottcaldwell.industriousvillagers.ModTags;
 import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.ModAttachments;
 import com.scottcaldwell.industriousvillagers.behavior.Drops;
+import com.scottcaldwell.industriousvillagers.behavior.HeldItem;
 import com.scottcaldwell.industriousvillagers.behavior.TaskRunner;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import com.scottcaldwell.industriousvillagers.needs.ToolWear;
@@ -190,9 +191,10 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             return;
         }
         holdStill(villager);
-        if (phase == Phase.APPROACH) { // arrived: stop and look at the animal before doing anything to it
+        if (phase == Phase.APPROACH) { // arrived: take up the tool and look at the animal before doing anything to it
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
+            HeldItem.hold(villager, toolFor(villager, animal));
         }
         if (--timer > 0) return;
         villager.swing(InteractionHand.MAIN_HAND);
@@ -202,6 +204,19 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         } else {
             finish();
         }
+    }
+
+    /** The item the villager uses for this job, so it can be seen in its hand. */
+    private ItemStack toolFor(Villager villager, Animal animal) {
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        SimpleContainer inv = villager.getInventory();
+        int slot = switch (plan.action()) {
+            case CULL -> needs.need("sword").slot(inv);
+            case SHEAR -> needs.need("shears").slot(inv);
+            case MILK -> needs.need("bucket").slot(inv);
+            case BREED -> feedSlot(villager, animal);
+        };
+        return slot < 0 ? ItemStack.EMPTY : inv.getItem(slot);
     }
 
     private boolean perform(ServerLevel level, Villager villager, Animal animal, long time) {

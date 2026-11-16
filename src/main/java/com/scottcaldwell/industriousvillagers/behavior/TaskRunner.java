@@ -65,6 +65,7 @@ public abstract class TaskRunner<P> extends Behavior<Villager> {
     @Override
     protected final void stop(ServerLevel level, Villager villager, long time) {
         end(level, villager, time);
+        HeldItem.release(villager);
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         plan = null;

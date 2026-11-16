@@ -42,6 +42,9 @@ public final class NeedsIndicator {
     /** Called every tick on the server for each villager. */
     public static void tick(Villager villager) {
         if (villager.tickCount % CHECK_INTERVAL != 0) return;
+        if (com.scottcaldwell.industriousvillagers.behavior.HeldItem.stale(villager)) {
+            com.scottcaldwell.industriousvillagers.behavior.HeldItem.release(villager);
+        }
         ProfessionNeeds needs = ProfessionNeeds.effective(villager);
         com.scottcaldwell.industriousvillagers.inventory.InventoryLayout.organize(villager);
         if (needs == null || villager.isBaby()) {

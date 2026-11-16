@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousvillagers.lumber;
 
 import com.scottcaldwell.industriousvillagers.behavior.Drops;
+import com.scottcaldwell.industriousvillagers.behavior.HeldItem;
 import com.scottcaldwell.industriousvillagers.behavior.TaskRunner;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import com.scottcaldwell.industriousvillagers.needs.ToolWear;
@@ -108,9 +109,11 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
         holdStill(villager);
         stalled = 0;
-        if (phase == Phase.WORK) { // arrived: stop and look before swinging
+        if (phase == Phase.WORK) { // arrived: take up the axe (or a sapling) and look before swinging
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
+            int slot = planting ? findSapling(villager) : ProfessionNeeds.of(villager).need("axe").slot(villager.getInventory());
+            if (slot >= 0) HeldItem.hold(villager, villager.getInventory().getItem(slot));
         }
         if (--timer > 0) return;
         villager.swing(InteractionHand.MAIN_HAND);
