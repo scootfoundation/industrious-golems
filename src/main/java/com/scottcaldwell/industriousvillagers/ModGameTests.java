@@ -31,6 +31,7 @@ public class ModGameTests {
 
     static {
         FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
+        FUNCTIONS.register("farmer_prefers_copper_chest_for_supplies", () -> ModGameTests::farmerPrefersCopper);
         FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
     }
 
@@ -100,7 +101,11 @@ public class ModGameTests {
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 20));
 
+        boolean[] sawOpen = {false};
         helper.succeedWhen(() -> {
+            if (!chest.getEntitiesWithContainerOpen().isEmpty()) sawOpen[0] = true;
+            helper.assertTrue(sawOpen[0], "farmer should have opened the chest (lid animation)");
+            helper.assertTrue(chest.getEntitiesWithContainerOpen().isEmpty(), "chest should be closed again");
             helper.assertTrue(count(chest, Items.WHEAT) == 5, "chest should hold the 5 harvested wheat, has " + count(chest, Items.WHEAT));
             helper.assertTrue(count(chest, Items.WHEAT_SEEDS) == 4, "chest should hold the 4 surplus seeds, has " + count(chest, Items.WHEAT_SEEDS));
             helper.assertTrue(count(farmer.getInventory(), Items.WHEAT_SEEDS) == 16, "farmer should keep 16 seeds, has " + count(farmer.getInventory(), Items.WHEAT_SEEDS));
@@ -125,5 +130,28 @@ public class ModGameTests {
                 GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(BED_HEAD)));
 
         helper.succeedWhen(() -> helper.assertTrue(farmer.isSleeping(), "farmer should be asleep at night"));
+    }
+
+    private static final BlockPos COPPER_CHEST = new BlockPos(4, 1, 4);
+
+    /** Supplies are taken from the copper chest, and the harvest is deposited into the regular chest. */
+    private static void farmerPrefersCopper(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST);
+        ChestBlockEntity regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
+        copper.setItem(0, new ItemStack(Items.IRON_HOE));
+        copper.setItem(1, new ItemStack(Items.BREAD, 10));
+
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(farmer.getInventory(), Items.IRON_HOE) == 1, "farmer should take the hoe from the copper chest");
+            helper.assertTrue(count(copper, Items.IRON_HOE) == 0, "hoe should have left the copper chest");
+            helper.assertTrue(count(regular, Items.WHEAT) == 5, "wheat should go to the regular chest");
+            helper.assertTrue(count(copper, Items.WHEAT) == 0, "wheat should not go to the copper chest");
+        });
     }
 }
