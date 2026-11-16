@@ -41,8 +41,9 @@ public class EatFood extends Behavior<Villager> {
 
     /** True when the villager is hungry and has something to eat. Used by {@link StartTask}. */
     public static boolean shouldEat(Villager villager) {
-        return ProfessionNeeds.of(villager) != null && !villager.isSleeping() && Hunger.isHungry(villager)
-                && foodSlot(villager) >= 0;
+        if (ProfessionNeeds.of(villager) == null || villager.isSleeping()) return false;
+        int slot = foodSlot(villager);
+        return slot >= 0 && Hunger.wantsToEat(villager, villager.getInventory().getItem(slot));
     }
 
     @Override
@@ -92,8 +93,8 @@ public class EatFood extends Behavior<Villager> {
         if (time >= endsAt) { // not interrupted before swallowing
             int slot = foodSlot(villager);
             if (slot >= 0) {
-                villager.getInventory().removeItem(slot, 1);
-                Hunger.ate(villager);
+                ItemStack eaten = villager.getInventory().removeItem(slot, 1);
+                Hunger.ate(villager, eaten);
                 villager.playSound(SoundEvents.PLAYER_BURP, 0.5F, 1.0F);
             }
         }

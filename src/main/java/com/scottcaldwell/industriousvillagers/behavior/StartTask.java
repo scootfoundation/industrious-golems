@@ -43,7 +43,7 @@ public class StartTask extends Behavior<Villager> {
             }
         }
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        if (needs.planner() != null && now >= state.nextWork) {
+        if (needs.planner() != null && now >= state.nextWork && !needs.workBlocked(villager)) {
             state.nextWork = now + ProfessionNeeds.WORK_INTERVAL;
             Object work = needs.planner().plan(level, villager);
             if (work != null) {

@@ -18,6 +18,11 @@ public final class NeedsIndicator {
     private static final String MARKER = "industriousvillagers_need_icon";
     private static final int CHECK_INTERVAL = 10;
     private static final int SHAKE_INTERVAL = 100;
+    private static final int STARVE_INTERVAL = 80;
+    private static final int REGEN_INTERVAL = 100;
+    private static final int REGEN_LEVEL = 14;
+    /** Whether an empty hunger bar can kill a villager (otherwise it leaves them on half a heart). */
+    private static final boolean STARVATION_IS_LETHAL = false;
 
     private NeedsIndicator() { }
 
@@ -47,17 +52,15 @@ public final class NeedsIndicator {
             return;
         }
 
-        // Synced for the client's status plate: hunger fullness, whether blocked, and the tool carried.
-        Hunger.isHungry(villager); // starts the hunger clock for a villager seen for the first time
-        long last = villager.getData(ModAttachments.LAST_MEAL);
-        long now = villager.level().getGameTime();
-        int full = last == Long.MIN_VALUE ? 10
-                : (int) Math.round(10.0 * (1.0 - Math.min(1.0, (double) (now - last) / Hunger.INTERVAL)));
+        int hunger = Hunger.level(villager);
+        applyHungerEffects(villager, hunger);
+
+        // Synced for the client's status plate: hunger, health, whether blocked, and the tools carried.
         boolean blocked = false;
         for (ProfessionNeeds.Need need : needs.needs()) {
             if (need.missing(villager)) { blocked = true; break; }
         }
-        int status = Math.max(0, Math.min(10, full)) | StatusData.ENABLED | (blocked ? StatusData.BLOCKED : 0);
+        int status = StatusData.pack(hunger, Math.round(villager.getHealth()), blocked);
         int tools = 0;
         java.util.List<ProfessionNeeds.Need> toolNeeds = needs.toolNeeds();
         for (int t = 0; t < toolNeeds.size(); t++) {
@@ -69,6 +72,19 @@ public final class NeedsIndicator {
         if (blocked && !villager.isSleeping() && villager.tickCount % SHAKE_INTERVAL == 0 && villager.getUnhappyCounter() == 0) {
             villager.setUnhappyCounter(40);
             villager.playSound(SoundEvents.VILLAGER_NO, 1.0F, villager.getVoicePitch());
+        }
+    }
+
+    /** Starving villagers take damage; well-fed ones slowly heal. */
+    private static void applyHungerEffects(Villager villager, int hunger) {
+        if (!(villager.level() instanceof net.minecraft.server.level.ServerLevel level) || villager.isDeadOrDying()) return;
+        if (hunger == 0 && villager.tickCount % STARVE_INTERVAL == 0) {
+            // like a player on normal difficulty, starvation never finishes the villager off
+            if (STARVATION_IS_LETHAL || villager.getHealth() > 1.0F) {
+                villager.hurtServer(level, level.damageSources().starve(), 1.0F);
+            }
+        } else if (hunger >= REGEN_LEVEL && villager.getHealth() < villager.getMaxHealth() && villager.tickCount % REGEN_INTERVAL == 0) {
+            villager.heal(1.0F);
         }
     }
 

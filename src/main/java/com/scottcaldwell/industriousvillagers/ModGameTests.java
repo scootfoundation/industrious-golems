@@ -45,6 +45,8 @@ public class ModGameTests {
         FUNCTIONS.register("herder_inventory_menu", () -> ModGameTests::herderInventoryMenu);
         FUNCTIONS.register("herder_organizes_tools", () -> ModGameTests::herderOrganizesTools);
         FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
+        FUNCTIONS.register("hunger_gates_work", () -> ModGameTests::hungerGatesWork);
+        FUNCTIONS.register("starvation_hurts_and_food_heals", () -> ModGameTests::starvationHurtsAndFoodHeals);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -190,7 +192,8 @@ public class ModGameTests {
             var status = farmer.getData(ModAttachments.STATUS);
             helper.assertTrue(!status.blocked(), "blocked flag should clear once the hoe is in the inventory");
             helper.assertTrue(status.tools() > 0, "the carried tool should be reported");
-            helper.assertTrue(status.hunger() == 10, "a freshly seen farmer should be full, was " + status.hunger());
+            helper.assertTrue(status.hunger() == 20, "a freshly seen farmer should be full, was " + status.hunger());
+            helper.assertTrue(status.health() == 20, "a fresh farmer has full health, was " + status.health());
         });
     }
 
@@ -255,7 +258,7 @@ public class ModGameTests {
 
         helper.succeedWhen(() -> {
             helper.assertTrue(count(farmer.getInventory(), Items.BREAD) == 2, "farmer should have eaten one bread, has " + count(farmer.getInventory(), Items.BREAD));
-            helper.assertTrue(!com.scottcaldwell.industriousvillagers.needs.Hunger.isHungry(farmer), "farmer should be fed");
+            helper.assertTrue(com.scottcaldwell.industriousvillagers.needs.Hunger.level(farmer) >= 5, "bread restores its nutrition, level is " + com.scottcaldwell.industriousvillagers.needs.Hunger.level(farmer));
             helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "farmer should not still hold food");
         });
     }
@@ -423,4 +426,40 @@ public class ModGameTests {
         helper.assertTrue(leaky == null, "a gap in the fence should leak into open ground");
         helper.succeed();
     }
-}
+
+    // ---- hunger and health --------------------------------------------------------------------------------
+
+    private static void setHunger(Villager villager, int level) {
+        villager.setData(ModAttachments.LAST_MEAL, villager.level().getGameTime()
+                - (long) (com.scottcaldwell.industriousvillagers.needs.Hunger.MAX - level) * com.scottcaldwell.industriousvillagers.needs.Hunger.INTERVAL
+                / com.scottcaldwell.industriousvillagers.needs.Hunger.MAX);
+    }
+
+    /** At 2 drumsticks or fewer the villager refuses to work even while carrying food; above that it works. */
+    private static void hungerGatesWork(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
+        farmer.getInventory().addItem(new ItemStack(Items.BREAD, 3));
+        var needs = com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds.of(farmer);
+        setHunger(farmer, 4);
+        helper.assertTrue(needs.workBlocked(farmer), "4 hunger points (2 drumsticks) with bread in the pack must still block work");
+        setHunger(farmer, 5);
+        helper.assertTrue(!needs.workBlocked(farmer), "5 hunger points allows work");
+        helper.succeed();
+    }
+
+    /** An empty hunger bar hurts but never kills; a well fed villager heals. */
+    private static void starvationHurtsAndFoodHeals(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
+        setHunger(farmer, 0);
+        helper.runAtTickTime(300, () -> {
+            helper.assertTrue(farmer.getHealth() < 20.0F, "a starving farmer should have taken damage, health " + farmer.getHealth());
+            helper.assertTrue(farmer.isAlive(), "starvation must not kill");
+            farmer.setHealth(5.0F);
+            setHunger(farmer, 20);
+        });
+        helper.succeedWhen(() -> helper.assertTrue(farmer.getHealth() > 5.0F && farmer.tickCount > 400, "a fed farmer should regain health, has " + farmer.getHealth()));
+    }}

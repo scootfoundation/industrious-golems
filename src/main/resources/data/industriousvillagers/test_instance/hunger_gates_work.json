@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousvillagers:work_hours",
+  "function": "industriousvillagers:hunger_gates_work",
+  "max_ticks": 1500,
+  "setup_ticks": 1,
+  "structure": "industriousvillagers:arena"
+}

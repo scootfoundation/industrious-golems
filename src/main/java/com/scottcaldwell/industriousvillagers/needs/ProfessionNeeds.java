@@ -93,7 +93,7 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
     private static final ProfessionNeeds FARMER = new ProfessionNeeds(List.of(
             new Need("hoe", s -> s.is(ItemTags.HOES), new ItemStack(Items.IRON_HOE), 1, 1, false, v -> true, true),
             new Need("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), new ItemStack(Items.WHEAT_SEEDS), 16, 8, true, v -> true, false),
-            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, true)
+            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
     ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
             || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), List.of("hoe"), 7, null);
 
@@ -120,7 +120,7 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
             new Need("sword", s -> s.is(ItemTags.SWORDS), new ItemStack(Items.IRON_SWORD), 1, 1, false, v -> true, false),
             new Need("bucket", s -> s.is(Items.BUCKET), new ItemStack(Items.BUCKET), 3, 2, false, v -> true, false),
             new Need("feed", s -> s.is(ANIMAL_FEED), new ItemStack(Items.WHEAT), 16, 8, true, v -> true, false),
-            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, true)
+            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
     ), s -> s.is(HERDER_OUTPUT), List.of("shears", "sword", "bucket"), 5,
             com.scottcaldwell.industriousvillagers.herd.HerdWork::plan);
 
@@ -140,8 +140,9 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
         return profession.unwrapKey().map(BY_PROFESSION::get).orElse(null);
     }
 
-    /** True when a need that gates work is missing (no hoe; hungry with nothing to eat). */
+    /** True when the villager will not work: too hungry (whatever it carries), or a work-gating need is missing. */
     public boolean workBlocked(Villager villager) {
+        if (Hunger.tooHungryToWork(villager)) return true;
         for (Need need : needs) {
             if (need.gatesWork() && need.missing(villager)) return true;
         }
