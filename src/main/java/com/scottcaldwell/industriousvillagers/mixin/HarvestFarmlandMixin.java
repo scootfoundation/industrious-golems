@@ -1,6 +1,13 @@
 package com.scottcaldwell.industriousvillagers.mixin;
 
+import com.scottcaldwell.industriousvillagers.FarmerTools;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.npc.villager.Villager;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.ai.behavior.HarvestFarmland;
@@ -26,5 +33,31 @@ public class HarvestFarmlandMixin {
     )
     private boolean redirectFarmerCheck(Holder<VillagerProfession> holder, ResourceKey<VillagerProfession> ignored) {
         return holder.is(ModProfessions.FARMER_KEY);
+    }
+
+    /** PRD: the farmer consumes hoes, so it cannot work without one. */
+    @Inject(method = "checkExtraStartConditions", at = @At("HEAD"), cancellable = true)
+    private void industriousvillagers$requireHoe(ServerLevel level, Villager villager, CallbackInfoReturnable<Boolean> cir) {
+        if (villager.getVillagerData().profession().is(ModProfessions.FARMER_KEY) && !FarmerTools.hasHoe(villager)) {
+            cir.setReturnValue(false);
+        }
+    }
+
+    /** Each crop harvested wears the hoe by one use. */
+    @Redirect(
+            method = "tick",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/level/ServerLevel;destroyBlock(Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/entity/Entity;)Z",
+                    ordinal = 0
+            )
+    )
+    private boolean industriousvillagers$wearHoeOnHarvest(ServerLevel level, BlockPos pos, boolean drop, Entity entity) {
+        boolean destroyed = level.destroyBlock(pos, drop, entity);
+        if (destroyed && entity instanceof Villager villager
+                && villager.getVillagerData().profession().is(ModProfessions.FARMER_KEY)) {
+            FarmerTools.wearHoe(level, villager);
+        }
+        return destroyed;
     }
 }
