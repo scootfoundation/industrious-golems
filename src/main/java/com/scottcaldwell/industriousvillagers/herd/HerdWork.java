@@ -237,7 +237,7 @@ public class HerdWork extends Behavior<Villager> {
                 if (!hasTool(needs, villager, "sword")) return false;
                 ToolWear.use(level, villager, "sword");
                 animal.hurtServer(level, level.damageSources().mobAttack(villager), animal.getMaxHealth() * 2);
-                collectDrops(level, villager, animal.position());
+                com.scottcaldwell.industriousvillagers.behavior.Drops.collectFresh(level, villager, animal.position());
                 return true;
             }
             case SHEAR -> {
@@ -245,7 +245,7 @@ public class HerdWork extends Behavior<Villager> {
                 if (slot < 0 || !(animal instanceof Sheep sheep) || !sheep.readyForShearing()) return false;
                 sheep.shear(level, SoundSource.NEUTRAL, villager.getInventory().getItem(slot).copyWithCount(1));
                 ToolWear.use(level, villager, "shears");
-                collectDrops(level, villager, animal.position());
+                com.scottcaldwell.industriousvillagers.behavior.Drops.collectFresh(level, villager, animal.position());
                 return true;
             }
             case MILK -> {
@@ -267,17 +267,6 @@ public class HerdWork extends Behavior<Villager> {
             }
         }
         return false;
-    }
-
-    /** Picks up what the animal just dropped (wool, meat, leather, feathers). */
-    private static void collectDrops(ServerLevel level, Villager villager, Vec3 at) {
-        for (ItemEntity drop : level.getEntitiesOfClass(ItemEntity.class, new AABB(at, at).inflate(3.0))) {
-            if (drop.tickCount > 1) continue; // only fresh drops, never items that were already lying there
-            ItemStack rest = villager.getInventory().addItem(drop.getItem().copy());
-            if (rest.isEmpty()) drop.discard();
-            else drop.setItem(rest);
-        }
-        villager.getInventory().setChanged();
     }
 
     private static void give(ServerLevel level, Villager villager, ItemStack stack) {

@@ -1,4 +1,5 @@
 {
   "entity.minecraft.villager.industriousvillagers.farmer": "Farmer",
-  "entity.minecraft.villager.industriousvillagers.herder": "Herder"
+  "entity.minecraft.villager.industriousvillagers.herder": "Herder",
+  "entity.minecraft.villager.industriousvillagers.lumberjack": "Lumberjack"
 }

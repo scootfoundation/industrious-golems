@@ -26,7 +26,7 @@ public abstract class VillagerBrainMixin {
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super Villager>>> tasks = ImmutableList.builder();
         tasks.add(Pair.of(0, new ContainerInteraction()));
         tasks.add(Pair.of(0, new EatFood()));
-        if (needs.planner() != null) tasks.add(Pair.of(0, new com.scottcaldwell.industriousvillagers.herd.HerdWork()));
+        if (needs.runner() != null) tasks.add(Pair.of(0, needs.runner().get()));
         brain.addActivity(ModActivities.TASK.get(), tasks.build());
     }
 }

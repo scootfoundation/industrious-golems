@@ -25,7 +25,7 @@ import java.util.function.Predicate;
  * "missing something" indicator, so a new profession only has to declare one of these.
  */
 public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, List<String> toolIds, int generalSlots,
-                              WorkPlanner planner) {
+                              WorkPlanner planner, java.util.function.Supplier<net.minecraft.world.entity.ai.behavior.Behavior<Villager>> runner) {
 
     /** Decides what profession-specific work to do next; the plan is handed to that profession's task runner. */
     @FunctionalInterface
@@ -95,7 +95,7 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
             new Need("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), new ItemStack(Items.WHEAT_SEEDS), 16, 8, true, v -> true, false),
             new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
     ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
-            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), List.of("hoe"), 7, null);
+            || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), List.of("hoe"), 7, null, null);
 
     /** Food villagers will eat and fetch from containers: the data-driven tag industriousvillagers:villager_food. */
     public static final TagKey<Item> VILLAGER_FOOD = TagKey.create(Registries.ITEM,
@@ -122,10 +122,22 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Li
             new Need("feed", s -> s.is(ANIMAL_FEED), new ItemStack(Items.WHEAT), 16, 8, true, v -> true, false),
             new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
     ), s -> s.is(HERDER_OUTPUT), List.of("shears", "sword", "bucket"), 5,
-            com.scottcaldwell.industriousvillagers.herd.HerdWork::plan);
+            com.scottcaldwell.industriousvillagers.herd.HerdWork::plan, com.scottcaldwell.industriousvillagers.herd.HerdWork::new);
+
+    public static final TagKey<Item> LUMBERJACK_OUTPUT = TagKey.create(Registries.ITEM,
+            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "lumberjack_output"));
+
+    /** Lumberjack: an axe to fell with (no axe, no felling), saplings to replant with, and food for itself. */
+    private static final ProfessionNeeds LUMBERJACK = new ProfessionNeeds(List.of(
+            new Need("axe", s -> s.is(ItemTags.AXES), new ItemStack(Items.IRON_AXE), 1, 1, false, v -> true, true),
+            new Need("saplings", s -> s.is(ItemTags.SAPLINGS), new ItemStack(Items.OAK_SAPLING), 8, 4, true, v -> true, false),
+            new Need("food", ProfessionNeeds::isFood, new ItemStack(Items.BREAD), 6, 3, false, Hunger::isHungry, false)
+    ), s -> s.is(LUMBERJACK_OUTPUT), List.of("axe"), 7,
+            com.scottcaldwell.industriousvillagers.lumber.FellTree::plan, com.scottcaldwell.industriousvillagers.lumber.FellTree::new);
 
     private static final Map<ResourceKey<VillagerProfession>, ProfessionNeeds> BY_PROFESSION =
-            Map.of(ModProfessions.FARMER_KEY, FARMER, ModProfessions.HERDER_KEY, HERDER);
+            Map.of(ModProfessions.FARMER_KEY, FARMER, ModProfessions.HERDER_KEY, HERDER,
+                    ModProfessions.LUMBERJACK_KEY, LUMBERJACK);
 
     public static java.util.Set<ResourceKey<VillagerProfession>> professions() {
         return BY_PROFESSION.keySet();

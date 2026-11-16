@@ -30,6 +30,11 @@ public class ModProfessions {
             Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "herder")
     );
 
+    public static final ResourceKey<VillagerProfession> LUMBERJACK_KEY = ResourceKey.create(
+            Registries.VILLAGER_PROFESSION,
+            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "lumberjack")
+    );
+
     // PoiTypes.FARMER is the ResourceKey for the Composter POI (named after the vanilla profession it served).
     public static final DeferredHolder<VillagerProfession, VillagerProfession> FARMER =
             PROFESSIONS.register("farmer", () -> new VillagerProfession(
@@ -53,6 +58,18 @@ public class ModProfessions {
                     ImmutableSet.of(Items.SHEARS, Items.BUCKET, Items.WHEAT, Items.CARROT, Items.WHEAT_SEEDS),
                     ImmutableSet.of(),
                     SoundEvents.VILLAGER_WORK_SHEPHERD
+            ));
+
+    // The fletching table is the lumberjack's job site.
+    public static final DeferredHolder<VillagerProfession, VillagerProfession> LUMBERJACK =
+            PROFESSIONS.register("lumberjack", () -> new VillagerProfession(
+                    Component.translatable("entity.minecraft.villager." + IndustriousVillagers.MODID + ".lumberjack"),
+                    holder -> holder.is(PoiTypes.FLETCHER),
+                    holder -> holder.is(PoiTypes.FLETCHER),
+                    ImmutableSet.of(Items.WOODEN_AXE, Items.STONE_AXE, Items.IRON_AXE, Items.GOLDEN_AXE,
+                            Items.DIAMOND_AXE, Items.NETHERITE_AXE, Items.OAK_SAPLING),
+                    ImmutableSet.of(),
+                    SoundEvents.VILLAGER_WORK_FLETCHER
             ));
 
     public static void register(IEventBus modEventBus) {

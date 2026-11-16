@@ -46,6 +46,10 @@ public class ModGameTests {
         FUNCTIONS.register("herder_organizes_tools", () -> ModGameTests::herderOrganizesTools);
         FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
         FUNCTIONS.register("hunger_gates_work", () -> ModGameTests::hungerGatesWork);
+        FUNCTIONS.register("lumberjack_fells_and_replants", () -> ModGameTests::lumberjackFellsAndReplants);
+        FUNCTIONS.register("lumberjack_ignores_log_building", () -> ModGameTests::lumberjackIgnoresLogBuilding);
+        FUNCTIONS.register("lumberjack_needs_axe", () -> ModGameTests::lumberjackNeedsAxe);
+        FUNCTIONS.register("lumberjack_inventory_menu", () -> ModGameTests::lumberjackInventoryMenu);
         FUNCTIONS.register("starvation_hurts_and_food_heals", () -> ModGameTests::starvationHurtsAndFoodHeals);
     }
 
@@ -462,4 +466,99 @@ public class ModGameTests {
             setHunger(farmer, 20);
         });
         helper.succeedWhen(() -> helper.assertTrue(farmer.getHealth() > 5.0F && farmer.tickCount > 400, "a fed farmer should regain health, has " + farmer.getHealth()));
+    }
+    // ---- lumberjack -----------------------------------------------------------------------------------------
+
+    private static Villager spawnLumberjack(GameTestHelper helper, BlockPos at) {
+        helper.setBlock(COMPOSTER, Blocks.FLETCHING_TABLE);
+        Villager villager = helper.spawn(EntityType.VILLAGER, at);
+        villager.setVillagerData(villager.getVillagerData().withProfession(ModProfessions.LUMBERJACK.getDelegate()));
+        villager.refreshBrain(helper.getLevel());
+        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(COMPOSTER)));
+        return villager;
+    }
+
+    /** A 4-log oak with natural leaves rooted in grass at (x, z). */
+    private static void buildTree(GameTestHelper helper, int x, int z) {
+        helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
+        var leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, false);
+        for (int y = 4; y <= 5; y++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0 && y == 4) continue;
+                    helper.setBlock(new BlockPos(x + dx, y, z + dz), leaf);
+                }
+            }
+        }
+        for (int y = 1; y <= 4; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG);
+    }
+
+    private static int logsAt(GameTestHelper helper, int x, int z) {
+        int n = 0;
+        for (int y = 1; y <= 4; y++) if (helper.getBlockState(new BlockPos(x, y, z)).is(Blocks.OAK_LOG)) n++;
+        return n;
+    }
+
+    /** The lumberjack fells a natural tree, keeps the logs for the chest, wears the axe and plants a sapling. */
+    private static void lumberjackFellsAndReplants(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
+        jack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING, 2));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(logsAt(helper, 5, 5) == 0, "all four logs should be felled, " + logsAt(helper, 5, 5) + " left");
+            helper.assertTrue(total(jack, chest, Items.OAK_LOG) == 4, "the four logs should be collected, got " + total(jack, chest, Items.OAK_LOG));
+            helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood");
+            int axe = -1;
+            for (int i = 0; i < jack.getInventory().getContainerSize(); i++) if (jack.getInventory().getItem(i).is(Items.IRON_AXE)) axe = i;
+            helper.assertTrue(axe >= 0 && jack.getInventory().getItem(axe).getDamageValue() >= 4, "the axe should wear once per log");
+        });
+    }
+
+    /** Logs without natural leaves are a player's building: left alone. */
+    private static void lumberjackIgnoresLogBuilding(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(new BlockPos(5, 0, 5), Blocks.GRASS_BLOCK);
+        for (int y = 1; y <= 3; y++) helper.setBlock(new BlockPos(5, y, 5), Blocks.OAK_LOG);
+        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
+        helper.runAtTickTime(500, () -> {
+            helper.assertTrue(logsAt(helper, 5, 5) == 3, "a log structure must not be felled");
+            helper.succeed();
+        });
+    }
+
+    /** No axe, no felling, and the plate says so. */
+    private static void lumberjackNeedsAxe(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(500, () -> {
+            helper.assertTrue(logsAt(helper, 5, 5) == 4, "without an axe the tree stays");
+            var status = jack.getData(ModAttachments.STATUS);
+            helper.assertTrue(status.blocked() && status.tools() == 0, "the missing axe should show");
+            helper.succeed();
+        });
+    }
+
+    /** One axe slot plus seven general slots. */
+    private static void lumberjackInventoryMenu(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        var player = helper.makeMockServerPlayerInLevel();
+        player.setPos(jack.getX() + 5000, jack.getY(), jack.getZ());
+        boolean[] checked = {false};
+        helper.runAtTickTime(5, () -> {
+            player.interactOn(jack, net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.VillagerMenu, "right-click should open the villager menu");
+            var menu = (com.scottcaldwell.industriousvillagers.inventory.VillagerMenu) player.containerMenu;
+            helper.assertTrue(menu.toolSlots() == 1 && menu.generalSlots() == 7, "1 tool and 7 general slots");
+            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_AXE)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_HOE)), "the tool slot takes only axes");
+            checked[0] = true;
+            player.closeContainer();
+        });
+        helper.succeedWhen(() -> helper.assertTrue(checked[0], "menu should have been checked"));
     }}
