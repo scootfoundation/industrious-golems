@@ -1,7 +1,6 @@
 package com.scottcaldwell.industriousvillagers;
 
 import com.google.common.collect.ImmutableSet;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -37,8 +36,7 @@ public class ModProfessions {
                             Items.GOLDEN_HOE, Items.DIAMOND_HOE, Items.NETHERITE_HOE
                     ),
                     ImmutableSet.of(Blocks.FARMLAND),
-                    SoundEvents.VILLAGER_WORK_FARMER,
-                    new Int2ObjectOpenHashMap<>()
+                    SoundEvents.VILLAGER_WORK_FARMER
             ));
 
     public static void register(IEventBus modEventBus) {

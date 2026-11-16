@@ -42,7 +42,7 @@ public class AssignProfessionFromJobSiteMixin {
             if (claimedSite.pos().distSqr(villager.blockPosition()) > 4) return false;
 
             Optional<Holder<PoiType>> poiTypeOpt = level.getPoiManager()
-                    .getInSquare(_ -> true, claimedSite.pos(), 0, PoiManager.Occupancy.ANY)
+                    .getInSquare(ignored -> true, claimedSite.pos(), 0, PoiManager.Occupancy.ANY)
                     .map(PoiRecord::getPoiType)
                     .findFirst();
             if (poiTypeOpt.isEmpty()) return false;
