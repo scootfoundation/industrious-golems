@@ -1,6 +1,6 @@
 package com.scottcaldwell.industriousvillagers.mixin;
 
-import com.scottcaldwell.industriousvillagers.FarmerTools;
+import com.scottcaldwell.industriousvillagers.needs.ToolWear;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
@@ -56,9 +56,8 @@ public class HarvestFarmlandMixin {
     )
     private boolean industriousvillagers$wearHoeOnHarvest(ServerLevel level, BlockPos pos, boolean drop, Entity entity) {
         boolean destroyed = level.destroyBlock(pos, drop, entity);
-        if (destroyed && entity instanceof Villager villager
-                && villager.getVillagerData().profession().is(ModProfessions.FARMER_KEY)) {
-            FarmerTools.wearHoe(level, villager);
+        if (destroyed && entity instanceof Villager villager) {
+            ToolWear.use(level, villager);
         }
         return destroyed;
     }

@@ -2,7 +2,7 @@ package com.scottcaldwell.industriousvillagers.mixin;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
-import com.scottcaldwell.industriousvillagers.ModProfessions;
+import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import com.scottcaldwell.industriousvillagers.behavior.StartTask;
 import net.minecraft.core.Holder;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
@@ -22,7 +22,7 @@ public class VillagerGoalPackagesMixin {
     private static void industriousvillagers$addWorkBehaviours(
             Holder<VillagerProfession> profession, float speed,
             CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir) {
-        if (!profession.is(ModProfessions.FARMER_KEY)) return; // TODO: any profession with ProfessionNeeds
+        if (profession.unwrapKey().map(ProfessionNeeds::byKey).isEmpty()) return;
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super Villager>>> b = ImmutableList.builder();
         b.addAll(cir.getReturnValue());
         b.add(Pair.of(5, new StartTask()));

@@ -2,7 +2,6 @@ package com.scottcaldwell.industriousvillagers.mixin;
 
 import com.scottcaldwell.industriousvillagers.ModMenus;
 import com.scottcaldwell.industriousvillagers.inventory.VillagerMenu;
-import net.minecraft.world.inventory.MenuType;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;

@@ -14,6 +14,6 @@ public final class ClientEvents {
 
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {
-        event.register(ModMenus.FARMER.get(), VillagerScreen::new);
+        for (var menu : ModMenus.all()) event.register(menu.get(), VillagerScreen::new);
     }
 }

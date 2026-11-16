@@ -55,7 +55,7 @@ public final class StatusPlate {
         line.append(Component.literal("  "));
 
         // hunger meter
-        line.append(sprite(net.minecraft.world.item.Items.BREAD));
+        line.append(sprite(needs.foodIcon()));
         int full = status.hunger();
         ChatFormatting colour = full > 5 ? ChatFormatting.GREEN : full > 2 ? ChatFormatting.YELLOW : ChatFormatting.RED;
         line.append(Component.literal("█".repeat(full)).withStyle(colour));

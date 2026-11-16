@@ -1,7 +1,12 @@
 package com.scottcaldwell.industriousvillagers.needs;
 
+import com.scottcaldwell.industriousvillagers.IndustriousVillagers;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
@@ -20,6 +25,14 @@ import java.util.function.Predicate;
  * "missing something" indicator, so a new profession only has to declare one of these.
  */
 public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, String toolId, int generalSlots) {
+
+    /** Icon of the food need (shown beside the hunger meter), defaulting to bread. */
+    public Item foodIcon() {
+        for (Need need : needs) {
+            if (need.id().equals("food")) return need.icon().getItem();
+        }
+        return Items.BREAD;
+    }
 
     /** The need that is the profession's tool (shown on the status plate), or null. */
     public Need toolNeed() {
@@ -64,19 +77,24 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, St
     ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
             || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES), "hoe", 7);
 
-    private static final java.util.Set<net.minecraft.world.item.Item> FOODS = java.util.Set.of(
-            Items.BREAD, Items.BAKED_POTATO, Items.COOKED_BEEF, Items.COOKED_PORKCHOP, Items.COOKED_CHICKEN,
-            Items.COOKED_MUTTON, Items.COOKED_RABBIT, Items.COOKED_COD, Items.COOKED_SALMON, Items.PUMPKIN_PIE,
-            Items.COOKIE);
+    /** Food villagers will eat and fetch from containers: the data-driven tag industriousvillagers:villager_food. */
+    public static final TagKey<Item> VILLAGER_FOOD = TagKey.create(Registries.ITEM,
+            Identifier.fromNamespaceAndPath(IndustriousVillagers.MODID, "villager_food"));
 
-    /** Food villagers will eat and fetch from containers. */
     public static boolean isFood(ItemStack stack) {
-        return FOODS.contains(stack.getItem());
+        return stack.is(VILLAGER_FOOD);
     }
 
+    /**
+     * Every profession that has needs. Adding an entry here is all the shared machinery needs: menu type and screen,
+     * work-package task hook, brain activity, status plate and container visits are all derived from this map.
+     */
     private static final Map<ResourceKey<VillagerProfession>, ProfessionNeeds> BY_PROFESSION =
             Map.of(ModProfessions.FARMER_KEY, FARMER);
 
+    public static java.util.Set<ResourceKey<VillagerProfession>> professions() {
+        return BY_PROFESSION.keySet();
+    }
     public static ProfessionNeeds byKey(ResourceKey<VillagerProfession> key) {
         return BY_PROFESSION.get(key);
     }
