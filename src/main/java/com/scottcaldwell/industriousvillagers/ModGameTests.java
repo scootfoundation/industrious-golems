@@ -34,6 +34,8 @@ public class ModGameTests {
         FUNCTIONS.register("farmer_chest_preference", () -> ModGameTests::farmerChestPreference);
         FUNCTIONS.register("farmer_shows_missing_hoe", () -> ModGameTests::farmerShowsMissingHoe);
         FUNCTIONS.register("farmer_inventory_menu", () -> ModGameTests::farmerInventoryMenu);
+        FUNCTIONS.register("farmer_eats_when_hungry", () -> ModGameTests::farmerEatsWhenHungry);
+        FUNCTIONS.register("hungry_farmer_without_food_stops_and_shows_food", () -> ModGameTests::hungryFarmerWithoutFood);
         FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
     }
 
@@ -191,6 +193,41 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(held[0], "menu should have been checked");
             helper.assertTrue(farmer.getTradingPlayer() == null, "farmer should be released when the menu closes");
+        });
+    }
+
+    private static void makeHungry(Villager farmer) {
+        farmer.setData(ModAttachments.LAST_MEAL, farmer.level().getGameTime() - com.scottcaldwell.industriousvillagers.needs.Hunger.INTERVAL - 1);
+    }
+
+    /** A hungry farmer eats one bread, is no longer hungry, and holds nothing afterwards. */
+    private static void farmerEatsWhenHungry(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.BREAD, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
+        makeHungry(farmer);
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(farmer.getInventory(), Items.BREAD) == 2, "farmer should have eaten one bread, has " + count(farmer.getInventory(), Items.BREAD));
+            helper.assertTrue(!com.scottcaldwell.industriousvillagers.needs.Hunger.isHungry(farmer), "farmer should be fed");
+            helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "farmer should not still hold food");
+        });
+    }
+
+    /** Hungry with nothing to eat: the farmer shows bread over its head and will not harvest. */
+    private static void hungryFarmerWithoutFood(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
+        makeHungry(farmer);
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(Items.BREAD)
+                    && com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.isIcon(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)),
+                    "hungry farmer without food should show bread");
+            helper.assertTrue(com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds.of(farmer).workBlocked(farmer), "should be blocked from working");
         });
     }
 }

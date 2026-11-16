@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousvillagers:work_hours",
+  "function": "industriousvillagers:hungry_farmer_without_food_stops_and_shows_food",
+  "max_ticks": 600,
+  "setup_ticks": 1,
+  "structure": "minecraft:empty"
+}

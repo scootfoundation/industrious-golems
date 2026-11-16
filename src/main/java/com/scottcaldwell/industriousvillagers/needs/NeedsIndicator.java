@@ -25,6 +25,14 @@ public final class NeedsIndicator {
         return data != null && data.copyTag().contains(MARKER);
     }
 
+    /** Tags a stack as a display-only item (never dropped, never real loot). */
+    public static ItemStack markAsDisplay(ItemStack stack) {
+        CompoundTag tag = new CompoundTag();
+        tag.putBoolean(MARKER, true);
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        return stack;
+    }
+
     /** Called every tick on the server for each villager. */
     public static void tick(Villager villager) {
         if (villager.tickCount % CHECK_INTERVAL != 0) return;
@@ -34,7 +42,7 @@ public final class NeedsIndicator {
         ProfessionNeeds.Need missing = null;
         if (needs != null && !villager.isSleeping() && !villager.isBaby()) {
             for (ProfessionNeeds.Need need : needs.needs()) {
-                if (need.blocking() && need.have(villager.getInventory()) == 0) { missing = need; break; }
+                if (need.missing(villager)) { missing = need; break; }
             }
         }
 
@@ -43,11 +51,7 @@ public final class NeedsIndicator {
             return;
         }
         if (!showing || !head.is(missing.icon().getItem())) {
-            ItemStack icon = missing.icon().copy();
-            CompoundTag tag = new CompoundTag();
-            tag.putBoolean(MARKER, true);
-            icon.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-            villager.setItemSlot(EquipmentSlot.HEAD, icon);
+            villager.setItemSlot(EquipmentSlot.HEAD, markAsDisplay(missing.icon().copy()));
         }
         if (villager.tickCount % SHAKE_INTERVAL == 0 && villager.getUnhappyCounter() == 0) {
             villager.setUnhappyCounter(40);
@@ -57,6 +61,8 @@ public final class NeedsIndicator {
 
     /** The icon is not a real item: never let it drop on death. */
     public static void clearOnDeath(Villager villager) {
-        if (isIcon(villager.getItemBySlot(EquipmentSlot.HEAD))) villager.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+        for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.HEAD, EquipmentSlot.MAINHAND}) {
+            if (isIcon(villager.getItemBySlot(slot))) villager.setItemSlot(slot, ItemStack.EMPTY);
+        }
     }
 }

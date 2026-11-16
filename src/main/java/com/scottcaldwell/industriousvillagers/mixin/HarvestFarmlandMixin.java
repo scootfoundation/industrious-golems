@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousvillagers.mixin;
 
 import com.scottcaldwell.industriousvillagers.FarmerTools;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
+import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -35,10 +36,11 @@ public class HarvestFarmlandMixin {
         return holder.is(ModProfessions.FARMER_KEY);
     }
 
-    /** PRD: the farmer consumes hoes, so it cannot work without one. */
+    /** PRD: the farmer consumes hoes and eats, so it cannot work without a hoe or (when hungry) food. */
     @Inject(method = "checkExtraStartConditions", at = @At("HEAD"), cancellable = true)
-    private void industriousvillagers$requireHoe(ServerLevel level, Villager villager, CallbackInfoReturnable<Boolean> cir) {
-        if (villager.getVillagerData().profession().is(ModProfessions.FARMER_KEY) && !FarmerTools.hasHoe(villager)) {
+    private void industriousvillagers$requireNeeds(ServerLevel level, Villager villager, CallbackInfoReturnable<Boolean> cir) {
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        if (needs != null && needs.workBlocked(villager)) {
             cir.setReturnValue(false);
         }
     }
