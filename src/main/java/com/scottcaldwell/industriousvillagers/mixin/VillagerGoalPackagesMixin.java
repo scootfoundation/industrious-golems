@@ -3,8 +3,7 @@ package com.scottcaldwell.industriousvillagers.mixin;
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
 import com.scottcaldwell.industriousvillagers.ModProfessions;
-import com.scottcaldwell.industriousvillagers.behavior.ContainerInteraction;
-import com.scottcaldwell.industriousvillagers.behavior.EatFood;
+import com.scottcaldwell.industriousvillagers.behavior.StartTask;
 import net.minecraft.core.Holder;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
 import net.minecraft.world.entity.ai.behavior.VillagerGoalPackages;
@@ -26,8 +25,7 @@ public class VillagerGoalPackagesMixin {
         if (!profession.is(ModProfessions.FARMER_KEY)) return; // TODO: any profession with ProfessionNeeds
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super Villager>>> b = ImmutableList.builder();
         b.addAll(cir.getReturnValue());
-        b.add(Pair.of(5, new EatFood()));
-        b.add(Pair.of(6, new ContainerInteraction()));
+        b.add(Pair.of(5, new StartTask()));
         cir.setReturnValue(b.build());
     }
 }

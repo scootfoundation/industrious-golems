@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "AssignProfessionFromJobSiteMixin",
+    "BrainMixin",
     "HarvestFarmlandMixin",
+    "VillagerBrainMixin",
     "VillagerContainerUserMixin",
     "VillagerGoalPackagesMixin",
     "VillagerInteractionMixin",

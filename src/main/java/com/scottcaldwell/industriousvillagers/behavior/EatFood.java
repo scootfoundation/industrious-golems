@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousvillagers.behavior;
 
 import com.google.common.collect.ImmutableMap;
+import com.scottcaldwell.industriousvillagers.ModAttachments;
 import com.scottcaldwell.industriousvillagers.needs.Hunger;
 import com.scottcaldwell.industriousvillagers.needs.NeedsIndicator;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
@@ -38,14 +39,20 @@ public class EatFood extends Behavior<Villager> {
         return -1;
     }
 
-    @Override
-    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
+    /** True when the villager is hungry and has something to eat. Used by {@link StartTask}. */
+    public static boolean shouldEat(Villager villager) {
         return ProfessionNeeds.of(villager) != null && !villager.isSleeping() && Hunger.isHungry(villager)
                 && foodSlot(villager) >= 0;
     }
 
     @Override
+    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
+        return villager.getData(ModAttachments.TASK).type == TaskState.Type.EAT;
+    }
+
+    @Override
     protected void start(ServerLevel level, Villager villager, long time) {
+        Tasks.stopOthers(level, villager, this, time);
         endsAt = time + EAT_TICKS;
         previousMainHand = villager.getItemBySlot(EquipmentSlot.MAINHAND);
         int slot = foodSlot(villager);
@@ -58,7 +65,8 @@ public class EatFood extends Behavior<Villager> {
 
     @Override
     protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
-        return !villager.isSleeping() && foodSlot(villager) >= 0;
+        return !villager.isSleeping() && foodSlot(villager) >= 0 && Tasks.active(villager)
+                && Tasks.scheduleAllowsWork(level, villager);
     }
 
     @Override
@@ -81,11 +89,14 @@ public class EatFood extends Behavior<Villager> {
     protected void stop(ServerLevel level, Villager villager, long time) {
         villager.setItemSlot(EquipmentSlot.MAINHAND, previousMainHand);
         previousMainHand = ItemStack.EMPTY;
-        if (time < endsAt) return; // interrupted before swallowing
-        int slot = foodSlot(villager);
-        if (slot < 0) return;
-        villager.getInventory().removeItem(slot, 1);
-        Hunger.ate(villager);
-        villager.playSound(SoundEvents.PLAYER_BURP, 0.5F, 1.0F);
+        if (time >= endsAt) { // not interrupted before swallowing
+            int slot = foodSlot(villager);
+            if (slot >= 0) {
+                villager.getInventory().removeItem(slot, 1);
+                Hunger.ate(villager);
+                villager.playSound(SoundEvents.PLAYER_BURP, 0.5F, 1.0F);
+            }
+        }
+        Tasks.finish(level, villager);
     }
 }

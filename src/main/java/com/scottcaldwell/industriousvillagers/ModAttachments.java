@@ -18,6 +18,10 @@ public class ModAttachments {
                     .serialize(Codec.LONG.fieldOf("time"))
                     .build());
 
+    /** Transient hand-over between the task trigger and the task activity; not saved. */
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousvillagers.behavior.TaskState>> TASK =
+            ATTACHMENTS.register("task", () -> AttachmentType.builder(com.scottcaldwell.industriousvillagers.behavior.TaskState::new).build());
+
     public static void register(IEventBus modEventBus) {
         ATTACHMENTS.register(modEventBus);
     }

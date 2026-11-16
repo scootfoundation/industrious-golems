@@ -106,8 +106,15 @@ public class ModGameTests {
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 20));
 
         boolean[] sawOpen = {false};
+        boolean[] strayed = {false};
+        BlockPos chestAbs = helper.absolutePos(CHEST);
         helper.succeedWhen(() -> {
-            if (!chest.getEntitiesWithContainerOpen().isEmpty()) sawOpen[0] = true;
+            if (!chest.getEntitiesWithContainerOpen().isEmpty()) {
+                sawOpen[0] = true;
+                // exclusive task state: while the chest is open the farmer must stay put beside it
+                if (farmer.distanceToSqr(chestAbs.getX() + 0.5, chestAbs.getY() + 0.5, chestAbs.getZ() + 0.5) > 3.0 * 3.0) strayed[0] = true;
+            }
+            helper.assertTrue(!strayed[0], "farmer wandered away from the open chest");
             helper.assertTrue(sawOpen[0], "farmer should have opened the chest (lid animation)");
             helper.assertTrue(chest.getEntitiesWithContainerOpen().isEmpty(), "chest should be closed again");
             helper.assertTrue(count(chest, Items.WHEAT) == 5, "chest should hold the 5 harvested wheat, has " + count(chest, Items.WHEAT));

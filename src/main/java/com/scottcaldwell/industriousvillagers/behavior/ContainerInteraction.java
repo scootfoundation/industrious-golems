@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousvillagers.behavior;
 
 import com.google.common.collect.ImmutableMap;
+import com.scottcaldwell.industriousvillagers.ModAttachments;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -13,7 +14,6 @@ import net.minecraft.world.entity.ContainerUser;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
@@ -36,8 +36,8 @@ public class ContainerInteraction extends Behavior<Villager> {
 
     /** Containers within this many blocks (horizontally; +-2 vertically) of the job site count as "adjacent". */
     public static final int SEARCH_RADIUS = 3;
-    private static final int COOLDOWN_TICKS = 200;
-    private static final int DURATION = 800;
+    public static final int COOLDOWN_TICKS = 200;
+    private static final int DURATION = 1200;
     private static final double INTERACT_DIST_SQR = 2.5 * 2.5;
 
     private static final int PAUSE_LOOK = 15;
@@ -48,7 +48,6 @@ public class ContainerInteraction extends Behavior<Villager> {
 
     private enum Phase { APPROACH, LOOK, TRANSFER, CLOSING, LOOK_AWAY, DONE }
 
-    private long nextAttempt = 0;
     private BlockPos chestPos;
     private boolean deposit;
     private boolean take;
@@ -60,23 +59,20 @@ public class ContainerInteraction extends Behavior<Villager> {
     private final Set<String> restocking = new HashSet<>();
 
     public ContainerInteraction() {
-        super(ImmutableMap.of(
-                MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT,
-                MemoryModuleType.WALK_TARGET, MemoryStatus.VALUE_ABSENT
-        ), DURATION);
+        super(ImmutableMap.of(), DURATION);
     }
 
     // ---- choosing a container ---------------------------------------------------------------------------------
 
-    @Override
-    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        if (needs == null) return false;
-        if (level.getGameTime() < nextAttempt) return false;
-        nextAttempt = level.getGameTime() + COOLDOWN_TICKS;
+    /** Which container to visit and what to do there. */
+    public record Plan(BlockPos pos, boolean deposit, boolean take) { }
 
+    /** Picks the container worth visiting right now, or null. Used by {@link StartTask}. */
+    public static Plan plan(ServerLevel level, Villager villager) {
+        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+        if (needs == null) return null;
         GlobalPos site = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension())) return false;
+        if (site == null || !site.dimension().equals(level.dimension())) return null;
 
         boolean hasDeposits = false;
         SimpleContainer inv = villager.getInventory();
@@ -106,11 +102,10 @@ public class ContainerInteraction extends Behavior<Villager> {
                     || (c.takePref() > 0 && c.takePref() == bestTake);
             if (serves && (best == null || c.dist() < best.dist())) best = c;
         }
-        if (best == null) return false;
-        chestPos = best.pos();
-        deposit = best.depositPref() > 0 && best.depositPref() == bestDeposit;
-        take = best.takePref() > 0 && best.takePref() == bestTake;
-        return true;
+        if (best == null) return null;
+        return new Plan(best.pos(),
+                best.depositPref() > 0 && best.depositPref() == bestDeposit,
+                best.takePref() > 0 && best.takePref() == bestTake);
     }
 
     private static boolean canTakeSomething(ProfessionNeeds needs, Container inv, Container chest) {
@@ -124,21 +119,47 @@ public class ContainerInteraction extends Behavior<Villager> {
         return false;
     }
 
-    // ---- the visit --------------------------------------------------------------------------------------------
+    // ---- the visit (runs in the exclusive task activity) --------------------------------------------------------
+
+    @Override
+    protected boolean checkExtraStartConditions(ServerLevel level, Villager villager) {
+        TaskState state = villager.getData(ModAttachments.TASK);
+        return state.type == TaskState.Type.VISIT && state.chest != null;
+    }
 
     @Override
     protected void start(ServerLevel level, Villager villager, long time) {
+        TaskState state = villager.getData(ModAttachments.TASK);
+        chestPos = state.chest;
+        deposit = state.deposit;
+        take = state.take;
+        Tasks.stopOthers(level, villager, this, time);
         phase = Phase.APPROACH;
         failedSlots.clear();
         doneNeeds.clear();
         restocking.clear();
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(chestPos));
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(chestPos), 0.5F, 1));
+        lookAtChest(villager);
+        walkToChest(villager);
     }
 
     @Override
     protected boolean canStillUse(ServerLevel level, Villager villager, long time) {
-        return phase != Phase.DONE && chestPos != null;
+        return phase != Phase.DONE && chestPos != null && Tasks.active(villager)
+                && Tasks.scheduleAllowsWork(level, villager);
+    }
+
+    private void lookAtChest(Villager villager) {
+        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(Vec3.atCenterOf(chestPos)));
+    }
+
+    private void walkToChest(Villager villager) {
+        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(chestPos), 0.5F, 1));
+    }
+
+    /** Stand still: nothing else is running, but make sure no leftover target pulls the villager away. */
+    private static void holdStill(Villager villager) {
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        villager.getNavigation().stop();
     }
 
     @Override
@@ -146,14 +167,18 @@ public class ContainerInteraction extends Behavior<Villager> {
         if (chestPos == null) return;
         switch (phase) {
             case APPROACH -> {
-                if (villager.distanceToSqr(chestPos.getX() + 0.5, chestPos.getY() + 0.5, chestPos.getZ() + 0.5) > INTERACT_DIST_SQR) return;
-                villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-                villager.getNavigation().stop();
-                villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(chestPos));
+                lookAtChest(villager);
+                if (villager.distanceToSqr(chestPos.getX() + 0.5, chestPos.getY() + 0.5, chestPos.getZ() + 0.5) > INTERACT_DIST_SQR) {
+                    if (!villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) walkToChest(villager);
+                    return;
+                }
+                holdStill(villager);
                 phase = Phase.LOOK;
                 timer = PAUSE_LOOK;
             }
             case LOOK -> {
+                holdStill(villager);
+                lookAtChest(villager);
                 if (--timer > 0) return;
                 Container chest = HopperBlockEntity.getContainerAt(level, chestPos);
                 if (chest == null) { phase = Phase.DONE; return; }
@@ -165,6 +190,8 @@ public class ContainerInteraction extends Behavior<Villager> {
                 timer = PAUSE_OPEN;
             }
             case TRANSFER -> {
+                holdStill(villager);
+                lookAtChest(villager);
                 if (--timer > 0) return;
                 ProfessionNeeds needs = ProfessionNeeds.of(villager);
                 boolean moved = needs != null && opened != null
@@ -179,6 +206,8 @@ public class ContainerInteraction extends Behavior<Villager> {
                 }
             }
             case CLOSING -> {
+                holdStill(villager);
+                lookAtChest(villager);
                 if (--timer > 0) return;
                 closeChest(villager);
                 Vec3 away = villager.position().subtract(Vec3.atCenterOf(chestPos)).multiply(1, 0, 1).normalize().scale(4);
@@ -188,6 +217,7 @@ public class ContainerInteraction extends Behavior<Villager> {
                 timer = PAUSE_AWAY;
             }
             case LOOK_AWAY -> {
+                holdStill(villager);
                 if (--timer > 0) return;
                 phase = Phase.DONE;
             }
@@ -197,12 +227,12 @@ public class ContainerInteraction extends Behavior<Villager> {
 
     @Override
     protected void stop(ServerLevel level, Villager villager, long time) {
-        closeChest(villager); // also covers interruptions (sleep, damage, timeout)
+        closeChest(villager); // also covers interruptions (night, panic, damage, timeout)
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
-        nextAttempt = time + COOLDOWN_TICKS;
         chestPos = null;
         phase = Phase.DONE;
+        Tasks.finish(level, villager);
     }
 
     private void closeChest(Villager villager) {
