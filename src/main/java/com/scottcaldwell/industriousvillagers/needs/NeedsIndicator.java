@@ -43,7 +43,7 @@ public final class NeedsIndicator {
         ProfessionNeeds needs = ProfessionNeeds.of(villager);
         com.scottcaldwell.industriousvillagers.inventory.InventoryLayout.organize(villager);
         if (needs == null || villager.isBaby()) {
-            if (!villager.getData(ModAttachments.STATUS).equals(StatusData.NONE)) villager.setData(ModAttachments.STATUS, StatusData.NONE);
+            publish(villager, StatusData.NONE);
             return;
         }
 
@@ -64,11 +64,23 @@ public final class NeedsIndicator {
             if (toolNeeds.get(t).have(villager.getInventory()) > 0) tools |= 1 << t;
         }
         StatusData updated = new StatusData(status, tools);
-        if (!villager.getData(ModAttachments.STATUS).equals(updated)) villager.setData(ModAttachments.STATUS, updated);
+        publish(villager, updated);
 
         if (blocked && !villager.isSleeping() && villager.tickCount % SHAKE_INTERVAL == 0 && villager.getUnhappyCounter() == 0) {
             villager.setUnhappyCounter(40);
             villager.playSound(SoundEvents.VILLAGER_NO, 1.0F, villager.getVoicePitch());
+        }
+    }
+
+    /**
+     * Sets the synced status. A client without this mod that tracks the villager (a bot, a mock player) cannot receive
+     * the sync payload and NeoForge throws; that must never crash the server, the client simply sees no status plate.
+     */
+    private static void publish(Villager villager, StatusData status) {
+        try {
+            if (!villager.getData(ModAttachments.STATUS).equals(status)) villager.setData(ModAttachments.STATUS, status);
+        } catch (UnsupportedOperationException ignored) {
+            // unsupported tracker; the value is stored server side regardless
         }
     }
 
