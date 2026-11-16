@@ -33,6 +33,7 @@ public class ModGameTests {
         FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
         FUNCTIONS.register("farmer_chest_preference", () -> ModGameTests::farmerChestPreference);
         FUNCTIONS.register("farmer_shows_missing_hoe", () -> ModGameTests::farmerShowsMissingHoe);
+        FUNCTIONS.register("farmer_inventory_menu", () -> ModGameTests::farmerInventoryMenu);
         FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
     }
 
@@ -168,5 +169,28 @@ public class ModGameTests {
         helper.runAtTickTime(61, () -> farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE)));
         helper.succeedWhen(() -> helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).isEmpty(),
                 "indicator should clear once the hoe is in the inventory"));
+    }
+
+    /** Right-clicking a farmer opens a chest menu over its inventory instead of the trade screen. */
+    private static void farmerInventoryMenu(GameTestHelper helper) {
+        buildFarm(helper);
+        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
+        var player = helper.makeMockServerPlayerInLevel();
+        player.setPos(farmer.getX() + 1, farmer.getY(), farmer.getZ());
+
+        boolean[] held = {false};
+        helper.runAtTickTime(5, () -> player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND));
+        helper.runAtTickTime(15, () -> {
+            helper.assertTrue(player.containerMenu instanceof net.minecraft.world.inventory.ChestMenu, "right-click should open a chest menu");
+            helper.assertTrue(player.containerMenu.getSlot(0).getItem().is(Items.WHEAT), "menu slot 0 should show the farmer's wheat");
+            helper.assertTrue(farmer.getTradingPlayer() == player, "farmer should be held for the player while open");
+            held[0] = true;
+            player.closeContainer();
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(held[0], "menu should have been checked");
+            helper.assertTrue(farmer.getTradingPlayer() == null, "farmer should be released when the menu closes");
+        });
     }
 }

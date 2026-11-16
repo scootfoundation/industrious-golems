@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousvillagers:work_hours",
+  "function": "industriousvillagers:farmer_inventory_menu",
+  "max_ticks": 300,
+  "setup_ticks": 1,
+  "structure": "minecraft:empty"
+}
