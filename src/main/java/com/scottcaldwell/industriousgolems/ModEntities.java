@@ -28,17 +28,17 @@ public final class ModEntities {
 
     /** The hay golem. */
     public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> FARMER_GOLEM =
-            define(ModProfessions.FARMER, "hay_golem", 0.6F, 1.65F);
+            define(ModProfessions.FARMER, "hay_golem", 0.6F, 2.0F);
     /** The terracotta golem. */
     public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> HERDER_GOLEM =
             define(ModProfessions.HERDER, "terracotta_golem", 0.8F, 1.8F);
     /** The mushroom golem. */
     public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> LUMBERJACK_GOLEM =
-            define(ModProfessions.LUMBERJACK, "mushroom_golem", 0.7F, 1.3F);
+            define(ModProfessions.LUMBERJACK, "mushroom_golem", 0.8F, 1.15F);
 
     /** The stone golem. */
     public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> MINER_GOLEM =
-            define(ModProfessions.MINER, "stone_golem", 0.8F, 1.7F);
+            define(ModProfessions.MINER, "stone_golem", 1.0F, 1.5F);
 
     private ModEntities() { }
 
