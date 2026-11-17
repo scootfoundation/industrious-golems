@@ -6,7 +6,7 @@ import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -17,12 +17,12 @@ import net.minecraft.world.item.ItemStack;
 import java.util.function.Predicate;
 
 /**
- * The inventory screen of a profession villager: one dedicated tool slot (container slot 0) and as many general
+ * The inventory screen of a profession golem: one dedicated tool slot (container slot 0) and as many general
  * slots as the profession is allowed, laid out in a single row above the player's inventory.
  */
-public class VillagerMenu extends AbstractContainerMenu {
+public class GolemMenu extends AbstractContainerMenu {
 
-    /** Slots in a villager's inventory; the tool slot plus general slots never exceed this. */
+    /** Slots in a golem's inventory; the tool slot plus general slots never exceed this. */
     public static final int CONTAINER_SIZE = 8;
     /** Columns in the single container row (matches the vanilla chest texture). */
     public static final int ROW_COLUMNS = 9;
@@ -33,7 +33,7 @@ public class VillagerMenu extends AbstractContainerMenu {
     private final int toolSlots;
     private final int generalSlots;
 
-    public VillagerMenu(MenuType<VillagerMenu> type, int id, Inventory playerInventory, Container container, ProfessionNeeds needs) {
+    public GolemMenu(MenuType<GolemMenu> type, int id, Inventory playerInventory, Container container, ProfessionNeeds needs) {
         super(type, id);
         this.container = container;
         java.util.List<Need> tools = needs.toolNeeds();
@@ -79,14 +79,14 @@ public class VillagerMenu extends AbstractContainerMenu {
         return generalSlots;
     }
 
-    /** Server side: the menu over a real villager's inventory. */
-    public static VillagerMenu forVillager(MenuType<VillagerMenu> type, int id, Inventory playerInventory, Villager villager) {
-        return new VillagerMenu(type, id, playerInventory, new VillagerInventoryContainer(villager), ProfessionNeeds.effective(villager));
+    /** Server side: the menu over a real golem's inventory. */
+    public static GolemMenu forGolem(MenuType<GolemMenu> type, int id, Inventory playerInventory, WorkGolem golem) {
+        return new GolemMenu(type, id, playerInventory, new GolemInventoryContainer(golem), ProfessionNeeds.of(golem));
     }
 
     /** Client side: contents arrive through normal slot sync; the layout comes from the profession's menu type. */
-    public static VillagerMenu client(MenuType<VillagerMenu> type, int id, Inventory playerInventory, ProfessionNeeds needs) {
-        return new VillagerMenu(type, id, playerInventory, new SimpleContainer(CONTAINER_SIZE), needs);
+    public static GolemMenu client(MenuType<GolemMenu> type, int id, Inventory playerInventory, ProfessionNeeds needs) {
+        return new GolemMenu(type, id, playerInventory, new SimpleContainer(CONTAINER_SIZE), needs);
     }
 
     @Override

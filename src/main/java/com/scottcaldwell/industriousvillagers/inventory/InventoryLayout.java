@@ -3,25 +3,25 @@ package com.scottcaldwell.industriousvillagers.inventory;
 import com.scottcaldwell.industriousvillagers.needs.Need;
 import com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 
 /**
- * Keeps the villager's dedicated tool slots (inventory slots 0..n-1, one per tool in the profession's order) holding
+ * Keeps the golem's dedicated tool slots (inventory slots 0..n-1, one per tool in the profession's order) holding
  * their tools. Pickups and chest transfers fill slots in any order, so this tidies up: each tool moves into its slot
  * and anything else sitting there moves out.
  */
 public final class InventoryLayout {
     private InventoryLayout() { }
 
-    public static void organize(Villager villager) {
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        if (needs == null || villager.getTradingPlayer() != null) return;
+    public static void organize(WorkGolem golem) {
+        ProfessionNeeds needs = ProfessionNeeds.of(golem);
+        if (needs == null || golem.getTradingPlayer() != null) return;
         List<Need> tools = needs.toolNeeds();
         if (tools.isEmpty()) return;
-        SimpleContainer inv = villager.getInventory();
+        SimpleContainer inv = golem.getInventory();
         int reserved = tools.size();
         boolean changed = false;
 

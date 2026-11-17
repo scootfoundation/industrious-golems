@@ -7,13 +7,10 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.core.Direction;
-import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -30,6 +27,7 @@ public class ModGameTests {
             DeferredRegister.create(Registries.TEST_FUNCTION, IndustriousVillagers.MODID);
 
     static {
+        FUNCTIONS.register("farmer_harvests_and_replants", () -> ModGameTests::farmerHarvestsAndReplants);
         FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
         FUNCTIONS.register("farmer_chest_preference", () -> ModGameTests::farmerChestPreference);
         FUNCTIONS.register("farmer_shows_missing_hoe", () -> ModGameTests::farmerShowsMissingHoe);
@@ -37,7 +35,6 @@ public class ModGameTests {
         FUNCTIONS.register("farmer_eats_when_hungry", () -> ModGameTests::farmerEatsWhenHungry);
         FUNCTIONS.register("hungry_farmer_without_food_stops_and_shows_food", () -> ModGameTests::hungryFarmerWithoutFood);
         FUNCTIONS.register("farmer_keeps_tool_in_tool_slot", () -> ModGameTests::farmerKeepsToolInToolSlot);
-        FUNCTIONS.register("farmer_sleeps_at_night", () -> ModGameTests::farmerSleepsAtNight);
         FUNCTIONS.register("herder_shears_sheep", () -> ModGameTests::herderShearsSheep);
         FUNCTIONS.register("herder_milks_cow", () -> ModGameTests::herderMilksCow);
         FUNCTIONS.register("herder_culls_crowded_pen", () -> ModGameTests::herderCullsCrowdedPen);
@@ -45,8 +42,6 @@ public class ModGameTests {
         FUNCTIONS.register("herder_inventory_menu", () -> ModGameTests::herderInventoryMenu);
         FUNCTIONS.register("herder_organizes_tools", () -> ModGameTests::herderOrganizesTools);
         FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
-        FUNCTIONS.register("basic_villager_eats", () -> ModGameTests::basicVillagerEats);
-        FUNCTIONS.register("basic_villager_starves_without_dying", () -> ModGameTests::basicVillagerStarves);
         FUNCTIONS.register("hunger_gates_work", () -> ModGameTests::hungerGatesWork);
         FUNCTIONS.register("lumberjack_fells_and_replants", () -> ModGameTests::lumberjackFellsAndReplants);
         FUNCTIONS.register("lumberjack_ignores_log_building", () -> ModGameTests::lumberjackIgnoresLogBuilding);
@@ -90,17 +85,17 @@ public class ModGameTests {
         helper.setBlock(CHEST, Blocks.CHEST);
     }
 
-    /** Spawns a villager of the given profession with its job site at {@code site}. */
-    private static Villager spawnWorker(GameTestHelper helper, net.neoforged.neoforge.registries.DeferredHolder<net.minecraft.world.entity.npc.villager.VillagerProfession, net.minecraft.world.entity.npc.villager.VillagerProfession> profession,
-                                        BlockPos site, BlockPos at) {
-        Villager villager = helper.spawn(EntityType.VILLAGER, at);
-        villager.setVillagerData(villager.getVillagerData().withProfession(profession.getDelegate()));
-        villager.refreshBrain(helper.getLevel());
-        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(site)));
-        return villager;
+    /** Spawns a golem of the given profession with its job site at {@code site}. */
+    private static WorkGolem spawnWorker(GameTestHelper helper, ModProfessions.Profession profession,
+                                         BlockPos site, BlockPos at) {
+        var type = profession == ModProfessions.FARMER ? ModEntities.FARMER_GOLEM
+                : profession == ModProfessions.HERDER ? ModEntities.HERDER_GOLEM : ModEntities.LUMBERJACK_GOLEM;
+        WorkGolem golem = helper.spawn(type.get(), at);
+        golem.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(site)));
+        return golem;
     }
 
-    private static Villager spawnFarmer(GameTestHelper helper, BlockPos at) {
+    private static WorkGolem spawnFarmer(GameTestHelper helper, BlockPos at) {
         return spawnWorker(helper, ModProfessions.FARMER, COMPOSTER, at);
     }
 
@@ -122,7 +117,7 @@ public class ModGameTests {
         chest.setItem(0, new ItemStack(Items.IRON_HOE));
         chest.setItem(1, new ItemStack(Items.BREAD, 10));
 
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 20));
 
@@ -147,21 +142,24 @@ public class ModGameTests {
         });
     }
 
-    private static final BlockPos BED_FOOT = new BlockPos(5, 1, 5);
-    private static final BlockPos BED_HEAD = BED_FOOT.north();
-
-    /** At night a farmer with a bed and a job site should walk to the bed and sleep. */
-    private static void farmerSleepsAtNight(GameTestHelper helper) {
+    /** The farmer reaps ripe wheat with its hoe and sows the bare soil again from the seeds it carries. */
+    private static void farmerHarvestsAndReplants(GameTestHelper helper) {
         buildFarm(helper);
-        var bed = Blocks.RED_BED.defaultBlockState().setValue(BedBlock.FACING, Direction.NORTH);
-        helper.setBlock(BED_FOOT, bed.setValue(BedBlock.PART, BedPart.FOOT));
-        helper.setBlock(BED_HEAD, bed.setValue(BedBlock.PART, BedPart.HEAD));
-
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getBrain().setMemory(MemoryModuleType.HOME,
-                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(BED_HEAD)));
-
-        helper.succeedWhen(() -> helper.assertTrue(farmer.isSleeping(), "farmer should be asleep at night"));
+        for (int x = 3; x <= 5; x++) {
+            helper.setBlock(new BlockPos(x, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
+            helper.setBlock(new BlockPos(x, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+        }
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 2, 3));
+        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(farmer.getInventory(), Items.WHEAT) >= 3, "farmer should have reaped 3 wheat, has " + count(farmer.getInventory(), Items.WHEAT));
+            for (int x = 3; x <= 5; x++) {
+                var state = helper.getBlockState(new BlockPos(x, 2, 5));
+                helper.assertTrue(state.is(Blocks.WHEAT) && state.getValue(net.minecraft.world.level.block.CropBlock.AGE) < 7,
+                        "farmer should have replanted at x=" + x);
+            }
+        });
     }
 
     private static final BlockPos COPPER_CHEST = new BlockPos(4, 1, 4);
@@ -175,7 +173,7 @@ public class ModGameTests {
         regular.setItem(0, new ItemStack(Items.IRON_HOE));
         regular.setItem(1, new ItemStack(Items.BREAD, 10));
 
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
 
@@ -190,7 +188,7 @@ public class ModGameTests {
     /** A farmer with no hoe (and nowhere to get one) shows a hoe over its head; it disappears once it has one. */
     private static void farmerShowsMissingHoe(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
 
         helper.runAtTickTime(60, () -> {
@@ -211,7 +209,7 @@ public class ModGameTests {
     /** Right-clicking a farmer opens a chest menu over its inventory instead of the trade screen. */
     private static void farmerInventoryMenu(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().setItem(0, new ItemStack(Items.IRON_HOE));
         farmer.getInventory().setItem(1, new ItemStack(Items.WHEAT, 5));
         var player = helper.makeMockServerPlayerInLevel();
@@ -223,8 +221,8 @@ public class ModGameTests {
         // Everything in one tick: the far-away mock player would otherwise have the menu closed as out of reach.
         helper.runAtTickTime(5, () -> {
             player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
-            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.VillagerMenu, "right-click should open the villager menu");
-            var menu = (com.scottcaldwell.industriousvillagers.inventory.VillagerMenu) player.containerMenu;
+            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.GolemMenu, "right-click should open the golem menu");
+            var menu = (com.scottcaldwell.industriousvillagers.inventory.GolemMenu) player.containerMenu;
             helper.assertTrue(menu.getSlot(0).getItem().is(Items.IRON_HOE), "slot 0 is the tool slot and shows the hoe");
             helper.assertTrue(menu.getSlot(1).getItem().is(Items.WHEAT), "first general slot shows the wheat");
             helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_HOE)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.WHEAT)),
@@ -245,7 +243,7 @@ public class ModGameTests {
     /** Wheat sitting in the tool slot and the hoe elsewhere: the farmer tidies its inventory so the hoe is in slot 0. */
     private static void farmerKeepsToolInToolSlot(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 3));
         farmer.getInventory().setItem(4, new ItemStack(Items.IRON_HOE));
 
@@ -255,14 +253,14 @@ public class ModGameTests {
         });
     }
 
-    private static void makeHungry(Villager farmer) {
+    private static void makeHungry(WorkGolem farmer) {
         farmer.setData(ModAttachments.LAST_MEAL, farmer.level().getGameTime() - com.scottcaldwell.industriousvillagers.needs.Hunger.INTERVAL - 1);
     }
 
     /** A hungry farmer eats one bread, is no longer hungry, and holds nothing afterwards. */
     private static void farmerEatsWhenHungry(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.BREAD, 3));
         farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
         makeHungry(farmer);
@@ -277,7 +275,7 @@ public class ModGameTests {
     /** Hungry with nothing to eat: the farmer shows bread over its head and will not harvest. */
     private static void hungryFarmerWithoutFood(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
         makeHungry(farmer);
@@ -303,7 +301,7 @@ public class ModGameTests {
         }
     }
 
-    private static Villager spawnHerder(GameTestHelper helper, BlockPos at) {
+    private static WorkGolem spawnHerder(GameTestHelper helper, BlockPos at) {
         return spawnWorker(helper, ModProfessions.HERDER, LOOM, at);
     }
 
@@ -312,7 +310,7 @@ public class ModGameTests {
         return helper.getLevel().getEntitiesOfClass(type, box, e -> e.isAlive());
     }
 
-    private static int total(Villager herder, Container chest, net.minecraft.world.item.Item item) {
+    private static int total(WorkGolem herder, Container chest, net.minecraft.world.item.Item item) {
         return count(herder.getInventory(), item) + count(chest, item);
     }
 
@@ -321,7 +319,7 @@ public class ModGameTests {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5));
-        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.getInventory().addItem(new ItemStack(Items.SHEARS));
         boolean[] held = {false};
         helper.succeedWhen(() -> {
@@ -344,7 +342,7 @@ public class ModGameTests {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
-        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.getInventory().addItem(new ItemStack(Items.BUCKET));
         helper.succeedWhen(() -> {
             helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 1, "the cow should have been milked once");
@@ -357,7 +355,7 @@ public class ModGameTests {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         for (int i = 0; i < 5; i++) helper.spawn(EntityType.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
-        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.getInventory().addItem(new ItemStack(Items.IRON_SWORD));
         helper.succeedWhen(() -> {
             helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size() == 3,
@@ -371,7 +369,7 @@ public class ModGameTests {
         buildHerdFarm(helper);
         helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
         helper.spawn(EntityType.COW, new BlockPos(6, 1, 6));
-        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.getInventory().addItem(new ItemStack(Items.WHEAT, 8));
         helper.succeedWhen(() -> {
             helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.cow.Cow.class).size() >= 3, "a calf should have been born");
@@ -382,14 +380,14 @@ public class ModGameTests {
     /** The herder's menu has one dedicated slot per tool (shears, sword, bucket) and five general slots. */
     private static void herderInventoryMenu(GameTestHelper helper) {
         buildHerdFarm(helper);
-        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         var player = helper.makeMockServerPlayerInLevel();
         player.setPos(herder.getX() + 5000, herder.getY(), herder.getZ());
         boolean[] checked = {false};
         helper.runAtTickTime(5, () -> {
             player.interactOn(herder, net.minecraft.world.InteractionHand.MAIN_HAND);
-            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.VillagerMenu, "right-click should open the villager menu");
-            var menu = (com.scottcaldwell.industriousvillagers.inventory.VillagerMenu) player.containerMenu;
+            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.GolemMenu, "right-click should open the golem menu");
+            var menu = (com.scottcaldwell.industriousvillagers.inventory.GolemMenu) player.containerMenu;
             helper.assertTrue(menu.toolSlots() == 3 && menu.generalSlots() == 5, "3 tool and 5 general slots, got " + menu.toolSlots() + "/" + menu.generalSlots());
             helper.assertTrue(menu.slots.size() == 3 + 5 + 36, "slot count should match, was " + menu.slots.size());
             helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.SHEARS)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_SWORD)), "slot 0 takes shears");
@@ -404,7 +402,7 @@ public class ModGameTests {
     /** Tools scattered through the inventory are tidied into their own slots, and the plate reports which are carried. */
     private static void herderOrganizesTools(GameTestHelper helper) {
         buildHerdFarm(helper);
-        Villager herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.getInventory().setItem(0, new ItemStack(Items.BUCKET));
         herder.getInventory().setItem(5, new ItemStack(Items.SHEARS));
         herder.getInventory().setItem(6, new ItemStack(Items.IRON_SWORD));
@@ -439,16 +437,16 @@ public class ModGameTests {
 
     // ---- hunger and health --------------------------------------------------------------------------------
 
-    private static void setHunger(Villager villager, int level) {
-        villager.setData(ModAttachments.LAST_MEAL, villager.level().getGameTime()
+    private static void setHunger(WorkGolem golem, int level) {
+        golem.setData(ModAttachments.LAST_MEAL, golem.level().getGameTime()
                 - (long) (com.scottcaldwell.industriousvillagers.needs.Hunger.MAX - level) * com.scottcaldwell.industriousvillagers.needs.Hunger.INTERVAL
                 / com.scottcaldwell.industriousvillagers.needs.Hunger.MAX);
     }
 
-    /** At 2 drumsticks or fewer the villager refuses to work even while carrying food; above that it works. */
+    /** At 2 drumsticks or fewer the golem refuses to work even while carrying food; above that it works. */
     private static void hungerGatesWork(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
         farmer.getInventory().addItem(new ItemStack(Items.BREAD, 3));
         var needs = com.scottcaldwell.industriousvillagers.needs.ProfessionNeeds.of(farmer);
@@ -459,10 +457,10 @@ public class ModGameTests {
         helper.succeed();
     }
 
-    /** An empty hunger bar hurts but never kills; a well fed villager heals. */
+    /** An empty hunger bar hurts but never kills; a well fed golem heals. */
     private static void starvationHurtsAndFoodHeals(GameTestHelper helper) {
         buildFarm(helper);
-        Villager farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
         setHunger(farmer, 0);
         helper.runAtTickTime(300, () -> {
@@ -475,7 +473,7 @@ public class ModGameTests {
     }
     // ---- lumberjack -----------------------------------------------------------------------------------------
 
-    private static Villager spawnLumberjack(GameTestHelper helper, BlockPos at) {
+    private static WorkGolem spawnLumberjack(GameTestHelper helper, BlockPos at) {
         helper.setBlock(COMPOSTER, Blocks.FLETCHING_TABLE);
         return spawnWorker(helper, ModProfessions.LUMBERJACK, COMPOSTER, at);
     }
@@ -506,7 +504,7 @@ public class ModGameTests {
         buildFarm(helper);
         buildTree(helper, 5, 5);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
         jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
         jack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING, 2));
         boolean[] held = {false};
@@ -528,7 +526,7 @@ public class ModGameTests {
         buildFarm(helper);
         helper.setBlock(new BlockPos(5, 0, 5), Blocks.GRASS_BLOCK);
         for (int y = 1; y <= 3; y++) helper.setBlock(new BlockPos(5, y, 5), Blocks.OAK_LOG);
-        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
         jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
         helper.runAtTickTime(500, () -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 3, "a log structure must not be felled");
@@ -540,7 +538,7 @@ public class ModGameTests {
     private static void lumberjackNeedsAxe(GameTestHelper helper) {
         buildFarm(helper);
         buildTree(helper, 5, 5);
-        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
         helper.runAtTickTime(500, () -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 4, "without an axe the tree stays");
             var status = jack.getData(ModAttachments.STATUS);
@@ -552,14 +550,14 @@ public class ModGameTests {
     /** One axe slot plus seven general slots. */
     private static void lumberjackInventoryMenu(GameTestHelper helper) {
         buildFarm(helper);
-        Villager jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
         var player = helper.makeMockServerPlayerInLevel();
         player.setPos(jack.getX() + 5000, jack.getY(), jack.getZ());
         boolean[] checked = {false};
         helper.runAtTickTime(5, () -> {
             player.interactOn(jack, net.minecraft.world.InteractionHand.MAIN_HAND);
-            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.VillagerMenu, "right-click should open the villager menu");
-            var menu = (com.scottcaldwell.industriousvillagers.inventory.VillagerMenu) player.containerMenu;
+            helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousvillagers.inventory.GolemMenu, "right-click should open the golem menu");
+            var menu = (com.scottcaldwell.industriousvillagers.inventory.GolemMenu) player.containerMenu;
             helper.assertTrue(menu.toolSlots() == 1 && menu.generalSlots() == 7, "1 tool and 7 general slots");
             helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_AXE)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_HOE)), "the tool slot takes only axes");
             checked[0] = true;
@@ -567,30 +565,4 @@ public class ModGameTests {
         });
         helper.succeedWhen(() -> helper.assertTrue(checked[0], "menu should have been checked"));
     }
-    // ---- basic (unemployed) villagers -----------------------------------------------------------------------
-
-    /** A villager without a profession gets the same hunger bar, health bar and eating behaviour. */
-    private static void basicVillagerEats(GameTestHelper helper) {
-        buildFarm(helper);
-        Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 3));
-        villager.getInventory().addItem(new ItemStack(Items.BREAD, 3));
-        makeHungry(villager);
-        helper.succeedWhen(() -> {
-            var status = villager.getData(ModAttachments.STATUS);
-            helper.assertTrue(status.enabled(), "a basic villager should publish hunger and health");
-            helper.assertTrue(count(villager.getInventory(), Items.BREAD) < 3, "it should have eaten bread");
-            helper.assertTrue(com.scottcaldwell.industriousvillagers.needs.Hunger.level(villager) >= 5, "bread should restore hunger");
-        });
-    }
-
-    /** An unemployed villager with an empty bar takes starvation damage but survives. */
-    private static void basicVillagerStarves(GameTestHelper helper) {
-        buildFarm(helper);
-        Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 3));
-        setHunger(villager, 0);
-        helper.runAtTickTime(400, () -> {
-            helper.assertTrue(villager.getHealth() < 20.0F, "a starving villager should take damage, health " + villager.getHealth());
-            helper.assertTrue(villager.isAlive(), "starvation must not kill");
-            helper.succeed();
-        });
-    }}
+}

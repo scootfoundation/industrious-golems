@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Transient per-villager hand-over between {@link StartTask} and the runners of the task activity: the plan chosen
+ * Transient per-golem hand-over between {@link StartTask} and the runners of the task activity: the plan chosen
  * (whose type says which runner takes it) and when each kind of task may next be planned.
  */
 public class TaskState {

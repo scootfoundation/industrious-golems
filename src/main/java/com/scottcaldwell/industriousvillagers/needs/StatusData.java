@@ -5,7 +5,7 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 
 /**
- * Villager state synced to clients (a NeoForge attachment) so the status plate can be drawn.
+ * WorkGolem state synced to clients (a NeoForge attachment) so the status plate can be drawn.
  *
  * @param status bits 0-4 hunger 0..20, bits 5-9 health 0..20 (half hearts), bit 10 blocked (missing something it
  *               needs), bit 11 plate enabled

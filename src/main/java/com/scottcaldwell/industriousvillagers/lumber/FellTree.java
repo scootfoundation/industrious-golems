@@ -17,7 +17,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -58,20 +58,20 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     // ---- choosing work ----------------------------------------------------------------------------------------
 
     /** Picks a tree to fell, or null (no axe, nothing worth felling, or mob griefing is off). */
-    public static Object plan(ServerLevel level, Villager villager) {
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
-        GlobalPos site = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
+    public static Object plan(ServerLevel level, WorkGolem golem) {
+        ProfessionNeeds needs = ProfessionNeeds.of(golem);
+        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
-        if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, villager)) return null;
-        if (!needs.has(villager, "axe")) return null;
-        TreeFinder.Tree tree = TreeFinder.find(level, site.pos(), villager.blockPosition());
+        if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
+        if (!needs.has(golem, "axe")) return null;
+        TreeFinder.Tree tree = TreeFinder.find(level, site.pos(), golem.blockPosition());
         return tree == null ? null : new FellPlan(tree.logs(), tree.base(), tree.logType());
     }
 
     // ---- the job ------------------------------------------------------------------------------------------------
 
     @Override
-    protected void begin(ServerLevel level, Villager villager, long time) {
+    protected void begin(ServerLevel level, WorkGolem golem, long time) {
         remaining.clear();
         remaining.addAll(plan.logs());
         current = null;
@@ -81,20 +81,20 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     }
 
     @Override
-    protected boolean allowedNow(ServerLevel level, Villager villager) {
-        return phase != Phase.DONE && super.allowedNow(level, villager);
+    protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
+        return phase != Phase.DONE && super.allowedNow(level, golem);
     }
     @Override
-    protected void tick(ServerLevel level, Villager villager, long time) {
+    protected void tick(ServerLevel level, WorkGolem golem, long time) {
         if (phase == Phase.PAUSE) {
-            holdStill(villager);
+            holdStill(golem);
             if (--timer <= 0) { phase = Phase.WORK; current = null; }
             return;
         }
-        if (current == null && !nextTarget(level, villager)) { finish(); return; }
+        if (current == null && !nextTarget(level, golem)) { finish(); return; }
 
-        lookAt(villager, new BlockPosTracker(Vec3.atCenterOf(current)));
-        double reach = villager.getEyePosition().distanceTo(Vec3.atCenterOf(current));
+        lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(current)));
+        double reach = golem.getEyePosition().distanceTo(Vec3.atCenterOf(current));
         if (reach > REACH) {
             phase = Phase.WORK;
             if (++stalled > STALL_TICKS) { // cannot get there: give up on this one
@@ -103,42 +103,42 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 current = null;
                 return;
             }
-            walkTo(villager, new BlockPosTracker(current), 2);
+            walkTo(golem, new BlockPosTracker(current), 2);
             return;
         }
 
-        holdStill(villager);
+        holdStill(golem);
         stalled = 0;
         if (phase == Phase.WORK) { // arrived: take up the axe (or a sapling) and look before swinging
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
-            int slot = planting ? findSapling(villager) : ProfessionNeeds.of(villager).need("axe").slot(villager.getInventory());
-            if (slot >= 0) HeldItem.hold(villager, villager.getInventory().getItem(slot));
+            int slot = planting ? findSapling(golem) : ProfessionNeeds.of(golem).need("axe").slot(golem.getInventory());
+            if (slot >= 0) HeldItem.hold(golem, golem.getInventory().getItem(slot));
         }
         if (--timer > 0) return;
-        villager.swing(InteractionHand.MAIN_HAND);
+        golem.swing(InteractionHand.MAIN_HAND);
         if (planting) {
-            plant(level, villager, current);
+            plant(level, golem, current);
             finish();
             return;
         }
-        chop(level, villager, current);
+        chop(level, golem, current);
         remaining.remove(current);
         phase = Phase.PAUSE;
         timer = PAUSE_TICKS;
     }
 
     /** Next log still standing, then (when the logs are gone) the spot to replant. False when there is nothing left. */
-    private boolean nextTarget(ServerLevel level, Villager villager) {
+    private boolean nextTarget(ServerLevel level, WorkGolem golem) {
         while (!remaining.isEmpty()) {
             BlockPos log = remaining.get(0);
-            if (level.getBlockState(log).is(net.minecraft.tags.BlockTags.LOGS) && hasAxe(villager)) {
+            if (level.getBlockState(log).is(net.minecraft.tags.BlockTags.LOGS) && hasAxe(golem)) {
                 current = log;
                 return true;
             }
             remaining.remove(0);
         }
-        if (!planting && plan.replant() != null && findSapling(villager) >= 0
+        if (!planting && plan.replant() != null && findSapling(golem) >= 0
                 && level.getBlockState(plan.replant()).isAir()) {
             planting = true;
             current = plan.replant();
@@ -147,35 +147,35 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         return false;
     }
 
-    private boolean hasAxe(Villager villager) {
-        return ProfessionNeeds.of(villager).has(villager, "axe");
+    private boolean hasAxe(WorkGolem golem) {
+        return ProfessionNeeds.of(golem).has(golem, "axe");
     }
 
-    private void chop(ServerLevel level, Villager villager, BlockPos log) {
-        level.destroyBlock(log, true, villager);
-        ToolWear.use(level, villager, "axe");
-        Drops.collectFresh(level, villager, Vec3.atCenterOf(log));
+    private void chop(ServerLevel level, WorkGolem golem, BlockPos log) {
+        level.destroyBlock(log, true, golem);
+        ToolWear.use(level, golem, "axe");
+        Drops.collectFresh(level, golem, Vec3.atCenterOf(log));
     }
 
-    private void plant(ServerLevel level, Villager villager, BlockPos pos) {
-        int slot = findSapling(villager);
+    private void plant(ServerLevel level, WorkGolem golem, BlockPos pos) {
+        int slot = findSapling(golem);
         if (slot < 0 || !level.getBlockState(pos).isAir()) return;
-        ItemStack stack = villager.getInventory().getItem(slot);
+        ItemStack stack = golem.getInventory().getItem(slot);
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
         BlockState sapling = blockItem.getBlock().defaultBlockState();
         if (!sapling.canSurvive(level, pos)) return;
         level.setBlockAndUpdate(pos, sapling);
         level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
-        villager.getInventory().removeItem(slot, 1);
+        golem.getInventory().removeItem(slot, 1);
     }
 
     /** The sapling of the felled species if carried, otherwise any sapling. */
-    private int findSapling(Villager villager) {
+    private int findSapling(WorkGolem golem) {
         Identifier logId = BuiltInRegistries.BLOCK.getKey(plan.logType());
         String species = logId.getPath().replace("stripped_", "").replace("_log", "").replace("_wood", "");
         Item matching = BuiltInRegistries.ITEM.getOptional(logId.withPath(species + "_sapling")).orElse(null);
         int any = -1;
-        SimpleContainer inv = villager.getInventory();
+        SimpleContainer inv = golem.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
             if (stack.isEmpty() || !stack.is(ItemTags.SAPLINGS)) continue;
@@ -186,7 +186,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     }
 
     @Override
-    protected void end(ServerLevel level, Villager villager, long time) {
+    protected void end(ServerLevel level, WorkGolem golem, long time) {
         current = null;
         remaining.clear();
         phase = Phase.DONE;

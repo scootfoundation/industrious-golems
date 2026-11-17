@@ -1,15 +1,15 @@
-# Industrious Villagers — Product Requirements Document (Draft v1)
+# Industrious Golems � Product Requirements Document (Draft v2)
 
 ## Overview
 
-*Industrious Villagers* replaces villager trading with productive labour. Villagers perform jobs that produce resources directly; the player builds the surrounding infrastructure (chests, hoppers, furnaces, crafters, minecarts) using vanilla blocks.
+*Industrious Golems* adds work golems: golems that hold a job and produce resources directly, while the player builds the surrounding infrastructure (chests, hoppers, furnaces, crafters, minecarts) using vanilla blocks. Villagers are left exactly as in vanilla (trading and all); the golems do the labour.
 
 Two value propositions:
 
-1. **Adds productive automation that doesn't exist in vanilla** — auto-farming, auto-logging, auto-mining — replacing the fragile-redstone-contraption meta with a clean role-based answer.
-2. **Removes broken trading** — the anti-fun re-roll-the-librarian-for-mending mechanic is gone. The wandering trader is the only NPC offering trades.
+1. **Adds productive automation that doesn't exist in vanilla** � auto-farming, auto-logging, herding, and (planned) auto-mining � replacing the fragile-redstone-contraption meta with a clean role-based answer.
+2. **Leaves the rest of the game alone** � no changes to villager trading, professions or schedules.
 
-Each new role retires a category of menial player labour, lifting the player up the abstraction ladder (à la Factorio). Player work shifts from manual labour to systems-thinking: village layout, logistics, defense, expansion.
+Each new role retires a category of menial player labour, lifting the player up the abstraction ladder (� la Factorio). Player work shifts from manual labour to systems-thinking: layout, logistics, defense, expansion.
 
 **Target loader:** NeoForge.
 
@@ -18,65 +18,65 @@ Each new role retires a category of menial player labour, lifting the player up 
 - Provide automation that doesn't exist in vanilla (no role overlaps with what crafters, hoppers, and furnaces already enable).
 - Create cross-chain resource dependencies that produce scaling pressure.
 - Leverage existing Minecraft systems for everything that isn't the role behaviour itself.
-- Minimise new assets in V1: reuse existing job site blocks and villager skins.
+- Reuse existing job site blocks, items and sounds; the golems' own models and textures are the only new art.
 
 ## Player Experience
 
-After a vanilla bootstrap (gather wood, craft stone tools, find a village), the player places a composter and a villager becomes a farmer. They supply a hoe and till a plot; the farmer takes over planting and harvesting. The player adds a lumberjack (Fletching Table within a grove) and a miner (Stonecutter at the chosen Y level), sets up vanilla auto-smelters and a recipe-locked crafter, and the loop closes — the village produces everything it consumes via three role villagers and vanilla automation blocks. The player's last hand-crafted tool is the **graduation moment**: from here they design infrastructure rather than swinging tools.
+After a vanilla bootstrap (gather wood, craft stone tools), the player places a composter, spawns a hay golem next to it and gives it a hoe. They till a plot; the golem takes over planting and harvesting. The player adds a mushroom golem (fletching table within a grove) and a terracotta golem (loom beside a pen), sets up vanilla auto-smelters and a recipe-locked crafter, and the loop closes. The player's last hand-crafted tool is the **graduation moment**: from here they design infrastructure rather than swinging tools.
 
-Scaling generates the gameplay. More farmers need more hoes need more iron need more mining need more wood for supports. Outpost placement, rail routing, storage organisation, and raid defense become the real decisions.
+Scaling generates the gameplay. More golems need more tools need more iron need more mining need more wood for supports.
 
-## Roles
+## Golems
 
-All roles share:
+All golems share:
 
-- Assigned by the vanilla mechanism (unemployed villager auto-claims a nearby unowned job site).
-- Walk the vanilla daily schedule.
-- Consume food (vanilla definition); show hungry particles when blocked by lack of food.
+- **Obtained** from spawn eggs for now (creative tab); a crafting or building recipe is future work.
+- Claim the nearest unclaimed job site of their kind (within 48 blocks) and stay near it.
+- Work during the daytime work hours of the villager schedule; they never sleep, they idle at night.
+- Consume food (vanilla definition) and show a hunger bar; they refuse to work when too hungry and starve down to half a heart.
 - Pull inputs from and deposit outputs to adjacent chests.
 - Tool wear matches vanilla.
-- Right-clicking the villager does nothing.
+- Right-clicking a golem opens its inventory (tool slots, supplies, food).
+- A status plate shows hunger, health and missing tools.
 
-### Farmer
+### Hay golem (farmer)
 
-- **Job site:** Composter (reused).
-- **Skin:** Vanilla Farmer (reused).
-- **Consumes:** Food, hoes.
+- **Job site:** Composter.
+- **Consumes:** Food, hoes, seeds.
 - **Produces:** Crops the player has planted on pre-tilled soil within range.
-- **Behaviour:** Harvests mature crops and replants the same type from harvest yields. Works pre-tilled blocks only. Player provides the first generation of seeds.
+- **Behaviour:** Harvests mature crops and replants from harvest yields. Works pre-tilled blocks only. Player provides the first generation of seeds.
 
-### Lumberjack
+### Mushroom golem (lumberjack)
 
-- **Job site:** Fletching Table (repurposed — vanilla Fletcher profession removed).
-- **Skin:** Vanilla Fletcher (reused).
-- **Consumes:** Food, axes, saplings when leaf-decay yields are insufficient.
+- **Job site:** Fletching Table.
+- **Consumes:** Food, axes, saplings.
 - **Produces:** Logs, saplings, sticks, apples.
-- **Behaviour:** Works a 16×16 grove around the job site. Fells supported 1×1 trees (oak, birch, spruce, jungle, acacia) and replants saplings from output. Does not exit the claim. Player provides the first generation of saplings.
+- **Behaviour:** Works a grove around the job site. Fells natural trees log by log and replants saplings from output. Ignores player-built log structures.
 
-### Miner
+### Terracotta golem (herder)
 
-- **Job site:** Stonecutter (repurposed — vanilla Mason profession removed). Placed at the target Y level by the player.
-- **Skin:** Vanilla Mason (reused).
+- **Job site:** Loom.
+- **Consumes:** Food, shears, a sword, buckets, animal feed.
+- **Produces:** Wool, milk, meat and hides, kept to a target herd size.
+- **Behaviour:** Shears sheep, milks cows, breeds sparse pens and culls crowded ones.
+
+### Stone golem (miner) � planned
+
+- **Job site:** Stonecutter, placed at the target Y level by the player.
 - **Consumes:** Food, pickaxes, wood (tunnel supports), torches, optionally rails.
-- **Produces:** Cobblestone and the ore distribution at the chosen Y level. All output goes to the chest unfiltered.
-- **Behaviour:** Excavates a 3×3 trunk-and-branch mine in all four cardinal directions. Trunks ~64m, branches ~16m every ~5m of trunk. Wood supports every ~4m, torches every ~6m, rails laid as the miner advances if supplied.
-- **Edge cases:** Lava → seal with cobble, abandon branch. Caves → seal opening, abandon branch. Bedrock → branch terminus.
+- **Produces:** Cobblestone and the ore distribution at the chosen Y level.
+- **Behaviour:** Excavates a 3�3 trunk-and-branch mine in the four cardinal directions; seals off lava and caves.
 
-## Trading and Vanilla Professions
+## Villagers
 
-All vanilla villager professions are removed entirely. Villagers do not claim cartography tables, lecterns, brewing stands, smithing tables, looms, blast furnaces, grindstones, cauldrons, smokers, or barrels for vanilla professions. The only professions in the game are farmer, lumberjack, and miner. The wandering trader is the sole remaining trading NPC.
-
-Items previously trade-locked are redistributed to loot tables. Mending in particular needs deliberate placement (likely stronghold libraries and ancient cities). A loot table audit pass before shipping ensures nothing becomes unobtainable.
-
-## Preserved Vanilla Mechanics
-
-Unchanged from vanilla: villager food and breeding, beds and population caps, daily sleep schedule, iron golems, pillager raids, zombification. The mod's role villagers participate in all of these. Curing flag remains on cured villagers; its post-trade benefit is to be repurposed in a future version.
+Unchanged from vanilla, including trading, professions, schedules, breeding, iron golems and raids.
 
 ## Open Questions
 
-- **Behaviour when a miner exhausts their claim.** Idle with a depleted indicator on the job site? Particle alert? Auto-relocate? **To be confirmed.**
+- **Acquisition.** Spawn eggs only for now; a build-by-pattern or craftable recipe is undecided.
+- **Behaviour when a miner exhausts their claim.** Idle with a depleted indicator? Particle alert? To be confirmed.
 - **Consumption and production rates.** Deferred to playtest.
-- **Exact claim dimensions.** 16×16 grove, ~64m trunks, ~16m branches — subject to revision.
+- **Exact claim dimensions.** Subject to revision.
 
 ## Future Ideas
 

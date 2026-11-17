@@ -14,7 +14,7 @@ public class ModActivities {
     /**
      * An exclusive brain activity for deliberate tasks (visiting a container, eating). While it is active only the
      * core behaviours (movement, looking) and the task itself run, so nothing else in the work routine can walk the
-     * villager away or turn its head.
+     * golem away or turn its head.
      */
     public static final DeferredHolder<Activity, Activity> TASK =
             ACTIVITIES.register("task", () -> new Activity(IndustriousVillagers.MODID + ":task"));

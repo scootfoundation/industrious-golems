@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousvillagers:farmer_harvests_and_replants",
+  "environment": "industriousvillagers:work_hours",
+  "structure": "industriousvillagers:arena",
+  "max_ticks": 1200
+}

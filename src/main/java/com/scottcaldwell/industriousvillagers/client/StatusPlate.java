@@ -15,7 +15,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.contents.objects.AtlasSprite;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.TriState;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.Item;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -26,9 +26,9 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Draws a three-line status plate above the villager: profession and tools (red cross for a missing one), then the
- * hunger bar and the health bar using the player's own HUD icons. Shown while looking at the villager, and from a
- * distance when the villager is blocked.
+ * Draws a three-line status plate above the golem: profession and tools (red cross for a missing one), then the
+ * hunger bar and the health bar using the player's own HUD icons. Shown while looking at the golem, and from a
+ * distance when the golem is blocked.
  */
 @EventBusSubscriber(modid = IndustriousVillagers.MODID, value = Dist.CLIENT)
 public final class StatusPlate {
@@ -44,19 +44,19 @@ public final class StatusPlate {
 
     @SubscribeEvent
     public static void onCanRender(RenderNameTagEvent.CanRender event) {
-        if (!(event.getEntity() instanceof Villager villager)) return;
-        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
-        StatusData status = villager.getData(ModAttachments.STATUS);
+        if (!(event.getEntity() instanceof WorkGolem golem)) return;
+        ProfessionNeeds needs = ProfessionNeeds.of(golem);
+        StatusData status = golem.getData(ModAttachments.STATUS);
         if (needs == null || !status.enabled()) return;
 
         Minecraft mc = Minecraft.getInstance();
-        boolean targeted = mc.crosshairPickEntity == villager;
+        boolean targeted = mc.crosshairPickEntity == golem;
         boolean nearBlocked = status.blocked() && mc.player != null
-                && mc.player.distanceToSqr(villager) < BLOCKED_VISIBLE_DIST_SQR;
+                && mc.player.distanceToSqr(golem) < BLOCKED_VISIBLE_DIST_SQR;
         if (!targeted && !nearBlocked) return;
 
         Component[] lines = {
-                title(villager, needs, status),
+                title(golem, needs, status),
                 bar(status.hunger(), "hud/food_full", "hud/food_half", "hud/food_empty"),
                 bar(status.health(), "hud/heart/full", "hud/heart/half", "hud/heart/container")
         };
@@ -84,9 +84,9 @@ public final class StatusPlate {
         }
     }
 
-    private static Component title(Villager villager, ProfessionNeeds needs, StatusData status) {
+    private static Component title(WorkGolem golem, ProfessionNeeds needs, StatusData status) {
         MutableComponent line = Component.empty();
-        line.append(villager.getVillagerData().profession().value().name().copy().withStyle(ChatFormatting.WHITE));
+        line.append(golem.getType().getDescription().copy().withStyle(ChatFormatting.WHITE));
         line.append(Component.literal("  "));
         java.util.List<Need> tools = needs.toolNeeds();
         for (int t = 0; t < tools.size(); t++) {

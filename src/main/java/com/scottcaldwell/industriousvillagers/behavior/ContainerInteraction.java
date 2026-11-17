@@ -14,7 +14,7 @@ import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.phys.Vec3;
@@ -23,13 +23,13 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Profession-agnostic container visit, driven by the profession's {@link ProfessionNeeds}. The villager behaves like a
+ * Profession-agnostic container visit, driven by the profession's {@link ProfessionNeeds}. The golem behaves like a
  * player: walks over, looks at the chest, pauses, opens it (lid animation and sound), moves one stack at a time with
  * pauses between, closes it, looks away and leaves.
  *
  * <p>Chest preference: deposits go to copper chests and supplies (tools, food, inputs) are preferred from regular
  * chests, each falling back to the other kind. Vanilla copper golems carry items from copper chests into regular
- * chests, so this makes a golem ferry the villager's output to a regular chest that the villager restocks from.
+ * chests, so this makes a golem ferry the golem's output to a regular chest that the golem restocks from.
  */
 public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> {
 
@@ -67,14 +67,14 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     public record Plan(BlockPos pos, boolean deposit, boolean take) { }
 
     /** Picks the container worth visiting right now, or null. Used by {@link StartTask}. */
-    public static Plan plan(ServerLevel level, Villager villager) {
-        ProfessionNeeds needs = ProfessionNeeds.of(villager);
+    public static Plan plan(ServerLevel level, WorkGolem golem) {
+        ProfessionNeeds needs = ProfessionNeeds.of(golem);
         if (needs == null) return null;
-        GlobalPos site = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
+        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (site == null || !site.dimension().equals(level.dimension())) return null;
 
         boolean hasDeposits = false;
-        SimpleContainer inv = villager.getInventory();
+        SimpleContainer inv = golem.getInventory();
         for (int i = 0; i < inv.getContainerSize() && !hasDeposits; i++) hasDeposits = needs.depositAmount(inv, i) > 0;
 
         record Candidate(BlockPos pos, int depositPref, int takePref, double dist) { }
@@ -92,7 +92,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (depositPref == 0 && takePref == 0) continue;
             bestDeposit = Math.max(bestDeposit, depositPref);
             bestTake = Math.max(bestTake, takePref);
-            candidates.add(new Candidate(p.immutable(), depositPref, takePref, p.distSqr(villager.blockPosition())));
+            candidates.add(new Candidate(p.immutable(), depositPref, takePref, p.distSqr(golem.blockPosition())));
         }
 
         Candidate best = null;
@@ -121,7 +121,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     // ---- the visit (runs in the exclusive task activity) --------------------------------------------------------
 
     @Override
-    protected void begin(ServerLevel level, Villager villager, long time) {
+    protected void begin(ServerLevel level, WorkGolem golem, long time) {
         chestPos = plan.pos();
         deposit = plan.deposit();
         take = plan.take();
@@ -129,59 +129,59 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         failedSlots.clear();
         doneNeeds.clear();
         restocking.clear();
-        lookAtChest(villager);
-        walkToChest(villager);
+        lookAtChest(golem);
+        walkToChest(golem);
     }
 
     @Override
-    protected boolean allowedNow(ServerLevel level, Villager villager) {
-        return phase != Phase.DONE && chestPos != null && super.allowedNow(level, villager);
+    protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
+        return phase != Phase.DONE && chestPos != null && super.allowedNow(level, golem);
     }
 
-    private void lookAtChest(Villager villager) {
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(Vec3.atCenterOf(chestPos)));
+    private void lookAtChest(WorkGolem golem) {
+        golem.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(Vec3.atCenterOf(chestPos)));
     }
 
-    private void walkToChest(Villager villager) {
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(chestPos), 0.5F, 1));
+    private void walkToChest(WorkGolem golem) {
+        golem.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(chestPos), 0.5F, 1));
     }
 
     @Override
-    protected void tick(ServerLevel level, Villager villager, long time) {
+    protected void tick(ServerLevel level, WorkGolem golem, long time) {
         if (chestPos == null) return;
         switch (phase) {
             case APPROACH -> {
-                lookAtChest(villager);
-                if (villager.distanceToSqr(chestPos.getX() + 0.5, chestPos.getY() + 0.5, chestPos.getZ() + 0.5) > INTERACT_DIST_SQR) {
-                    if (!villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) walkToChest(villager);
+                lookAtChest(golem);
+                if (golem.distanceToSqr(chestPos.getX() + 0.5, chestPos.getY() + 0.5, chestPos.getZ() + 0.5) > INTERACT_DIST_SQR) {
+                    if (!golem.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) walkToChest(golem);
                     return;
                 }
-                holdStill(villager);
+                holdStill(golem);
                 phase = Phase.LOOK;
                 timer = PAUSE_LOOK;
             }
             case LOOK -> {
-                holdStill(villager);
-                lookAtChest(villager);
+                holdStill(golem);
+                lookAtChest(golem);
                 if (--timer > 0) return;
                 Container chest = HopperBlockEntity.getContainerAt(level, chestPos);
                 if (chest == null) { phase = Phase.DONE; return; }
                 opened = chest;
-                chest.startOpen((ContainerUser) villager);
-                ((ChestOpener) villager).industriousvillagers$setOpenedChestPos(chestPos);
-                villager.swing(InteractionHand.MAIN_HAND);
+                chest.startOpen((ContainerUser) golem);
+                golem.setOpenedChestPos(chestPos);
+                golem.swing(InteractionHand.MAIN_HAND);
                 phase = Phase.TRANSFER;
                 timer = PAUSE_OPEN;
             }
             case TRANSFER -> {
-                holdStill(villager);
-                lookAtChest(villager);
+                holdStill(golem);
+                lookAtChest(golem);
                 if (--timer > 0) return;
-                ProfessionNeeds needs = ProfessionNeeds.of(villager);
+                ProfessionNeeds needs = ProfessionNeeds.of(golem);
                 boolean moved = needs != null && opened != null
-                        && ((deposit && depositOne(needs, villager, opened)) || (take && takeOne(needs, villager, opened)));
+                        && ((deposit && depositOne(needs, golem, opened)) || (take && takeOne(needs, golem, opened)));
                 if (moved) {
-                    villager.getInventory().setChanged();
+                    golem.getInventory().setChanged();
                     opened.setChanged();
                     timer = PAUSE_STEP;
                 } else {
@@ -190,18 +190,18 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 }
             }
             case CLOSING -> {
-                holdStill(villager);
-                lookAtChest(villager);
+                holdStill(golem);
+                lookAtChest(golem);
                 if (--timer > 0) return;
-                closeChest(villager);
-                Vec3 away = villager.position().subtract(Vec3.atCenterOf(chestPos)).multiply(1, 0, 1).normalize().scale(4);
-                villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
-                        new BlockPosTracker(BlockPos.containing(villager.position().add(away))));
+                closeChest(golem);
+                Vec3 away = golem.position().subtract(Vec3.atCenterOf(chestPos)).multiply(1, 0, 1).normalize().scale(4);
+                golem.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                        new BlockPosTracker(BlockPos.containing(golem.position().add(away))));
                 phase = Phase.LOOK_AWAY;
                 timer = PAUSE_AWAY;
             }
             case LOOK_AWAY -> {
-                holdStill(villager);
+                holdStill(golem);
                 if (--timer > 0) return;
                 phase = Phase.DONE;
             }
@@ -210,23 +210,23 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     }
 
     @Override
-    protected void end(ServerLevel level, Villager villager, long time) {
-        closeChest(villager); // also covers interruptions (night, panic, damage, timeout)
+    protected void end(ServerLevel level, WorkGolem golem, long time) {
+        closeChest(golem); // also covers interruptions (night, panic, damage, timeout)
         chestPos = null;
         phase = Phase.DONE;
     }
 
-    private void closeChest(Villager villager) {
+    private void closeChest(WorkGolem golem) {
         if (opened == null) return;
-        opened.stopOpen((ContainerUser) villager);
-        ((ChestOpener) villager).industriousvillagers$setOpenedChestPos(null);
+        opened.stopOpen((ContainerUser) golem);
+        golem.setOpenedChestPos(null);
         opened = null;
     }
 
     // ---- moving one stack -------------------------------------------------------------------------------------
 
-    private boolean depositOne(ProfessionNeeds needs, Villager villager, Container chest) {
-        SimpleContainer inv = villager.getInventory();
+    private boolean depositOne(ProfessionNeeds needs, WorkGolem golem, Container chest) {
+        SimpleContainer inv = golem.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             if (failedSlots.contains(i)) continue;
             int amount = needs.depositAmount(inv, i);
@@ -242,8 +242,8 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         return false;
     }
 
-    private boolean takeOne(ProfessionNeeds needs, Villager villager, Container chest) {
-        SimpleContainer inv = villager.getInventory();
+    private boolean takeOne(ProfessionNeeds needs, WorkGolem golem, Container chest) {
+        SimpleContainer inv = golem.getInventory();
         for (Need need : needs.needs()) {
             if (doneNeeds.contains(need.id())) continue;
             int have = need.have(inv);
@@ -255,7 +255,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 int n = Math.min(need.target() - have, s.getCount());
                 ItemStack rest = inv.addItem(s.copyWithCount(n));
                 int moved = n - rest.getCount();
-                if (moved <= 0) break; // villager inventory full
+                if (moved <= 0) break; // golem inventory full
                 s.shrink(moved);
                 if (s.isEmpty()) chest.setItem(i, ItemStack.EMPTY);
                 restocking.add(need.id());

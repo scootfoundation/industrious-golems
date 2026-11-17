@@ -1,5 +1,8 @@
 {
-  "entity.minecraft.villager.industriousvillagers.farmer": "Farmer",
-  "entity.minecraft.villager.industriousvillagers.herder": "Herder",
-  "entity.minecraft.villager.industriousvillagers.lumberjack": "Lumberjack"
+  "entity.industriousvillagers.hay_golem": "Hay Golem",
+  "entity.industriousvillagers.mushroom_golem": "Mushroom Golem",
+  "entity.industriousvillagers.terracotta_golem": "Terracotta Golem",
+  "item.industriousvillagers.hay_golem_spawn_egg": "Hay Golem Spawn Egg",
+  "item.industriousvillagers.mushroom_golem_spawn_egg": "Mushroom Golem Spawn Egg",
+  "item.industriousvillagers.terracotta_golem_spawn_egg": "Terracotta Golem Spawn Egg"
 }

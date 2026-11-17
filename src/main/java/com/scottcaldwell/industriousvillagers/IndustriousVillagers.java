@@ -1,12 +1,11 @@
 package com.scottcaldwell.industriousvillagers;
 
 import com.mojang.logging.LogUtils;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import org.slf4j.Logger;
 
 @Mod(IndustriousVillagers.MODID)
@@ -16,28 +15,17 @@ public class IndustriousVillagers {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public IndustriousVillagers(IEventBus modEventBus, ModContainer modContainer) {
-        ModProfessions.register(modEventBus);
+        ModEntities.register(modEventBus);
+        ModItems.register(modEventBus);
         ModGameTests.register(modEventBus);
         ModAttachments.register(modEventBus);
         ModActivities.register(modEventBus);
         ModMenus.register(modEventBus);
-        // Villagers loaded from saved data or /summon come back with CanPickUpLoot=false, so they
-        // never collect crop drops (and so never get seeds to replant). Force it on.
-        NeoForge.EVENT_BUS.addListener(net.neoforged.neoforge.event.tick.EntityTickEvent.Post.class, event -> {
-            if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Villager villager) {
-                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.tick(villager);
-            }
-        });
         NeoForge.EVENT_BUS.addListener(net.neoforged.neoforge.event.entity.living.LivingDeathEvent.class, event -> {
-            if (event.getEntity() instanceof Villager villager) {
-                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.clearOnDeath(villager);
+            if (event.getEntity() instanceof WorkGolem golem) {
+                com.scottcaldwell.industriousvillagers.needs.NeedsIndicator.clearOnDeath(golem);
             }
         });
-        NeoForge.EVENT_BUS.addListener(EntityJoinLevelEvent.class, event -> {
-            if (!event.getLevel().isClientSide() && event.getEntity() instanceof Villager villager) {
-                villager.setCanPickUpLoot(true);
-            }
-        });
-        LOGGER.info("Industrious Villagers initialising");
+        LOGGER.info("Industrious Golems initialising");
     }
 }

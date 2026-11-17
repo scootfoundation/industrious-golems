@@ -3,22 +3,22 @@ package com.scottcaldwell.industriousvillagers.inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.ContainerUser;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * The villager's own inventory as a menu container. While open, the villager stops and is marked as interacting with
+ * The golem's own inventory as a menu container. While open, the golem stops and is marked as interacting with
  * the player.
  */
-public class VillagerInventoryContainer implements Container {
+public class GolemInventoryContainer implements Container {
 
-    private final Villager villager;
+    private final WorkGolem golem;
     private final SimpleContainer inventory;
 
-    public VillagerInventoryContainer(Villager villager) {
-        this.villager = villager;
-        this.inventory = villager.getInventory();
+    public GolemInventoryContainer(WorkGolem golem) {
+        this.golem = golem;
+        this.inventory = golem.getInventory();
     }
 
     @Override public int getContainerSize() { return inventory.getContainerSize(); }
@@ -37,20 +37,20 @@ public class VillagerInventoryContainer implements Container {
 
     @Override
     public boolean stillValid(Player player) {
-        return villager.isAlive() && player.distanceToSqr(villager) <= 8.0 * 8.0;
+        return golem.isAlive() && player.distanceToSqr(golem) <= 8.0 * 8.0;
     }
 
     @Override
     public void startOpen(ContainerUser user) {
         if (user instanceof Player player) {
-            villager.setTradingPlayer(player); // stops the villager walking off while the screen is open
-            villager.getNavigation().stop();
+            golem.setTradingPlayer(player); // stops the golem walking off while the screen is open
+            golem.getNavigation().stop();
         }
     }
 
     @Override
     public void stopOpen(ContainerUser user) {
-        if (user instanceof Player player && villager.getTradingPlayer() == player) villager.setTradingPlayer(null);
+        if (user instanceof Player player && golem.getTradingPlayer() == player) golem.setTradingPlayer(null);
     }
 
     @Override public void clearContent() { inventory.clearContent(); }

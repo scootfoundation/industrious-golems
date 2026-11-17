@@ -8,11 +8,11 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * A hungry villager stops, holds up a piece of food from its inventory and eats it (sound and crumbs), restoring the
+ * A hungry golem stops, holds up a piece of food from its inventory and eats it (sound and crumbs), restoring the
  * food's nutrition. Interrupting the meal (sleep, damage) wastes nothing.
  */
 public class EatFood extends TaskRunner<EatFood.Meal> {
@@ -29,50 +29,50 @@ public class EatFood extends TaskRunner<EatFood.Meal> {
         super(Meal.class, EAT_TICKS);
     }
 
-    private static int foodSlot(Villager villager) {
-        ProfessionNeeds needs = ProfessionNeeds.effective(villager);
-        return needs == null ? -1 : needs.food().slot(villager.getInventory());
+    private static int foodSlot(WorkGolem golem) {
+        ProfessionNeeds needs = ProfessionNeeds.of(golem);
+        return needs == null ? -1 : needs.food().slot(golem.getInventory());
     }
 
-    /** A meal when the villager is awake, has food, and wants it (see {@link Hunger#wantsToEat}); otherwise null. */
-    public static Meal plan(Villager villager) {
-        if (villager.isSleeping()) return null;
-        int slot = foodSlot(villager);
-        return slot >= 0 && Hunger.wantsToEat(villager, villager.getInventory().getItem(slot)) ? MEAL : null;
+    /** A meal when the golem is awake, has food, and wants it (see {@link Hunger#wantsToEat}); otherwise null. */
+    public static Meal plan(WorkGolem golem) {
+        if (golem.isSleeping()) return null;
+        int slot = foodSlot(golem);
+        return slot >= 0 && Hunger.wantsToEat(golem, golem.getInventory().getItem(slot)) ? MEAL : null;
     }
 
     @Override
-    protected void begin(ServerLevel level, Villager villager, long time) {
+    protected void begin(ServerLevel level, WorkGolem golem, long time) {
         endsAt = time + EAT_TICKS;
-        int slot = foodSlot(villager);
-        if (slot >= 0) HeldItem.hold(villager, villager.getInventory().getItem(slot));
-        holdStill(villager);
+        int slot = foodSlot(golem);
+        if (slot >= 0) HeldItem.hold(golem, golem.getInventory().getItem(slot));
+        holdStill(golem);
     }
 
     @Override
-    protected boolean allowedNow(ServerLevel level, Villager villager) {
-        return !villager.isSleeping() && foodSlot(villager) >= 0 && Tasks.scheduleAllowsEating(level, villager);
+    protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
+        return !golem.isSleeping() && foodSlot(golem) >= 0 && Tasks.scheduleAllowsEating(level, golem);
     }
 
     @Override
-    protected void tick(ServerLevel level, Villager villager, long time) {
-        holdStill(villager);
+    protected void tick(ServerLevel level, WorkGolem golem, long time) {
+        holdStill(golem);
         if ((endsAt - time) % 4 == 0) {
-            ItemStack held = villager.getItemBySlot(EquipmentSlot.MAINHAND);
-            villager.playSound(SoundEvents.GENERIC_EAT.value(), 0.5F, 0.9F + villager.getRandom().nextFloat() * 0.2F);
+            ItemStack held = golem.getItemBySlot(EquipmentSlot.MAINHAND);
+            golem.playSound(SoundEvents.GENERIC_EAT.value(), 0.5F, 0.9F + golem.getRandom().nextFloat() * 0.2F);
             level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, held.copyWithCount(1)),
-                    villager.getX(), villager.getEyeY() - 0.2, villager.getZ(), 4, 0.1, 0.1, 0.1, 0.05);
+                    golem.getX(), golem.getEyeY() - 0.2, golem.getZ(), 4, 0.1, 0.1, 0.1, 0.05);
         }
     }
 
     @Override
-    protected void end(ServerLevel level, Villager villager, long time) {
+    protected void end(ServerLevel level, WorkGolem golem, long time) {
         if (time >= endsAt) { // not interrupted before swallowing
-            int slot = foodSlot(villager);
+            int slot = foodSlot(golem);
             if (slot >= 0) {
-                ItemStack eaten = villager.getInventory().removeItem(slot, 1);
-                Hunger.ate(villager, eaten);
-                villager.playSound(SoundEvents.PLAYER_BURP, 0.5F, 1.0F);
+                ItemStack eaten = golem.getInventory().removeItem(slot, 1);
+                Hunger.ate(golem, eaten);
+                golem.playSound(SoundEvents.PLAYER_BURP, 0.5F, 1.0F);
             }
         }
     }

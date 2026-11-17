@@ -9,7 +9,7 @@ import net.minecraft.world.item.Item;
 public final class ModTags {
     private ModTags() { }
 
-    /** Food villagers eat and fetch from containers. */
+    /** Food golems eat and fetch from containers. */
     public static final TagKey<Item> VILLAGER_FOOD = item("villager_food");
     /** What the herder feeds animals to make them breed. */
     public static final TagKey<Item> ANIMAL_FEED = item("animal_feed");

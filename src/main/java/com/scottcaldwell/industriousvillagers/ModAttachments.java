@@ -12,7 +12,7 @@ public class ModAttachments {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENTS =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, IndustriousVillagers.MODID);
 
-    /** Game time of the villager's last meal; {@link Long#MIN_VALUE} until first observed. Saved with the villager. */
+    /** Game time of the golem's last meal; {@link Long#MIN_VALUE} until first observed. Saved with the golem. */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> LAST_MEAL =
             ATTACHMENTS.register("last_meal", () -> AttachmentType.builder(() -> Long.MIN_VALUE)
                     .serialize(Codec.LONG.fieldOf("time"))
@@ -25,7 +25,7 @@ public class ModAttachments {
                     .sync(com.scottcaldwell.industriousvillagers.needs.StatusData.STREAM_CODEC)
                     .build());
 
-    /** Game time a cow was last milked by a villager; limits how often it can be milked. */
+    /** Game time a cow was last milked by a golem; limits how often it can be milked. */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> MILKED_AT =
             ATTACHMENTS.register("milked_at", () -> AttachmentType.builder(() -> Long.MIN_VALUE)
                     .serialize(Codec.LONG.fieldOf("time"))

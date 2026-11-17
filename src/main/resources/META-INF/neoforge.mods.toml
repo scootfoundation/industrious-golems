@@ -9,9 +9,6 @@ Replaces villager trading with productive labour. Villagers farm, fell trees,
 and mine; the player builds the surrounding infrastructure using vanilla blocks.
 '''
 
-[[mixins]]
-config="industriousvillagers.mixins.json"
-
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"

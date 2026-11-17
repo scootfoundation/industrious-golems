@@ -1,25 +1,25 @@
 package com.scottcaldwell.industriousvillagers.needs;
 
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.npc.villager.Villager;
+import com.scottcaldwell.industriousvillagers.golem.WorkGolem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.function.Predicate;
 
 /**
- * Something a villager keeps topped up from containers: a tool, a supply or food. Declared per profession (see
+ * Something a golem keeps topped up from containers: a tool, a supply or food. Declared per profession (see
  * {@link ProfessionNeeds}) and used by container visits, the work gate, the inventory screen and the status plate.
  *
- * @param target         how many the villager tops up to when restocking
+ * @param target         how many the golem tops up to when restocking
  * @param refillBelow    restocking starts when it holds fewer than this
  * @param depositSurplus items beyond {@code target} are deposited
- * @param blocks         when this holds and the villager has none, the shortfall is shown to the player
- * @param gatesWork      such a shortfall also stops the villager working
+ * @param blocks         when this holds and the golem has none, the shortfall is shown to the player
+ * @param gatesWork      such a shortfall also stops the golem working
  * @param tool           gets a dedicated inventory slot and a spot on the status plate
  */
 public record Need(String id, Predicate<ItemStack> match, ItemStack icon, int target, int refillBelow,
-                   boolean depositSurplus, Predicate<Villager> blocks, boolean gatesWork, boolean tool) {
+                   boolean depositSurplus, Predicate<WorkGolem> blocks, boolean gatesWork, boolean tool) {
 
     public static final String FOOD = "food";
 
@@ -38,13 +38,13 @@ public record Need(String id, Predicate<ItemStack> match, ItemStack icon, int ta
         return new Need(id, match, new ItemStack(icon), target, refillBelow, true, v -> true, false, false);
     }
 
-    /** Food for the villager itself; the shortfall is reported when {@code reportMissing} holds. */
-    public static Need food(Predicate<ItemStack> match, Item icon, Predicate<Villager> reportMissing) {
+    /** Food for the golem itself; the shortfall is reported when {@code reportMissing} holds. */
+    public static Need food(Predicate<ItemStack> match, Item icon, Predicate<WorkGolem> reportMissing) {
         return new Need(FOOD, match, new ItemStack(icon), 6, 3, false, reportMissing, false, false);
     }
 
-    public boolean missing(Villager villager) {
-        return blocks.test(villager) && have(villager.getInventory()) == 0;
+    public boolean missing(WorkGolem golem) {
+        return blocks.test(golem) && have(golem.getInventory()) == 0;
     }
 
     public int have(Container inventory) {
