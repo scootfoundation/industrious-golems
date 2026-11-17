@@ -44,6 +44,10 @@ public class ModGameTests {
         FUNCTIONS.register("golem_offering_rules", () -> ModGameTests::golemOfferingRules);
         FUNCTIONS.register("golem_charge_runs_out", () -> ModGameTests::golemChargeRunsOut);
         FUNCTIONS.register("golem_menu_offering_slot", () -> ModGameTests::golemMenuOfferingSlot);
+        FUNCTIONS.register("hay_chest_pattern", () -> h -> chestPattern(h, ModProfessions.FARMER, Blocks.HAY_BLOCK.defaultBlockState(), ModBlocks.HAY_CHEST.get()));
+        FUNCTIONS.register("mushroom_chest_pattern", () -> h -> chestPattern(h, ModProfessions.LUMBERJACK, Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(), ModBlocks.MUSHROOM_CHEST.get()));
+        FUNCTIONS.register("terracotta_chest_pattern", () -> h -> chestPattern(h, ModProfessions.HERDER, Blocks.TERRACOTTA.defaultBlockState(), ModBlocks.TERRACOTTA_CHEST.get()));
+        FUNCTIONS.register("chest_pattern_needs_matching_body", () -> ModGameTests::chestPatternNeedsMatchingBody);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -504,5 +508,47 @@ public class ModGameTests {
             player.closeContainer();
         });
         helper.succeedWhen(() -> helper.assertTrue(done[0], "menu should have been checked"));
+    }
+
+    // ---- the chest spawn pattern ----------------------------------------------------------------------------------
+
+    /** A body block with a carved pumpkin on top becomes the golem standing on its chest, bound to it and ready to be woken. */
+    private static void chestPattern(GameTestHelper helper, ModProfessions.Profession profession,
+                                     net.minecraft.world.level.block.state.BlockState body,
+                                     net.minecraft.world.level.block.Block chest) {
+        BlockPos base = new BlockPos(3, 1, 3);
+        BlockPos top = base.above();
+        helper.setBlock(base, body);
+        var pumpkin = Blocks.CARVED_PUMPKIN.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.CarvedPumpkinBlock.FACING, net.minecraft.core.Direction.SOUTH);
+        helper.setBlock(top, pumpkin);
+        WorkGolem golem = com.scottcaldwell.industriousgolems.golem.ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin);
+        helper.assertTrue(golem != null, "the pattern should spawn a golem");
+        helper.assertTrue(golem.profession() == profession, "the right kind of golem");
+        helper.assertTrue(helper.getBlockState(base).is(chest), "the body block should become the golem's chest");
+        helper.assertTrue(helper.getBlockState(top).isAir(), "the pumpkin should be gone");
+        helper.assertTrue(golem.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                .filter(site -> site.pos().equals(helper.absolutePos(base))).isPresent(), "the chest should be its job site");
+        helper.assertTrue(!golem.isCharged(), "it starts dormant, waiting for what it craves");
+        helper.runAtTickTime(5, () -> {
+            net.minecraft.world.item.Item wanted = craved(golem);
+            helper.assertTrue(com.scottcaldwell.industriousgolems.offering.Offerings.wants(golem, new ItemStack(wanted)), "it should want its craving");
+            com.scottcaldwell.industriousgolems.offering.Offerings.offer(golem, new ItemStack(wanted));
+            helper.assertTrue(golem.isCharged(), "the craving should wake it");
+            helper.assertTrue(golem.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE), "it keeps its chest as job site");
+        });
+        helper.succeedWhen(() -> helper.assertTrue(golem.isCharged(), "charged"));
+    }
+
+    /** A pumpkin on any other block, or a body block of another golem under the wrong pumpkin, builds nothing. */
+    private static void chestPatternNeedsMatchingBody(GameTestHelper helper) {
+        BlockPos base = new BlockPos(3, 1, 3);
+        helper.setBlock(base, Blocks.STONE);
+        var pumpkin = Blocks.JACK_O_LANTERN.defaultBlockState();
+        helper.setBlock(base.above(), pumpkin);
+        helper.assertTrue(com.scottcaldwell.industriousgolems.golem.ChestSpawn.build(helper.getLevel(),
+                helper.absolutePos(base.above()), pumpkin) == null, "stone is not a body block");
+        helper.assertTrue(helper.getBlockState(base).is(Blocks.STONE), "nothing should change");
+        helper.succeed();
     }
 }

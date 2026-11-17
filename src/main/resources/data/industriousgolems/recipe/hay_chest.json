@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:chest",
+    "minecraft:composter",
+    "minecraft:hay_block"
+  ],
+  "result": {
+    "id": "industriousgolems:hay_chest",
+    "count": 1
+  }
+}

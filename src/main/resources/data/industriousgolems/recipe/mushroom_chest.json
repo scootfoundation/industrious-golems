@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:chest",
+    "minecraft:fletching_table",
+    "minecraft:red_mushroom_block"
+  ],
+  "result": {
+    "id": "industriousgolems:mushroom_chest",
+    "count": 1
+  }
+}

@@ -17,6 +17,7 @@ public class IndustriousGolems {
     public IndustriousGolems(IEventBus modEventBus, ModContainer modContainer) {
         ModEntities.register(modEventBus);
         ModItems.register(modEventBus);
+        ModBlocks.register(modEventBus);
         ModGameTests.register(modEventBus);
         ModAttachments.register(modEventBus);
         ModActivities.register(modEventBus);
@@ -26,6 +27,7 @@ public class IndustriousGolems {
                 com.scottcaldwell.industriousgolems.needs.NeedsIndicator.clearOnDeath(golem);
             }
         });
+        NeoForge.EVENT_BUS.register(com.scottcaldwell.industriousgolems.golem.ChestSpawn.class);
         LOGGER.info("Industrious Golems initialising");
     }
 }

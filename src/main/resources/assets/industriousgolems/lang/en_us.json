@@ -8,5 +8,8 @@
   "offering.industriousgolems.any_sherd": "Any Pottery Sherd",
   "gui.industriousgolems.wants": "  wants %s",
   "gui.industriousgolems.charge": "%s:%s left",
-  "gui.industriousgolems.dormant": "Dormant"
+  "gui.industriousgolems.dormant": "Dormant",
+  "block.industriousgolems.hay_chest": "Hay Chest",
+  "block.industriousgolems.mushroom_chest": "Mushroom Chest",
+  "block.industriousgolems.terracotta_chest": "Terracotta Chest"
 }

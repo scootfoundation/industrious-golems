@@ -14,11 +14,16 @@ import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.tags.BlockTags;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * The golems' professions. Each is declared once: the job site it claims, the items it picks up, its work sound, the
@@ -32,13 +37,14 @@ public final class ModProfessions {
 
     /** @param id also the entity id and the translation key suffix */
     public record Profession(String id, Predicate<Holder<PoiType>> jobSite, Set<Item> picksUp, SoundEvent workSound,
-                             ProfessionNeeds needs, List<Offering> offerings) { }
+                             ProfessionNeeds needs, List<Offering> offerings,
+                             Supplier<? extends Block> chest, Predicate<BlockState> bodyBlock) { }
 
     private static final List<Profession> ALL = new ArrayList<>();
 
-    /** The composter is the farmer's job site (PoiTypes.FARMER is the Composter POI). */
+    /** The hay chest is the farmer's job site; the composter (PoiTypes.FARMER) still counts as one. */
     public static final Profession FARMER = define("farmer",
-            holder -> holder.is(PoiTypes.FARMER),
+            holder -> holder.is(PoiTypes.FARMER) || holder.is(ModBlocks.HAY_CHEST_POI.getKey()),
             Set.of(Items.WHEAT, Items.WHEAT_SEEDS, Items.BEETROOT, Items.BEETROOT_SEEDS, Items.POTATO, Items.CARROT,
                     Items.TORCHFLOWER_SEEDS, Items.PITCHER_POD),
             SoundEvents.VILLAGER_WORK_FARMER,
@@ -48,11 +54,12 @@ public final class ModProfessions {
                     || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES) || s.is(Items.CARROT) || s.is(Items.POTATO),
                     new ProfessionNeeds.Work(TendCrops::plan, TendCrops::new)),
             offerings(Items.SLIME_BALL, Items.GLOW_INK_SAC, Items.PUFFERFISH, Items.COBWEB, Items.RABBIT_FOOT,
-                    Items.CACTUS_FLOWER, Items.POINTED_DRIPSTONE, Items.GLOW_BERRIES));
+                    Items.CACTUS_FLOWER, Items.POINTED_DRIPSTONE, Items.GLOW_BERRIES),
+            ModBlocks.HAY_CHEST::get, state -> state.is(Blocks.HAY_BLOCK));
 
-    /** The shepherd's loom is the herder's job site. */
+    /** The terracotta chest is the herder's job site; the shepherd's loom still counts as one. */
     public static final Profession HERDER = define("herder",
-            holder -> holder.is(PoiTypes.SHEPHERD),
+            holder -> holder.is(PoiTypes.SHEPHERD) || holder.is(ModBlocks.TERRACOTTA_CHEST_POI.getKey()),
             Set.of(Items.BUCKET, Items.WHEAT, Items.CARROT, Items.WHEAT_SEEDS),
             SoundEvents.VILLAGER_WORK_SHEPHERD,
             new ProfessionNeeds(List.of(
@@ -63,18 +70,20 @@ public final class ModProfessions {
             List.of(Offering.of(Items.TURTLE_SCUTE), Offering.of(Items.SEA_PICKLE), Offering.of(Items.COCOA_BEANS),
                     Offering.of(Items.MANGROVE_PROPAGULE), Offering.of(Items.POWDER_SNOW_BUCKET),
                     Offering.anyOf(ItemTags.DECORATED_POT_SHERDS, Items.SNORT_POTTERY_SHERD, "offering.industriousgolems.any_sherd"),
-                    Offering.of(Items.SHROOMLIGHT), Offering.of(Items.BIG_DRIPLEAF)));
+                    Offering.of(Items.SHROOMLIGHT), Offering.of(Items.BIG_DRIPLEAF)),
+            ModBlocks.TERRACOTTA_CHEST::get, state -> state.is(BlockTags.TERRACOTTA));
 
-    /** The fletching table is the lumberjack's job site. */
+    /** The mushroom chest is the lumberjack's job site; the fletching table still counts as one. */
     public static final Profession LUMBERJACK = define("lumberjack",
-            holder -> holder.is(PoiTypes.FLETCHER),
+            holder -> holder.is(PoiTypes.FLETCHER) || holder.is(ModBlocks.MUSHROOM_CHEST_POI.getKey()),
             Set.of(Items.OAK_SAPLING),
             SoundEvents.VILLAGER_WORK_FLETCHER,
             new ProfessionNeeds(List.of(
                     Need.supply("saplings", s -> s.is(ItemTags.SAPLINGS), Items.OAK_SAPLING, 8, 4)
             ), s -> s.is(ModTags.LUMBERJACK_OUTPUT), new ProfessionNeeds.Work(FellTree::plan, FellTree::new)),
             offerings(Items.AMETHYST_SHARD, Items.RESIN_CLUMP, Items.SPORE_BLOSSOM, Items.PINK_PETALS, Items.GOAT_HORN,
-                    Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM));
+                    Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM),
+            ModBlocks.MUSHROOM_CHEST::get, state -> state.is(Blocks.RED_MUSHROOM_BLOCK));
 
     private ModProfessions() { }
 
@@ -85,8 +94,9 @@ public final class ModProfessions {
     }
 
     private static Profession define(String id, Predicate<Holder<PoiType>> jobSite, Set<Item> picksUp,
-                                     SoundEvent workSound, ProfessionNeeds needs, List<Offering> offerings) {
-        Profession profession = new Profession(id, jobSite, picksUp, workSound, needs, offerings);
+                                     SoundEvent workSound, ProfessionNeeds needs, List<Offering> offerings,
+                                     Supplier<? extends Block> chest, Predicate<BlockState> bodyBlock) {
+        Profession profession = new Profession(id, jobSite, picksUp, workSound, needs, offerings, chest, bodyBlock);
         ALL.add(profession);
         return profession;
     }

@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:chest",
+    "minecraft:loom",
+    "minecraft:terracotta"
+  ],
+  "result": {
+    "id": "industriousgolems:terracotta_chest",
+    "count": 1
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "bonus_rolls": 0,
+      "conditions": [
+        {
+          "condition": "minecraft:survives_explosion"
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "industriousgolems:mushroom_chest"
+        }
+      ]
+    }
+  ],
+  "random_sequence": "industriousgolems:blocks/mushroom_chest"
+}

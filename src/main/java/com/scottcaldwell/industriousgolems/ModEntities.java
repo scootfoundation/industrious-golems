@@ -52,6 +52,14 @@ public final class ModEntities {
         return PROFESSION_BY_ID.get(EntityType.getKey(type).getPath());
     }
 
+    /** The golem entity type that carries out this profession. */
+    public static EntityType<WorkGolem> typeOf(ModProfessions.Profession profession) {
+        for (var type : all()) {
+            if (professionOf(type.get()) == profession) return type.get();
+        }
+        throw new IllegalArgumentException("No golem for profession " + profession.id());
+    }
+
     public static Iterable<DeferredHolder<EntityType<?>, EntityType<WorkGolem>>> all() {
         return java.util.List.of(FARMER_GOLEM, LUMBERJACK_GOLEM, HERDER_GOLEM);
     }

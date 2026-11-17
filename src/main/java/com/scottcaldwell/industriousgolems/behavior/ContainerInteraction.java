@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.behavior;
 
+import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
 import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
@@ -27,7 +28,7 @@ import java.util.Set;
  * player: walks over, looks at the chest, pauses, opens it (lid animation and sound), moves one stack at a time with
  * pauses between, closes it, looks away and leaves.
  *
- * <p>Chest preference: deposits go to copper chests and supplies (tools, food, inputs) are preferred from regular
+ * <p>Chest preference: the golem's own chest first (it is both where it deposits and where it restocks), then deposits go to copper chests and supplies (tools, food, inputs) are preferred from regular
  * chests, each falling back to the other kind. Vanilla copper golems carry items from copper chests into regular
  * chests, so this makes a golem ferry the golem's output to a regular chest that the golem restocks from.
  */
@@ -87,8 +88,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             Container c = HopperBlockEntity.getContainerAt(level, p);
             if (c == null) continue;
             boolean copper = level.getBlockState(p).is(BlockTags.COPPER_CHESTS);
-            int depositPref = hasDeposits ? (copper ? 2 : 1) : 0;
-            int takePref = canTakeSomething(needs, inv, c) ? (copper ? 1 : 2) : 0;
+            boolean own = level.getBlockState(p).getBlock() instanceof GolemChestBlock; // the golem's own chest wins
+            int depositPref = hasDeposits ? (own ? 3 : copper ? 2 : 1) : 0;
+            int takePref = canTakeSomething(needs, inv, c) ? (own ? 3 : copper ? 1 : 2) : 0;
             if (depositPref == 0 && takePref == 0) continue;
             bestDeposit = Math.max(bestDeposit, depositPref);
             bestTake = Math.max(bestTake, takePref);
