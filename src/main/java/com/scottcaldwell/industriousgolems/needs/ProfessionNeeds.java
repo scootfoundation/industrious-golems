@@ -15,7 +15,7 @@ import java.util.function.Supplier;
  *
  * @param needs   supplies it fetches from its chest
  * @param outputs what its work produces; golems pick these up and carry them, one stack at a time, to the chest
- * @param work    its own kind of work; null for none
+ * @param work    its own kind of work
  */
 public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Work work) {
 

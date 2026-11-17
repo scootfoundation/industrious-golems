@@ -13,8 +13,10 @@ import com.scottcaldwell.industriousgolems.golem.WorkGolem;
  */
 public class StartTask extends Behavior<WorkGolem> {
 
-    /** How often the golem looks for something to do (this and the walking speed set how fast it works). */
-    private static final long PLAN_INTERVAL = 20;
+    /** How soon the golem looks for the next thing to do after starting a task (this and the walking speed set how fast it works). */
+    private static final long BUSY_INTERVAL = 20;
+    /** How soon it looks again when it found nothing: the searches scan the surroundings. */
+    private static final long IDLE_INTERVAL = 80;
 
     public StartTask() {
         super(ImmutableMap.of(), 1);
@@ -26,16 +28,18 @@ public class StartTask extends Behavior<WorkGolem> {
      */
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, WorkGolem golem) {
-        ProfessionNeeds needs = ProfessionNeeds.of(golem);
         TaskState state = golem.getData(ModAttachments.TASK);
-        if (needs == null || state.plan != null || !Tasks.mayWork(golem)) return false;
-        if (!state.due("plan", level.getGameTime(), PLAN_INTERVAL)) return false;
+        if (state.plan != null || !Tasks.mayWork(golem)) return false;
+        long now = level.getGameTime();
+        if (!state.planDue(now)) return false;
 
-        Object plan = needs.work() == null ? null : needs.work().planner().plan(level, golem);
+        Object plan = ProfessionNeeds.of(golem).work().planner().plan(level, golem);
         if (plan == null) plan = ContainerInteraction.planDeposit(level, golem);
         if (plan == null) plan = PickUp.plan(level, golem);
         if (plan == null) plan = ContainerInteraction.planSupply(level, golem);
         state.plan = plan;
+        // nothing to do: look again later, the searches are not free
+        state.planAt(now + (plan == null ? IDLE_INTERVAL : BUSY_INTERVAL));
         return plan != null;
     }
 

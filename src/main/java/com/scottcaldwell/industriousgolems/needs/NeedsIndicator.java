@@ -37,7 +37,7 @@ public final class NeedsIndicator {
 
     /** Called every tick on the server for each golem. */
     public static void tick(WorkGolem golem) {
-        if (golem.tickCount % CHECK_INTERVAL != 0 || golem.isBaby()) return;
+        if (golem.tickCount % CHECK_INTERVAL != 0) return;
         mend(golem);
         showCraving(golem);
     }

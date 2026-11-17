@@ -4,13 +4,11 @@ import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -18,6 +16,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 
 import java.util.Comparator;
 import java.util.Optional;
@@ -56,22 +55,20 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     /** Carrying seeds: sow the nearest bare farmland. Hands free: reap the nearest ripe crop. Otherwise nothing. */
     public static Object plan(ServerLevel level, WorkGolem golem) {
-        ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension())) return null;
-        if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
+        BlockPos site = golem.jobSite(level);
+        if (site == null || !EventHooks.canEntityGrief(level, golem)) return null;
         if (golem.isCarrying()) {
-            if (!needs.isSupply("seeds", golem.carried())) return null;
-            return nearest(level, site.pos(), golem, false).map(p -> new CropPlan(Kind.SOW, p)).orElse(null);
+            if (!ProfessionNeeds.of(golem).isSupply("seeds", golem.carried())) return null;
+            return nearest(level, site, golem, false).map(p -> new CropPlan(Kind.SOW, p)).orElse(null);
         }
-        return nearest(level, site.pos(), golem, true).map(p -> new CropPlan(Kind.REAP, p)).orElse(null);
+        return nearest(level, site, golem, true).map(p -> new CropPlan(Kind.REAP, p)).orElse(null);
     }
 
     /** Seeds would let the golem sow some bare farmland. */
     public static String wants(ServerLevel level, WorkGolem golem) {
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension()) || golem.isCarrying()) return null;
-        return nearest(level, site.pos(), golem, false).isPresent() ? "seeds" : null;
+        BlockPos site = golem.jobSite(level);
+        if (site == null || golem.isCarrying()) return null;
+        return nearest(level, site, golem, false).isPresent() ? "seeds" : null;
     }
 
     private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, boolean ripe) {

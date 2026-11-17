@@ -4,7 +4,6 @@ import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
 import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.Container;
@@ -24,7 +23,7 @@ import net.minecraft.world.phys.Vec3;
  * an empty-handed golem whose work needs a supply takes one stack of it out. It behaves like a player: walks over,
  * looks at the chest, pauses, opens it (lid animation and sound), moves the stack, closes it, looks away and leaves.
  *
- * <p>Its own chest (see {@link GolemChestBlock}) comes first; otherwise containers next to the job site are used,
+ * <p>The golem's own chest (see {@link GolemChestBlock}) comes first; otherwise containers next to the job site are used,
  * deposits preferring copper chests and supplies regular ones.
  */
 public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> {
@@ -67,8 +66,8 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     /** Fetches a stack of the supply the work is waiting for, when a container nearby holds some. */
     public static Plan planSupply(ServerLevel level, WorkGolem golem) {
+        if (golem.isCarrying()) return null;
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        if (needs == null || needs.work() == null || golem.isCarrying()) return null;
         String id = needs.work().wants().need(level, golem);
         Need need = id == null ? null : needs.need(id);
         if (need == null) return null;
@@ -78,18 +77,18 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     private static BlockPos best(ServerLevel level, WorkGolem golem, java.util.function.Predicate<Container> usable,
                                  boolean deposit) {
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension())) return null;
+        BlockPos site = golem.jobSite(level);
+        if (site == null) return null;
         BlockPos best = null;
         int bestPref = 0;
         double bestDist = 0;
-        for (BlockPos p : BlockPos.betweenClosed(site.pos().offset(-SEARCH_RADIUS, -2, -SEARCH_RADIUS),
-                site.pos().offset(SEARCH_RADIUS, 2, SEARCH_RADIUS))) {
+        for (BlockPos p : BlockPos.betweenClosed(site.offset(-SEARCH_RADIUS, -2, -SEARCH_RADIUS),
+                site.offset(SEARCH_RADIUS, 2, SEARCH_RADIUS))) {
             if (level.getBlockEntity(p) == null) continue;
             Container c = HopperBlockEntity.getContainerAt(level, p);
             if (c == null || !usable.test(c)) continue;
             BlockState state = level.getBlockState(p);
-            int pref = state.getBlock() instanceof GolemChestBlock ? 3
+            int pref = p.equals(site) && state.getBlock() instanceof GolemChestBlock ? 3
                     : state.is(BlockTags.COPPER_CHESTS) == deposit ? 2 : 1;
             double dist = p.distSqr(golem.blockPosition());
             if (pref > bestPref || (pref == bestPref && dist < bestDist)) {

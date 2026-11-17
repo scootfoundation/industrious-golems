@@ -6,6 +6,7 @@ import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
 import com.scottcaldwell.industriousgolems.offering.Offerings;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -23,6 +24,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
@@ -64,7 +66,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         super(type, level);
         getNavigation().setCanOpenDoors(true);
         setPersistenceRequired();
-        setDropChance(EquipmentSlot.MAINHAND, 1.0F); // whatever it carries drops with it
+        setDropChance(EquipmentSlot.MAINHAND, 2.0F); // above 1: always dropped, even when it was not a player that killed it
     }
 
     public static AttributeSupplier.Builder createAttributes(double speed) {
@@ -129,6 +131,14 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         builder.define(UNHAPPY, 0);
         builder.define(CRAVING, -1);
         builder.define(CHARGE, 0);
+    }
+
+    /** The block this golem works from (its chest), when it has one in this level. */
+    public @Nullable BlockPos jobSite(ServerLevel level) {
+        return getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                .filter(site -> site.dimension().equals(level.dimension()))
+                .map(GlobalPos::pos)
+                .orElse(null);
     }
 
     // ---- charge ---------------------------------------------------------------------------------------------------

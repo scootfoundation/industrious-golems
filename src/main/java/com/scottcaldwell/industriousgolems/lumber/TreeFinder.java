@@ -4,7 +4,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -35,7 +34,7 @@ public final class TreeFinder {
     private TreeFinder() { }
 
     /** A tree's logs, chopped in this order (bottom first), and where to replant. */
-    public record Tree(List<BlockPos> logs, BlockPos base, Block logType) { }
+    public record Tree(List<BlockPos> logs, BlockPos base) { }
 
     public static Tree find(ServerLevel level, BlockPos center, BlockPos from) {
         List<BlockPos> candidates = new ArrayList<>();
@@ -112,6 +111,6 @@ public final class TreeFinder {
         BlockPos anchor = start;
         logs.sort(Comparator.<BlockPos>comparingInt(BlockPos::getY).thenComparingDouble(p -> p.distSqr(anchor)));
         BlockPos base = logs.get(0);
-        return new Tree(logs, base, level.getBlockState(base).getBlock());
+        return new Tree(logs, base);
     }
 }

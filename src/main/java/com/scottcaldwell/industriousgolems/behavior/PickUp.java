@@ -1,11 +1,10 @@
 package com.scottcaldwell.industriousgolems.behavior;
 
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import com.scottcaldwell.industriousgolems.ModAttachments;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.AABB;
 
@@ -18,11 +17,15 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     private static final int RADIUS = 12;
     private static final double REACH_SQR = 1.2 * 1.2;
     private static final int PAUSE = 8;
+    /** Walking this long without getting hold of the stack means it cannot be reached. */
+    private static final int GIVE_UP_TICKS = 240;
+    private static final int IGNORE_TICKS = 6000;
 
     /** @param itemId entity id of the stack to fetch */
     public record Plan(int itemId) { }
 
     private int timer;
+    private int walking;
 
     public PickUp() {
         super(Plan.class, 600);
@@ -31,12 +34,12 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     /** The nearest stack worth taking, or null. Needs a free hand. */
     public static Plan plan(ServerLevel level, WorkGolem golem) {
         if (golem.isCarrying()) return null;
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension())) return null;
-        BlockPos at = site.pos();
+        BlockPos at = golem.jobSite(level);
+        if (at == null) return null;
+        TaskState state = golem.getData(ModAttachments.TASK);
         ItemEntity best = null;
-        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class,
-                new AABB(at).inflate(RADIUS, 4, RADIUS), i -> golem.wantsToPickUp(level, i.getItem()))) {
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(RADIUS, 4, RADIUS),
+                i -> golem.wantsToPickUp(level, i.getItem()) && !state.ignores(i.getId(), level.getGameTime()))) {
             if (best == null || golem.distanceToSqr(item) < golem.distanceToSqr(best)) best = item;
         }
         return best == null ? null : new Plan(best.getId());
@@ -45,6 +48,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         timer = -1;
+        walking = 0;
     }
 
     @Override
@@ -60,6 +64,11 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         }
         lookAt(golem, new EntityTracker(item, true));
         if (golem.distanceToSqr(item) > REACH_SQR) {
+            if (++walking > GIVE_UP_TICKS) { // stuck behind something: leave it, so it does not hold up the rest of the work
+                golem.getData(ModAttachments.TASK).ignoreItem(item.getId(), time + IGNORE_TICKS);
+                finish();
+                return;
+            }
             walkTo(golem, new EntityTracker(item, false), 0);
             return;
         }

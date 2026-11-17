@@ -1,11 +1,11 @@
 package com.scottcaldwell.industriousgolems.golem;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.mojang.datafixers.util.Pair;
 import com.scottcaldwell.industriousgolems.ModActivities;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.behavior.ContainerInteraction;
+import com.scottcaldwell.industriousgolems.behavior.PickUp;
 import com.scottcaldwell.industriousgolems.behavior.StartTask;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.util.valueproviders.UniformInt;
@@ -96,8 +96,8 @@ public final class GolemBrain {
         // The exclusive task activity: only core behaviours and the task itself run while it is active.
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> tasks = ImmutableList.builder();
         tasks.add(Pair.of(0, new ContainerInteraction()));
-        tasks.add(Pair.of(0, new com.scottcaldwell.industriousgolems.behavior.PickUp()));
-        if (profession.needs().work() != null) tasks.add(Pair.of(0, profession.needs().work().runner().get()));
+        tasks.add(Pair.of(0, new PickUp()));
+        tasks.add(Pair.of(0, profession.needs().work().runner().get()));
         brain.addActivity(ModActivities.TASK.get(), tasks.build());
 
         brain.setCoreActivities(Set.of(Activity.CORE));

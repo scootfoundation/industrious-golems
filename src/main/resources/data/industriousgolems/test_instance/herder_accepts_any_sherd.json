@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:herder_accepts_any_sherd",
+  "max_ticks": 4000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

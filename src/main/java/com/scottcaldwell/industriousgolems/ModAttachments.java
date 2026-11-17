@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems;
 
 import com.mojang.serialization.Codec;
+import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -19,8 +20,8 @@ public class ModAttachments {
                     .build());
 
     /** Transient hand-over between the task trigger and the task activity; not saved. */
-    public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousgolems.behavior.TaskState>> TASK =
-            ATTACHMENTS.register("task", () -> AttachmentType.builder(com.scottcaldwell.industriousgolems.behavior.TaskState::new).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<TaskState>> TASK =
+            ATTACHMENTS.register("task", () -> AttachmentType.builder(TaskState::new).build());
 
     public static void register(IEventBus modEventBus) {
         ATTACHMENTS.register(modEventBus);

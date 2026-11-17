@@ -1,20 +1,56 @@
 package com.scottcaldwell.industriousgolems;
 
+import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
+import com.scottcaldwell.industriousgolems.golem.ChestSpawn;
+import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import com.scottcaldwell.industriousgolems.herd.HerdPen;
+import com.scottcaldwell.industriousgolems.herd.HerdWork;
+import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
+import com.scottcaldwell.industriousgolems.offering.Offering;
+import com.scottcaldwell.industriousgolems.offering.Offerings;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.cow.Cow;
+import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.animal.sheep.Sheep;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.schedule.Activity;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CarvedPumpkinBlock;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.FarmBlock;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.common.util.BlockSnapshot;
+import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -44,6 +80,19 @@ public class ModGameTests {
         FUNCTIONS.register("mushroom_chest_pattern", () -> h -> chestPattern(h, ModProfessions.LUMBERJACK, Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(), ModBlocks.MUSHROOM_CHEST.get()));
         FUNCTIONS.register("terracotta_chest_pattern", () -> h -> chestPattern(h, ModProfessions.HERDER, Blocks.TERRACOTTA.defaultBlockState(), ModBlocks.TERRACOTTA_CHEST.get()));
         FUNCTIONS.register("chest_pattern_needs_matching_body", () -> ModGameTests::chestPatternNeedsMatchingBody);
+        FUNCTIONS.register("golem_death_drops_carried_stack", () -> ModGameTests::golemDeathDropsCarriedStack);
+        FUNCTIONS.register("golem_state_survives_save_and_load", () -> ModGameTests::golemStateSurvivesSaveAndLoad);
+        FUNCTIONS.register("golem_picks_up_only_what_it_works_with", () -> ModGameTests::golemPicksUpOnlyWhatItWorksWith);
+        FUNCTIONS.register("golem_uses_its_own_chest", () -> ModGameTests::golemUsesItsOwnChest);
+        FUNCTIONS.register("golem_keeps_stack_when_chest_full", () -> ModGameTests::golemKeepsStackWhenChestFull);
+        FUNCTIONS.register("farmer_does_not_sow_non_seeds", () -> ModGameTests::farmerDoesNotSowNonSeeds);
+        FUNCTIONS.register("lumberjack_ignores_tall_tree", () -> ModGameTests::lumberjackIgnoresTallTree);
+        FUNCTIONS.register("lumberjack_fetches_saplings", () -> ModGameTests::lumberjackFetchesSaplings);
+        FUNCTIONS.register("herder_fetches_one_bucket", () -> ModGameTests::herderFetchesOneBucket);
+        FUNCTIONS.register("herder_accepts_any_sherd", () -> ModGameTests::herderAcceptsAnySherd);
+        FUNCTIONS.register("chest_pattern_via_place_event", () -> ModGameTests::chestPatternViaPlaceEvent);
+        FUNCTIONS.register("chest_pattern_needs_headroom", () -> ModGameTests::chestPatternNeedsHeadroom);
+        FUNCTIONS.register("registry_consistency", () -> ModGameTests::registryConsistency);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -85,7 +134,7 @@ public class ModGameTests {
     private static WorkGolem spawnWorker(GameTestHelper helper, ModProfessions.Profession profession,
                                          BlockPos site, BlockPos at) {
         WorkGolem golem = spawnDormantWorker(helper, profession, site, at);
-        com.scottcaldwell.industriousgolems.offering.Offerings.fill(golem);
+        Offerings.fill(golem);
         return golem;
     }
 
@@ -103,7 +152,21 @@ public class ModGameTests {
         return spawnWorker(helper, ModProfessions.FARMER, COMPOSTER, at);
     }
 
-    private static int count(Container c, net.minecraft.world.item.Item item) {
+
+    /** Where a golem is and what it holds, for failure messages. */
+    private static String describe(GameTestHelper helper, WorkGolem golem, Container chest) {
+        StringBuilder items = new StringBuilder();
+        AABB box = AABB.encapsulatingFullBlocks(helper.absolutePos(new BlockPos(0, 0, 0)), helper.absolutePos(new BlockPos(8, 4, 8)));
+        for (ItemEntity entity : helper.getLevel().getEntitiesOfClass(ItemEntity.class, box)) {
+            items.append(entity.getItem()).append('@').append(entity.blockPosition().subtract(helper.absolutePos(BlockPos.ZERO))).append(' ');
+        }
+        int inChest = 0;
+        for (int i = 0; i < chest.getContainerSize(); i++) inChest += chest.getItem(i).getCount();
+        return " [golem at " + golem.blockPosition().subtract(helper.absolutePos(BlockPos.ZERO)) + ", carrying " + golem.carried()
+                + ", charge " + golem.chargeTicks() + ", active " + golem.getBrain().getActiveActivities() + ", dead " + golem.isDeadOrDying() + ", " + inChest + " in chest, on ground: " + items + "]";
+    }
+
+    private static int count(Container c, Item item) {
         int n = 0;
         for (int i = 0; i < c.getContainerSize(); i++) {
             if (c.getItem(i).is(item)) n += c.getItem(i).getCount();
@@ -144,16 +207,18 @@ public class ModGameTests {
         buildFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         for (int x = 3; x <= 5; x++) {
-            helper.setBlock(new BlockPos(x, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
-            helper.setBlock(new BlockPos(x, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+            helper.setBlock(new BlockPos(x, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+            helper.setBlock(new BlockPos(x, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         }
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 2, 3));
         helper.succeedWhen(() -> {
-            helper.assertTrue(total(farmer, chest, Items.WHEAT) >= 3, "farmer should have reaped 3 wheat, has " + total(farmer, chest, Items.WHEAT));
+            helper.assertTrue(total(farmer, chest, Items.WHEAT) >= 3, "farmer should have reaped 3 wheat, has " + total(farmer, chest, Items.WHEAT) + " (carried " + farmer.carried() + ", ground wheat " + itemsOnGround(helper, Items.WHEAT) + ", seeds " + itemsOnGround(helper, Items.WHEAT_SEEDS) + ", chest seeds " + count(chest, Items.WHEAT_SEEDS) + ")" + describe(helper, farmer, chest));
             for (int x = 3; x <= 5; x++) {
                 var state = helper.getBlockState(new BlockPos(x, 2, 5));
-                helper.assertTrue(state.is(Blocks.WHEAT) && state.getValue(net.minecraft.world.level.block.CropBlock.AGE) < 7,
-                        "farmer should have replanted at x=" + x);
+                helper.assertTrue(state.is(Blocks.WHEAT) && state.getValue(CropBlock.AGE) < 7,
+                        "farmer should have replanted at x=" + x + " (plots " + helper.getBlockState(new BlockPos(3, 2, 5)) + helper.getBlockState(new BlockPos(4, 2, 5))
+                                + helper.getBlockState(new BlockPos(5, 2, 5)) + ", carried " + farmer.carried() + ", ground seeds " + itemsOnGround(helper, Items.WHEAT_SEEDS) + describe(helper, farmer, chest)
+                                + ", chest seeds " + count(chest, Items.WHEAT_SEEDS) + ", pos " + farmer.blockPosition().subtract(helper.absolutePos(BlockPos.ZERO)) + ")");
             }
         });
     }
@@ -167,7 +232,7 @@ public class ModGameTests {
         Container regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
         regular.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 10));
-        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
 
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.setCarried(new ItemStack(Items.WHEAT, 5));
@@ -198,12 +263,12 @@ public class ModGameTests {
         return spawnWorker(helper, ModProfessions.HERDER, LOOM, at);
     }
 
-    private static <T extends net.minecraft.world.entity.animal.Animal> java.util.List<T> alive(GameTestHelper helper, Class<T> type) {
-        var box = net.minecraft.world.phys.AABB.encapsulatingFullBlocks(helper.absolutePos(new BlockPos(3, 1, 3)), helper.absolutePos(new BlockPos(8, 3, 8)));
+    private static <T extends Animal> List<T> alive(GameTestHelper helper, Class<T> type) {
+        var box = AABB.encapsulatingFullBlocks(helper.absolutePos(new BlockPos(3, 1, 3)), helper.absolutePos(new BlockPos(8, 3, 8)));
         return helper.getLevel().getEntitiesOfClass(type, box, e -> e.isAlive());
     }
 
-    private static int total(WorkGolem herder, Container chest, net.minecraft.world.item.Item item) {
+    private static int total(WorkGolem herder, Container chest, Item item) {
         return (herder.carried().is(item) ? herder.carried().getCount() : 0) + count(chest, item);
     }
 
@@ -211,12 +276,12 @@ public class ModGameTests {
     private static void herderShearsSheep(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5));
+        helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5)).setColor(DyeColor.WHITE); // spawned sheep are random colours
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
-            var sheep = alive(helper, net.minecraft.world.entity.animal.sheep.Sheep.class);
+            var sheep = alive(helper, Sheep.class);
             helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared");
-            helper.assertTrue(total(herder, chest, Items.WHITE_WOOL) > 0, "the herder should hold or have deposited wool");
+            helper.assertTrue(total(herder, chest, Items.WHITE_WOOL) > 0, "the herder should hold or have deposited wool" + describe(helper, herder, chest));
         });
     }
 
@@ -240,9 +305,9 @@ public class ModGameTests {
         for (int i = 0; i < 5; i++) helper.spawn(EntityType.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
-            helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size() == 3,
-                    "pen should be culled to 3 pigs, has " + alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size());
-            helper.assertTrue(total(herder, chest, Items.PORKCHOP) > 0, "the meat should be collected");
+            helper.assertTrue(alive(helper, Pig.class).size() == 3,
+                    "pen should be culled to 3 pigs, has " + alive(helper, Pig.class).size());
+            helper.assertTrue(total(herder, chest, Items.PORKCHOP) > 0, "the meat should be collected" + describe(helper, herder, chest));
         });
     }
 
@@ -255,7 +320,7 @@ public class ModGameTests {
         herder.setCarried(new ItemStack(Items.WHEAT, 8));
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         helper.succeedWhen(() -> {
-            helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.cow.Cow.class).size() >= 3, "a calf should have been born");
+            helper.assertTrue(alive(helper, Cow.class).size() >= 3, "a calf should have been born");
             helper.assertTrue(total(herder, chest, Items.WHEAT) < 8, "the herder should have fed wheat");
         });
     }
@@ -273,10 +338,10 @@ public class ModGameTests {
             }
         }
         var level = helper.getLevel();
-        var closed = com.scottcaldwell.industriousgolems.herd.HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
+        var closed = HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
         helper.assertTrue(closed != null && closed.size() == 16, "closed fence should form a 16-cell pen, got " + (closed == null ? "none" : closed.size()));
         helper.setBlock(new BlockPos(5, 1, 7), Blocks.AIR); // open a gap
-        var leaky = com.scottcaldwell.industriousgolems.herd.HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
+        var leaky = HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
         helper.assertTrue(leaky == null, "a gap in the fence should leak into open ground");
         helper.succeed();
     }
@@ -291,7 +356,7 @@ public class ModGameTests {
     /** A 4-log oak with natural leaves rooted in grass at (x, z). */
     private static void buildTree(GameTestHelper helper, int x, int z) {
         helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
-        var leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, false);
+        var leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, false);
         for (int y = 4; y <= 5; y++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
@@ -338,11 +403,11 @@ public class ModGameTests {
 
     // ---- offerings ------------------------------------------------------------------------------------------------
 
-    private static net.minecraft.world.item.Item craved(WorkGolem golem) {
+    private static Item craved(WorkGolem golem) {
         return golem.profession().offerings().get(golem.cravingIndex()).icon().getItem();
     }
 
-    private static net.minecraft.world.item.Item notCraved(WorkGolem golem) {
+    private static Item notCraved(WorkGolem golem) {
         for (var offering : golem.profession().offerings()) {
             if (offering != golem.profession().offerings().get(golem.cravingIndex())) return offering.icon().getItem();
         }
@@ -352,27 +417,27 @@ public class ModGameTests {
     /** A golem as a spawn egg makes it does nothing and shows what it craves; the right item wakes it and it works. */
     private static void golemDormantUntilOffered(GameTestHelper helper) {
         buildFarm(helper);
-        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
-        helper.setBlock(new BlockPos(3, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(new BlockPos(3, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(3, 2, 3));
-        net.minecraft.world.item.Item[] given = {null};
+        Item[] given = {null};
         helper.runAtTickTime(100, () -> {
             helper.assertTrue(!farmer.isCharged(), "a new golem starts dormant");
             helper.assertTrue(farmer.cravingIndex() >= 0, "a dormant golem has chosen what it craves");
-            helper.assertTrue(helper.getBlockState(new BlockPos(3, 2, 5)).getValue(net.minecraft.world.level.block.CropBlock.AGE) == 7, "a dormant golem leaves the crop alone");
-            helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND).is(craved(farmer)), "a dormant golem holds out what it craves");
+            helper.assertTrue(helper.getBlockState(new BlockPos(3, 2, 5)).getValue(CropBlock.AGE) == 7, "a dormant golem leaves the crop alone");
+            helper.assertTrue(farmer.getItemBySlot(EquipmentSlot.OFFHAND).is(craved(farmer)), "a dormant golem holds out what it craves");
             given[0] = craved(farmer);
             var player = helper.makeMockServerPlayerInLevel();
             player.setPos(farmer.getX() + 5000, farmer.getY(), farmer.getZ());
-            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(given[0], 2));
-            player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
-            helper.assertTrue(farmer.isCharged() && farmer.chargeTicks() == com.scottcaldwell.industriousgolems.offering.Offerings.PER_OFFERING, "45 minutes of charge");
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(given[0], 2));
+            player.interactOn(farmer, InteractionHand.MAIN_HAND);
+            helper.assertTrue(farmer.isCharged() && farmer.chargeTicks() == Offerings.PER_OFFERING, "45 minutes of charge");
             helper.assertTrue(craved(farmer) != given[0], "it now craves something different");
         });
         helper.succeedWhen(() -> {
             helper.assertTrue(given[0] != null, "the offering was made");
             helper.assertTrue(helper.getBlockEntity(CHEST, ChestBlockEntity.class).getItem(0).is(Items.WHEAT) || farmer.carried().is(Items.WHEAT)
-                    || !helper.getBlockState(new BlockPos(3, 2, 5)).is(Blocks.WHEAT) || helper.getBlockState(new BlockPos(3, 2, 5)).getValue(net.minecraft.world.level.block.CropBlock.AGE) < 7,
+                    || !helper.getBlockState(new BlockPos(3, 2, 5)).is(Blocks.WHEAT) || helper.getBlockState(new BlockPos(3, 2, 5)).getValue(CropBlock.AGE) < 7,
                     "the woken golem should have reaped the wheat");
         });
     }
@@ -384,18 +449,18 @@ public class ModGameTests {
         helper.runAtTickTime(5, () -> {
             helper.assertTrue(farmer.profession().offerings().size() == 8, "each golem kind has eight offerings");
             ItemStack wrong = new ItemStack(notCraved(farmer), 3);
-            helper.assertTrue(!com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, wrong) && wrong.getCount() == 3, "an item it does not crave is refused");
-            helper.assertTrue(!com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, new ItemStack(Items.BREAD)), "food is no offering");
+            helper.assertTrue(!Offerings.offer(farmer, wrong) && wrong.getCount() == 3, "an item it does not crave is refused");
+            helper.assertTrue(!Offerings.offer(farmer, new ItemStack(Items.BREAD)), "food is no offering");
 
             int first = farmer.cravingIndex();
             ItemStack one = new ItemStack(craved(farmer), 4);
-            helper.assertTrue(com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, one) && one.getCount() == 3, "the craved item is taken");
+            helper.assertTrue(Offerings.offer(farmer, one) && one.getCount() == 3, "the craved item is taken");
             helper.assertTrue(farmer.cravingIndex() != first, "the next craving differs from the last");
             ItemStack two = new ItemStack(craved(farmer), 4);
-            helper.assertTrue(com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, two), "a second offering fits");
-            helper.assertTrue(farmer.chargeTicks() == com.scottcaldwell.industriousgolems.offering.Offerings.MAX, "charge is two offerings");
+            helper.assertTrue(Offerings.offer(farmer, two), "a second offering fits");
+            helper.assertTrue(farmer.chargeTicks() == Offerings.MAX, "charge is two offerings");
             ItemStack three = new ItemStack(craved(farmer), 4);
-            helper.assertTrue(!com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, three) && three.getCount() == 4, "a third does not fit");
+            helper.assertTrue(!Offerings.offer(farmer, three) && three.getCount() == 4, "a third does not fit");
             helper.succeed();
         });
     }
@@ -410,7 +475,7 @@ public class ModGameTests {
         homeless.setChargeTicks(60);
         helper.succeedWhen(() -> {
             helper.assertTrue(farmer.chargeTicks() == 0 && !farmer.isCharged(), "the farmer should have run out, has " + farmer.chargeTicks());
-            helper.assertTrue(farmer.getBrain().isActive(net.minecraft.world.entity.schedule.Activity.REST), "a dormant golem rests");
+            helper.assertTrue(farmer.getBrain().isActive(Activity.REST), "a dormant golem rests");
             helper.assertTrue(homeless.chargeTicks() == 60, "a golem without a job site does not use charge, has " + homeless.chargeTicks());
         });
     }
@@ -419,15 +484,15 @@ public class ModGameTests {
 
     /** A body block with a carved pumpkin on top becomes the golem standing on its chest, bound to it and ready to be woken. */
     private static void chestPattern(GameTestHelper helper, ModProfessions.Profession profession,
-                                     net.minecraft.world.level.block.state.BlockState body,
-                                     net.minecraft.world.level.block.Block chest) {
+                                     BlockState body,
+                                     Block chest) {
         BlockPos base = new BlockPos(3, 1, 3);
         BlockPos top = base.above();
         helper.setBlock(base, body);
         var pumpkin = Blocks.CARVED_PUMPKIN.defaultBlockState()
-                .setValue(net.minecraft.world.level.block.CarvedPumpkinBlock.FACING, net.minecraft.core.Direction.SOUTH);
+                .setValue(CarvedPumpkinBlock.FACING, Direction.SOUTH);
         helper.setBlock(top, pumpkin);
-        WorkGolem golem = com.scottcaldwell.industriousgolems.golem.ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin);
+        WorkGolem golem = ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin);
         helper.assertTrue(golem != null, "the pattern should spawn a golem");
         helper.assertTrue(golem.profession() == profession, "the right kind of golem");
         helper.assertTrue(helper.getBlockState(base).is(chest), "the body block should become the golem's chest");
@@ -436,9 +501,9 @@ public class ModGameTests {
                 .filter(site -> site.pos().equals(helper.absolutePos(base))).isPresent(), "the chest should be its job site");
         helper.assertTrue(!golem.isCharged(), "it starts dormant, waiting for what it craves");
         helper.runAtTickTime(5, () -> {
-            net.minecraft.world.item.Item wanted = craved(golem);
-            helper.assertTrue(com.scottcaldwell.industriousgolems.offering.Offerings.wants(golem, new ItemStack(wanted)), "it should want its craving");
-            com.scottcaldwell.industriousgolems.offering.Offerings.offer(golem, new ItemStack(wanted));
+            Item wanted = craved(golem);
+            helper.assertTrue(Offerings.wants(golem, new ItemStack(wanted)), "it should want its craving");
+            Offerings.offer(golem, new ItemStack(wanted));
             helper.assertTrue(golem.isCharged(), "the craving should wake it");
             helper.assertTrue(golem.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE), "it keeps its chest as job site");
         });
@@ -451,9 +516,257 @@ public class ModGameTests {
         helper.setBlock(base, Blocks.STONE);
         var pumpkin = Blocks.JACK_O_LANTERN.defaultBlockState();
         helper.setBlock(base.above(), pumpkin);
-        helper.assertTrue(com.scottcaldwell.industriousgolems.golem.ChestSpawn.build(helper.getLevel(),
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(),
                 helper.absolutePos(base.above()), pumpkin) == null, "stone is not a body block");
         helper.assertTrue(helper.getBlockState(base).is(Blocks.STONE), "nothing should change");
+        helper.succeed();
+    }
+
+    // ---- carrying, picking up and chests ----------------------------------------------------------------------------
+
+    private static final BlockPos AT = new BlockPos(3, 1, 3);
+
+    private static int itemsOnGround(GameTestHelper helper, Item item) {
+        AABB box = AABB.encapsulatingFullBlocks(helper.absolutePos(new BlockPos(0, 0, 0)), helper.absolutePos(new BlockPos(8, 4, 8)));
+        int n = 0;
+        for (ItemEntity entity : helper.getLevel().getEntitiesOfClass(ItemEntity.class, box)) {
+            if (entity.getItem().is(item)) n += entity.getItem().getCount();
+        }
+        return n;
+    }
+
+    /** What a golem carries drops with it however it dies, but the craving it shows in its off hand never does. */
+    private static void golemDeathDropsCarriedStack(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem golem = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, AT);
+        golem.setCarried(new ItemStack(Items.WHEAT, 7));
+        Item[] shown = {null};
+        helper.runAtTickTime(30, () -> {
+            helper.assertTrue(NeedsIndicator.isIcon(golem.getItemBySlot(EquipmentSlot.OFFHAND)), "the craving is shown in the off hand");
+            shown[0] = golem.getItemBySlot(EquipmentSlot.OFFHAND).getItem();
+            golem.hurtServer(helper.getLevel(), helper.getLevel().damageSources().generic(), 1000.0F);
+        });
+        helper.runAtTickTime(45, () -> {
+            helper.assertTrue(golem.isDeadOrDying(), "the golem should be dead");
+            helper.assertTrue(itemsOnGround(helper, Items.WHEAT) == 7, "the carried stack should drop, found " + itemsOnGround(helper, Items.WHEAT));
+            helper.assertTrue(itemsOnGround(helper, shown[0]) == 0, "the craving icon is not loot");
+            helper.succeed();
+        });
+    }
+
+    /** Charge, craving, last offering and the carried stack all survive a save and load. */
+    private static void golemStateSurvivesSaveAndLoad(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem golem = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, AT);
+        golem.setChargeTicks(12345);
+        golem.setCravingIndex(3);
+        golem.setLastOffering(5);
+        golem.setCarried(new ItemStack(Items.WHEAT, 9));
+
+        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess());
+        golem.saveWithoutId(out);
+        CompoundTag saved = out.buildResult();
+
+        WorkGolem copy = helper.spawn(ModEntities.FARMER_GOLEM.get(), new BlockPos(5, 1, 5));
+        copy.load(TagValueInput.create(ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), saved));
+        helper.assertTrue(copy.chargeTicks() == 12345, "charge, got " + copy.chargeTicks());
+        helper.assertTrue(copy.isCharged(), "the synced charge is restored too");
+        helper.assertTrue(copy.cravingIndex() == 3, "craving, got " + copy.cravingIndex());
+        helper.assertTrue(copy.lastOffering() == 5, "last offering, got " + copy.lastOffering());
+        helper.assertTrue(copy.carried().is(Items.WHEAT) && copy.carried().getCount() == 9, "carried stack");
+        helper.succeed();
+    }
+
+    /** A golem takes a whole stack of what its work produces or uses, and nothing else; a dormant one takes nothing. */
+    private static void golemPicksUpOnlyWhatItWorksWith(GameTestHelper helper) {
+        buildFarm(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(2, 1, 5));
+        helper.spawnItem(Items.WHEAT, new Vec3(3.5, 1.0, 5.5)).setItem(new ItemStack(Items.WHEAT, 12));
+        helper.spawnItem(Items.STONE, new Vec3(3.5, 1.0, 6.5));
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(!farmer.isCarrying() && itemsOnGround(helper, Items.WHEAT) == 12, "a dormant golem leaves things lying");
+            Offerings.fill(farmer);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(chest, Items.WHEAT) == 12, "the whole stack of wheat reaches the chest, got " + count(chest, Items.WHEAT));
+            helper.assertTrue(count(chest, Items.STONE) == 0 && itemsOnGround(helper, Items.STONE) == 1, "stone is left alone");
+        });
+    }
+
+    /** The golem's own chest takes its deliveries, not a copper chest, a plain chest or another golem's chest beside it. */
+    private static void golemUsesItsOwnChest(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get());
+        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST);
+        helper.setBlock(new BlockPos(2, 1, 4), ModBlocks.MUSHROOM_CHEST.get());
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        Container own = helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(own, Items.WHEAT) == 5, "wheat goes into the golem's own chest, got " + count(own, Items.WHEAT));
+            for (BlockPos other : List.of(CHEST, COPPER_CHEST, new BlockPos(2, 1, 4))) {
+                helper.assertTrue(count(helper.getBlockEntity(other, ChestBlockEntity.class), Items.WHEAT) == 0, "no other chest gets any");
+            }
+        });
+    }
+
+    /** With nowhere to put it, the golem keeps hold of its stack: nothing is lost or spilled. */
+    private static void golemKeepsStackWhenChestFull(GameTestHelper helper) {
+        buildFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        for (int i = 0; i < chest.getContainerSize(); i++) chest.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+        WorkGolem farmer = spawnFarmer(helper, AT);
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        helper.runAtTickTime(400, () -> {
+            helper.assertTrue(farmer.carried().is(Items.WHEAT) && farmer.carried().getCount() == 5, "the stack stays in hand");
+            helper.assertTrue(count(chest, Items.WHEAT) == 0 && itemsOnGround(helper, Items.WHEAT) == 0, "nothing is lost or spilled");
+            helper.succeed();
+        });
+    }
+
+    /** Wheat in hand is not seed: bare farmland stays bare, and the wheat goes to the chest. */
+    private static void farmerDoesNotSowNonSeeds(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        WorkGolem farmer = spawnFarmer(helper, AT);
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(new BlockPos(3, 2, 5)).isAir(), "nothing is sown");
+            helper.assertTrue(count(chest, Items.WHEAT) == 5, "the wheat is put away");
+        });
+    }
+
+    /** A trunk taller than a golem can reach from the ground is left standing. */
+    private static void lumberjackIgnoresTallTree(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(new BlockPos(5, 0, 5), Blocks.GRASS_BLOCK);
+        BlockState leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, false);
+        for (int y = 1; y <= 8; y++) helper.setBlock(new BlockPos(5, y, 5), Blocks.OAK_LOG);
+        helper.setBlock(new BlockPos(4, 7, 5), leaf);
+        helper.setBlock(new BlockPos(6, 7, 5), leaf);
+        helper.setBlock(new BlockPos(5, 7, 4), leaf);
+        helper.setBlock(new BlockPos(5, 7, 6), leaf);
+        helper.setBlock(new BlockPos(5, 9, 5), leaf);
+        spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(500, () -> {
+            int logs = 0;
+            for (int y = 1; y <= 8; y++) if (helper.getBlockState(new BlockPos(5, y, 5)).is(Blocks.OAK_LOG)) logs++;
+            helper.assertTrue(logs == 8, "a tree too tall to reach is not felled, " + logs + " of 8 logs left");
+            helper.succeed();
+        });
+    }
+
+    /** With saplings only in the chest, the lumberjack fetches them, fells the tree, plants one and puts the rest back. */
+    private static void lumberjackFetchesSaplings(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 3));
+        spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling is planted at the stump");
+            helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "the logs are in the chest, got " + count(chest, Items.OAK_LOG));
+            helper.assertTrue(count(chest, Items.OAK_SAPLING) == 2, "the two spare saplings are back in the chest, got " + count(chest, Items.OAK_SAPLING));
+        });
+    }
+
+    /** A herder takes one bucket at a time from the chest, however many there are, and milks with it. */
+    private static void herderFetchesOneBucket(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.BUCKET, 3));
+        helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        helper.assertTrue("bucket".equals(HerdWork.wants(helper.getLevel(), herder)), "a cow to milk and no bucket in hand: the herder wants one");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 1, "one cow, one milking");
+            helper.assertTrue(count(chest, Items.BUCKET) == 2, "only one bucket was taken, " + count(chest, Items.BUCKET) + " left");
+        });
+    }
+
+    /** The herder's sherd craving is satisfied by any decorated pot sherd. */
+    private static void herderAcceptsAnySherd(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem herder = spawnDormantWorker(helper, ModProfessions.HERDER, COMPOSTER, AT);
+        int sherd = -1;
+        List<Offering> offerings = herder.profession().offerings();
+        for (int i = 0; i < offerings.size(); i++) if (offerings.get(i).name() != null) sherd = i;
+        helper.assertTrue(sherd >= 0, "the herder has a group offering");
+        herder.setCravingIndex(sherd);
+        helper.assertTrue(!Offerings.wants(herder, new ItemStack(Items.BRICK)), "not just anything");
+        helper.assertTrue(Offerings.offer(herder, new ItemStack(Items.ARCHER_POTTERY_SHERD)), "one sherd");
+        herder.setCravingIndex(sherd);
+        herder.setLastOffering(-1);
+        helper.assertTrue(Offerings.offer(herder, new ItemStack(Items.HEARTBREAK_POTTERY_SHERD)), "any other sherd too");
+        helper.succeed();
+    }
+
+    // ---- more on the chest pattern ----------------------------------------------------------------------------------
+
+    /** Placing the pumpkin as a player does (the placement event) builds the golem, not only the direct call. */
+    private static void chestPatternViaPlaceEvent(GameTestHelper helper) {
+        BlockPos base = AT;
+        helper.setBlock(base, Blocks.HAY_BLOCK);
+        BlockState pumpkin = Blocks.JACK_O_LANTERN.defaultBlockState();
+        helper.setBlock(base.above(), pumpkin);
+        var player = helper.makeMockServerPlayerInLevel();
+        BlockSnapshot snapshot = BlockSnapshot.create(helper.getLevel().dimension(), helper.getLevel(), helper.absolutePos(base.above()));
+        NeoForge.EVENT_BUS.post(new BlockEvent.EntityPlaceEvent(snapshot, Blocks.HAY_BLOCK.defaultBlockState(), player));
+        helper.assertTrue(helper.getBlockState(base).is(ModBlocks.HAY_CHEST.get()), "the hay bale becomes the hay chest");
+        helper.assertTrue(helper.getBlockState(base.above()).isAir(), "the pumpkin is used up");
+        helper.assertEntityPresent(ModEntities.FARMER_GOLEM.get(), base.above());
+        helper.succeed();
+    }
+
+    /** A golem needs room to stand: with a block over the pumpkin, nothing is built. */
+    private static void chestPatternNeedsHeadroom(GameTestHelper helper) {
+        BlockPos base = AT;
+        helper.setBlock(base, Blocks.HAY_BLOCK);
+        BlockState pumpkin = Blocks.CARVED_PUMPKIN.defaultBlockState();
+        helper.setBlock(base.above(), pumpkin);
+        helper.setBlock(base.above(2), Blocks.STONE);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(base.above()), pumpkin) == null, "no room, no golem");
+        helper.assertTrue(helper.getBlockState(base).is(Blocks.HAY_BLOCK) && helper.getBlockState(base.above()).is(Blocks.CARVED_PUMPKIN),
+                "the blocks are left as they were");
+        helper.succeed();
+    }
+
+    // ---- registrations ----------------------------------------------------------------------------------------------
+
+    /** Every profession is wired to its own entity, chest, job-site type and body block, with a full set of offerings. */
+    private static void registryConsistency(GameTestHelper helper) {
+        List<Block> bodies = new ArrayList<>();
+        for (ModProfessions.Profession profession : ModProfessions.all()) {
+            String id = profession.id();
+            helper.assertTrue(profession.offerings().size() == 8, id + " has eight offerings");
+            for (Offering offering : profession.offerings()) {
+                helper.assertTrue(!offering.icon().isEmpty() && offering.match().test(offering.icon()), id + ": an offering accepts its own icon");
+            }
+            helper.assertTrue(ModEntities.professionOf(ModEntities.typeOf(profession)) == profession, id + " has its own entity type");
+            helper.assertTrue(profession.speed() > 0, id + " moves");
+            helper.assertTrue(profession.needs().work() != null, id + " has work");
+
+            BlockState chest = profession.chest().get().defaultBlockState();
+            var poi = PoiTypes.forState(chest);
+            helper.assertTrue(poi.isPresent() && profession.jobSite().test(poi.get()), id + "'s chest is its job site");
+            for (ModProfessions.Profession other : ModProfessions.all()) {
+                if (other != profession) {
+                    helper.assertTrue(!other.jobSite().test(poi.get()), id + "'s chest is nobody else's job site");
+                }
+            }
+            helper.assertTrue(profession.chest().get() instanceof GolemChestBlock, id + " chest is a golem chest");
+            bodies.add(profession.chest().get());
+        }
+        // a body block builds exactly one golem
+        for (BlockState body : List.of(Blocks.HAY_BLOCK.defaultBlockState(), Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(),
+                Blocks.TERRACOTTA.defaultBlockState(), Blocks.RED_TERRACOTTA.defaultBlockState())) {
+            long matches = ModProfessions.all().stream().filter(p -> p.bodyBlock().test(body)).count();
+            helper.assertTrue(matches == 1, body.getBlock() + " should build exactly one golem, builds " + matches);
+        }
+        helper.assertTrue(ModProfessions.all().stream().noneMatch(p -> p.bodyBlock().test(Blocks.STONE.defaultBlockState())), "stone builds nothing");
+        helper.assertTrue(bodies.stream().distinct().count() == ModProfessions.all().size(), "each golem has a chest of its own");
         helper.succeed();
     }
 }

@@ -1,10 +1,9 @@
 package com.scottcaldwell.industriousgolems.herd;
 
-import com.scottcaldwell.industriousgolems.ModTags;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
-import net.minecraft.core.GlobalPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -12,7 +11,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.animal.sheep.Sheep;
@@ -60,9 +58,9 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     /** Picks the next herding job, or null. Milking and breeding need the bucket or feed in the golem's hand. */
     public static Object plan(ServerLevel level, WorkGolem golem) {
+        BlockPos site = golem.jobSite(level);
+        if (site == null) return null;
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
         ItemStack carried = golem.carried();
         boolean bucket = needs.isSupply("bucket", carried);
         boolean feed = needs.isSupply("feed", carried);
@@ -72,16 +70,16 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     /** The supply that would let the golem milk or breed, when nothing else is worth doing. */
     public static String wants(ServerLevel level, WorkGolem golem) {
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension()) || golem.isCarrying()) return null;
+        BlockPos site = golem.jobSite(level);
+        if (site == null || golem.isCarrying()) return null;
         HerdPlan plan = findPlan(level, golem, site, true, true, false);
         if (plan == null) return null;
         return plan.action() == HerdPlan.Action.MILK ? "bucket" : plan.action() == HerdPlan.Action.BREED ? "feed" : null;
     }
 
-    private static HerdPlan findPlan(ServerLevel level, WorkGolem golem, GlobalPos site, boolean bucket, boolean feed,
+    private static HerdPlan findPlan(ServerLevel level, WorkGolem golem, BlockPos site, boolean bucket, boolean feed,
                                      boolean bareHanded) {
-        for (HerdPen pen : HerdPen.find(level, site.pos())) {
+        for (HerdPen pen : HerdPen.find(level, site)) {
             HerdPlan plan = planFor(level, golem, pen, bucket, feed, bareHanded);
             if (plan != null) return plan;
         }
@@ -208,7 +206,6 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     private boolean perform(ServerLevel level, WorkGolem golem, Animal animal, long time) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        if (needs == null) return false;
         ItemStack carried = golem.carried();
         switch (plan.action()) {
             case CULL -> {

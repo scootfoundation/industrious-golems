@@ -1,21 +1,19 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
-import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +34,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private enum Phase { WORK, LOOK, PAUSE, DONE }
 
     /** The tree chosen by {@link #plan}: chop {@code logs}, then replant at {@code replant}. */
-    public record FellPlan(List<BlockPos> logs, BlockPos replant, net.minecraft.world.level.block.Block logType) { }
+    public record FellPlan(List<BlockPos> logs, BlockPos replant) { }
 
     private final List<BlockPos> remaining = new ArrayList<>();
     private BlockPos current;
@@ -56,16 +54,14 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
      * hand and a stump to replant: just the planting. Null when there is nothing to do, or mob griefing is off.
      */
     public static Object plan(ServerLevel level, WorkGolem golem) {
-        ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
-        if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
+        BlockPos site = golem.jobSite(level);
+        if (site == null || !EventHooks.canEntityGrief(level, golem)) return null;
         boolean sapling = golem.carried().is(ItemTags.SAPLINGS);
         if (golem.isCarrying() && !sapling) return null;
         BlockPos stump = golem.replantPos();
-        if (sapling && stump != null && canPlantAt(level, stump, golem.carried())) return new FellPlan(List.of(), stump, null);
-        TreeFinder.Tree tree = TreeFinder.find(level, site.pos(), golem.blockPosition());
-        return tree == null ? null : new FellPlan(tree.logs(), tree.base(), tree.logType());
+        if (sapling && stump != null && canPlantAt(level, stump, golem.carried())) return new FellPlan(List.of(), stump);
+        TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition());
+        return tree == null ? null : new FellPlan(tree.logs(), tree.base());
     }
 
     /** A sapling from the chest would replant the last tree's stump; a tree still to fell wants one too. */
@@ -73,9 +69,9 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         BlockPos stump = golem.replantPos();
         if (golem.isCarrying()) return null;
         if (stump != null && level.getBlockState(stump).isAir()) return "saplings";
-        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
-        if (site == null || !site.dimension().equals(level.dimension())) return null;
-        return TreeFinder.find(level, site.pos(), golem.blockPosition()) == null ? null : "saplings";
+        BlockPos site = golem.jobSite(level);
+        if (site == null) return null;
+        return TreeFinder.find(level, site, golem.blockPosition()) == null ? null : "saplings";
     }
 
     private static boolean canPlantAt(ServerLevel level, BlockPos pos, ItemStack sapling) {
@@ -100,6 +96,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
         return phase != Phase.DONE && super.allowedNow(level, golem);
     }
+
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         if (phase == Phase.PAUSE) {
@@ -146,7 +143,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private boolean nextTarget(ServerLevel level, WorkGolem golem) {
         while (!remaining.isEmpty()) {
             BlockPos log = remaining.get(0);
-            if (level.getBlockState(log).is(net.minecraft.tags.BlockTags.LOGS)) {
+            if (level.getBlockState(log).is(BlockTags.LOGS)) {
                 current = log;
                 return true;
             }
