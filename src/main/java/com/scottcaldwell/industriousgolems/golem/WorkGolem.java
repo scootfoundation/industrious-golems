@@ -42,7 +42,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A work golem: a golem that holds a job. Which job (farmer, lumberjack or herder) is fixed by its entity type, see
+ * A work golem: a golem that holds a job. Which job (farmer, lumberjack, herder or miner) is fixed by its entity type, see
  * {@link ModEntities}. It claims a job site (its chest) and does its work bare-handed, carrying one stack at a time
  * between the work and the chest, but only while it is charged: it stays dormant until a player gives it what it
  * craves (see {@link Offerings}).
@@ -61,6 +61,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     /** Where the last tree stood, so the lumberjack can replant it; not saved. */
     private @Nullable BlockPos replantPos;
     private @Nullable BlockPos openedChestPos;
+    /** Set while the work itself drops things the golem should leave lying until it is done (mining); not saved. */
+    private boolean pickupSuspended;
 
     public WorkGolem(EntityType<? extends WorkGolem> type, Level level) {
         super(type, level);
@@ -229,6 +231,11 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         replantPos = pos;
     }
 
+    /** While suspended the golem does not grab drops as they land; the miner uses it to gather a whole batch at once. */
+    public void setPickupSuspended(boolean suspended) {
+        pickupSuspended = suspended;
+    }
+
     @Override
     public boolean canPickUpLoot() {
         return true;
@@ -236,7 +243,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     @Override
     public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
-        return isCharged() && !isCarrying() && profession().needs().picksUp(stack);
+        return isCharged() && !isCarrying() && !pickupSuspended && profession().needs().picksUp(stack);
     }
 
     @Override

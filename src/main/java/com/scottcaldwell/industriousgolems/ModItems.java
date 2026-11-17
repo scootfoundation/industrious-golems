@@ -19,6 +19,9 @@ public final class ModItems {
     public static final DeferredItem<SpawnEggItem> TERRACOTTA_GOLEM_SPAWN_EGG = ITEMS.registerItem("terracotta_golem_spawn_egg",
             SpawnEggItem::new, props -> props.spawnEgg(ModEntities.HERDER_GOLEM.get()));
 
+    public static final DeferredItem<SpawnEggItem> STONE_GOLEM_SPAWN_EGG = ITEMS.registerItem("stone_golem_spawn_egg",
+            SpawnEggItem::new, props -> props.spawnEgg(ModEntities.MINER_GOLEM.get()));
+
     private ModItems() { }
 
     public static void register(IEventBus modEventBus) {
@@ -28,6 +31,7 @@ public final class ModItems {
                 event.accept(HAY_GOLEM_SPAWN_EGG);
                 event.accept(MUSHROOM_GOLEM_SPAWN_EGG);
                 event.accept(TERRACOTTA_GOLEM_SPAWN_EGG);
+                event.accept(STONE_GOLEM_SPAWN_EGG);
             }
         });
     }

@@ -15,6 +15,7 @@ public final class ClientEvents {
     private static final ModelLayerLocation HAY = layer("hay_golem");
     private static final ModelLayerLocation MUSHROOM = layer("mushroom_golem");
     private static final ModelLayerLocation TERRACOTTA = layer("terracotta_golem");
+    private static final ModelLayerLocation STONE = layer("stone_golem");
 
     private ClientEvents() { }
 
@@ -31,6 +32,7 @@ public final class ClientEvents {
         event.registerLayerDefinition(HAY, GolemModels::hay);
         event.registerLayerDefinition(MUSHROOM, GolemModels::mushroom);
         event.registerLayerDefinition(TERRACOTTA, GolemModels::terracotta);
+        event.registerLayerDefinition(STONE, GolemModels::stone);
     }
 
     @SubscribeEvent
@@ -42,5 +44,7 @@ public final class ClientEvents {
                 texture("mushroom_golem"), part -> new GolemModel(part, GolemModels.MUSHROOM_HAND, 0.7F, 0.0F), 0.5F));
         event.registerEntityRenderer(ModEntities.HERDER_GOLEM.get(), context -> new GolemRenderer(context, TERRACOTTA,
                 texture("terracotta_golem"), part -> new GolemModel(part, GolemModels.TERRACOTTA_HAND, 0.6F, 0.36F), 0.6F));
+        event.registerEntityRenderer(ModEntities.MINER_GOLEM.get(), context -> new GolemRenderer(context, STONE,
+                texture("stone_golem"), part -> new GolemModel(part, GolemModels.STONE_HAND, 0.4F, 0.1F), 0.6F));
     }
 }

@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_ignores_unreachable_rock",
+  "environment": "industriousgolems:work_hours",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 3000
+}

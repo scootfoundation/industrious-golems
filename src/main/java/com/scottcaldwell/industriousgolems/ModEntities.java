@@ -14,9 +14,10 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-/** One golem entity type per profession: the hay golem farms, the mushroom golem fells trees, the terracotta golem herds. */
+/** One golem entity type per profession: the hay golem farms, the mushroom golem fells trees, the terracotta golem herds, the stone golem mines. */
 @EventBusSubscriber(modid = IndustriousGolems.MODID)
 public final class ModEntities {
 
@@ -34,6 +35,10 @@ public final class ModEntities {
     /** The mushroom golem. */
     public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> LUMBERJACK_GOLEM =
             define(ModProfessions.LUMBERJACK, "mushroom_golem", 0.7F, 1.3F);
+
+    /** The stone golem. */
+    public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> MINER_GOLEM =
+            define(ModProfessions.MINER, "stone_golem", 0.8F, 1.7F);
 
     private ModEntities() { }
 
@@ -61,7 +66,7 @@ public final class ModEntities {
     }
 
     public static Iterable<DeferredHolder<EntityType<?>, EntityType<WorkGolem>>> all() {
-        return java.util.List.of(FARMER_GOLEM, LUMBERJACK_GOLEM, HERDER_GOLEM);
+        return List.of(FARMER_GOLEM, LUMBERJACK_GOLEM, HERDER_GOLEM, MINER_GOLEM);
     }
 
     @SubscribeEvent

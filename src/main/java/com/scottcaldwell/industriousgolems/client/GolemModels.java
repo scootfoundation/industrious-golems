@@ -106,4 +106,33 @@ final class GolemModels {
     /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
     static final float[] TERRACOTTA_HAND = {-2F, 7F, 0F};
 
+    /** The stone golem: broad shoulders, a small head and heavy arms that hang to the knee. Hand-written, not from the design page. */
+    static LayerDefinition stone() {
+        MeshDefinition mesh = new MeshDefinition().transformed(p -> p.translated(0.0F, 24.0F, 0.0F));
+        PartDefinition root = mesh.getRoot();
+        PartDefinition p_body = root.addOrReplaceChild("body", CubeListBuilder.create()
+                .texOffs(0, 24).addBox(-6F, -12F, -3.5F, 12F, 12F, 7F, new CubeDeformation(0F)),
+                PartPose.offset(0F, -10F, 0F));
+        PartDefinition p_head = p_body.addOrReplaceChild("head", CubeListBuilder.create()
+                .texOffs(0, 0).addBox(-3.5F, -7F, -3.5F, 7F, 7F, 7F, new CubeDeformation(0F))
+                .texOffs(28, 0).addBox(-1F, -3F, -5F, 2F, 3F, 2F, new CubeDeformation(0F)),
+                PartPose.offset(0F, -12F, 0F));
+        PartDefinition p_rarm = p_body.addOrReplaceChild("right_arm", CubeListBuilder.create()
+                .texOffs(76, 0).addBox(-5F, -1F, -2.5F, 5F, 16F, 5F, new CubeDeformation(0F)),
+                PartPose.offset(-6F, -11F, 0F));
+        PartDefinition p_larm = p_body.addOrReplaceChild("left_arm", CubeListBuilder.create()
+                .texOffs(76, 22).addBox(0F, -1F, -2.5F, 5F, 16F, 5F, new CubeDeformation(0F)),
+                PartPose.offset(6F, -11F, 0F));
+        PartDefinition p_rleg = root.addOrReplaceChild("right_leg", CubeListBuilder.create()
+                .texOffs(40, 24).addBox(-2.5F, 0F, -2.5F, 5F, 10F, 5F, new CubeDeformation(0F)),
+                PartPose.offset(-3.5F, -10F, 0F));
+        PartDefinition p_lleg = root.addOrReplaceChild("left_leg", CubeListBuilder.create()
+                .texOffs(40, 44).addBox(-2.5F, 0F, -2.5F, 5F, 10F, 5F, new CubeDeformation(0F)),
+                PartPose.offset(3.5F, -10F, 0F));
+        return LayerDefinition.create(mesh, 128, 128);
+    }
+
+    /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
+    static final float[] STONE_HAND = {-2.5F, 5F, 0F};
+
 }

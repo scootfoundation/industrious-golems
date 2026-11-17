@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_digs_and_delivers",
+  "environment": "industriousgolems:work_hours",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 4000
+}

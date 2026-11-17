@@ -5,6 +5,7 @@ import com.scottcaldwell.industriousgolems.golem.ChestSpawn;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.herd.HerdPen;
 import com.scottcaldwell.industriousgolems.herd.HerdWork;
+import com.scottcaldwell.industriousgolems.mine.MineFinder;
 import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
 import com.scottcaldwell.industriousgolems.offering.Offering;
 import com.scottcaldwell.industriousgolems.offering.Offerings;
@@ -92,6 +93,10 @@ public class ModGameTests {
         FUNCTIONS.register("herder_accepts_any_sherd", () -> ModGameTests::herderAcceptsAnySherd);
         FUNCTIONS.register("chest_pattern_via_place_event", () -> ModGameTests::chestPatternViaPlaceEvent);
         FUNCTIONS.register("chest_pattern_needs_headroom", () -> ModGameTests::chestPatternNeedsHeadroom);
+        FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, Blocks.SMOOTH_STONE.defaultBlockState(), ModBlocks.STONE_CHEST.get()));
+        FUNCTIONS.register("miner_digs_and_delivers", () -> ModGameTests::minerDigsAndDelivers);
+        FUNCTIONS.register("miner_dig_rules", () -> ModGameTests::minerDigRules);
+        FUNCTIONS.register("miner_ignores_unreachable_rock", () -> ModGameTests::minerIgnoresUnreachableRock);
         FUNCTIONS.register("registry_consistency", () -> ModGameTests::registryConsistency);
     }
 
@@ -141,9 +146,7 @@ public class ModGameTests {
     /** Spawns a golem as a spawn egg would: out of charge, waiting for an offering. */
     private static WorkGolem spawnDormantWorker(GameTestHelper helper, ModProfessions.Profession profession,
                                                 BlockPos site, BlockPos at) {
-        var type = profession == ModProfessions.FARMER ? ModEntities.FARMER_GOLEM
-                : profession == ModProfessions.HERDER ? ModEntities.HERDER_GOLEM : ModEntities.LUMBERJACK_GOLEM;
-        WorkGolem golem = helper.spawn(type.get(), at);
+        WorkGolem golem = helper.spawn(ModEntities.typeOf(profession), at);
         golem.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(site)));
         return golem;
     }
@@ -761,12 +764,143 @@ public class ModGameTests {
         }
         // a body block builds exactly one golem
         for (BlockState body : List.of(Blocks.HAY_BLOCK.defaultBlockState(), Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(),
-                Blocks.TERRACOTTA.defaultBlockState(), Blocks.RED_TERRACOTTA.defaultBlockState())) {
+                Blocks.TERRACOTTA.defaultBlockState(), Blocks.RED_TERRACOTTA.defaultBlockState(), Blocks.SMOOTH_STONE.defaultBlockState())) {
             long matches = ModProfessions.all().stream().filter(p -> p.bodyBlock().test(body)).count();
             helper.assertTrue(matches == 1, body.getBlock() + " should build exactly one golem, builds " + matches);
         }
         helper.assertTrue(ModProfessions.all().stream().noneMatch(p -> p.bodyBlock().test(Blocks.STONE.defaultBlockState())), "stone builds nothing");
         helper.assertTrue(bodies.stream().distinct().count() == ModProfessions.all().size(), "each golem has a chest of its own");
         helper.succeed();
+    }
+
+    // ---- miner ----------------------------------------------------------------------------------------------------
+
+    /** Like {@link #buildFarm}, but floor and walls are smooth stone: the stone golem digs plain stone, so it must not be what the arena is made of. */
+    private static void buildQuarry(GameTestHelper helper) {
+        buildFarm(helper);
+        for (int x = -1; x <= 8; x++) {
+            for (int z = -1; z <= 8; z++) {
+                boolean edge = x == -1 || x == 8 || z == -1 || z == 8;
+                for (int y = 0; y <= 3; y++) {
+                    if (y == 0 || edge) helper.setBlock(new BlockPos(x, y, z), Blocks.SMOOTH_STONE);
+                }
+            }
+        }
+        helper.setBlock(COMPOSTER, Blocks.STONECUTTER);
+    }
+
+    private static WorkGolem spawnMiner(GameTestHelper helper, BlockPos at) {
+        return spawnWorker(helper, ModProfessions.MINER, COMPOSTER, at);
+    }
+
+    private static int blocksOf(GameTestHelper helper, Block block, BlockPos from, BlockPos to) {
+        int n = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) if (helper.getBlockState(pos).is(block)) n++;
+        return n;
+    }
+
+    /**
+     * The miner digs a rock face block by block, bare-handed, leaves the drops until a batch is done, then carries them
+     * to the chest a stack at a time. Ore yields ore, and the floor it walks on (a stone block set into it) stays.
+     */
+    private static void minerDigsAndDelivers(GameTestHelper helper) {
+        buildQuarry(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        BlockPos rockFrom = new BlockPos(5, 1, 4);
+        BlockPos rockTo = new BlockPos(7, 2, 6);
+        for (BlockPos pos : BlockPos.betweenClosed(rockFrom, rockTo)) helper.setBlock(pos, Blocks.STONE);
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.COAL_ORE);
+        helper.setBlock(new BlockPos(6, 0, 5), Blocks.STONE); // part of the floor, below the chest's level: not to be dug
+        WorkGolem miner = spawnMiner(helper, new BlockPos(3, 1, 4));
+
+        boolean[] grabbedEarly = {false};
+        helper.succeedWhen(() -> {
+            int rock = blocksOf(helper, Blocks.STONE, rockFrom, rockTo) + blocksOf(helper, Blocks.COAL_ORE, rockFrom, rockTo);
+            if (rock >= 7 && miner.isCarrying()) grabbedEarly[0] = true; // fewer than a batch dug: the drops are still lying about
+            helper.assertTrue(!grabbedEarly[0], "the miner picked drops up in the middle of a batch");
+            StringBuilder left = new StringBuilder();
+            for (BlockPos pos : BlockPos.betweenClosed(rockFrom, rockTo)) {
+                if (!helper.getBlockState(pos).isAir()) left.append(pos.subtract(rockFrom)).append(miner.getData(ModAttachments.TASK).ignoresBlock(helper.absolutePos(pos), helper.getLevel().getGameTime()) ? "(ignored) " : " ");
+            }
+            helper.assertTrue(rock == 0, rock + " blocks of the rock face are still standing: " + left + describe(helper, miner, chest));
+            helper.assertTrue(count(chest, Items.COBBLESTONE) == 17, "17 cobblestone should be in the chest, got " + count(chest, Items.COBBLESTONE) + describe(helper, miner, chest));
+            helper.assertTrue(count(chest, Items.COAL) >= 1, "the coal ore should have yielded coal" + describe(helper, miner, chest));
+            helper.assertTrue(!miner.isCarrying(), "nothing is carried afterwards");
+            helper.assertTrue(helper.getBlockState(new BlockPos(6, 0, 5)).is(Blocks.STONE), "the floor must not be dug");
+        });
+    }
+
+    /** What the miner will and will not dig, and where it will not look. */
+    private static void minerDigRules(GameTestHelper helper) {
+        buildQuarry(helper);
+        var level = helper.getLevel();
+        BlockPos chest = helper.absolutePos(CHEST);
+        BlockPos from = helper.absolutePos(new BlockPos(3, 1, 4));
+
+        BlockPos open = helper.absolutePos(new BlockPos(5, 1, 4));
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.STONE);
+        helper.assertTrue(MineFinder.isMineable(level, open), "stone with air beside it is dug");
+
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.COBBLESTONE);
+        helper.assertTrue(!MineFinder.isMineable(level, open), "cobblestone is somebody's building, not rock");
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.OBSIDIAN);
+        helper.assertTrue(!MineFinder.isMineable(level, open), "obsidian is beyond an iron pick");
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.DIAMOND_ORE);
+        helper.assertTrue(MineFinder.isMineable(level, open), "diamond ore is dug");
+
+        // buried: stone on every side is left in the ground, the faces of the same lump are not
+        BlockPos lumpFrom = new BlockPos(5, 1, 5);
+        BlockPos lumpTo = new BlockPos(7, 3, 7);
+        for (BlockPos pos : BlockPos.betweenClosed(lumpFrom, lumpTo)) helper.setBlock(pos, Blocks.STONE);
+        helper.assertTrue(!MineFinder.isMineable(level, helper.absolutePos(new BlockPos(6, 2, 6))), "stone with stone on every side is left in the ground");
+        helper.assertTrue(MineFinder.isMineable(level, helper.absolutePos(new BlockPos(6, 3, 6))), "the top of the lump faces the air");
+        for (BlockPos pos : BlockPos.betweenClosed(lumpFrom, lumpTo)) helper.setBlock(pos, Blocks.AIR);
+
+        // liquid and falling blocks make a cut unsafe
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.STONE);
+        helper.setBlock(new BlockPos(5, 1, 3), Blocks.WATER);
+        helper.assertTrue(!MineFinder.isMineable(level, open), "stone beside water would flood the tunnel");
+        helper.setBlock(new BlockPos(5, 1, 3), Blocks.AIR);
+        helper.setBlock(new BlockPos(5, 2, 4), Blocks.GRAVEL);
+        helper.assertTrue(!MineFinder.isMineable(level, open), "stone under gravel would bring it down");
+        helper.setBlock(new BlockPos(5, 2, 4), Blocks.AIR);
+        helper.assertTrue(MineFinder.isMineable(level, open), "and is fine again once that is gone");
+
+        // finds it, but only it; the ignore list is honoured; nothing below the chest's own level is ever a target
+        MineFinder.Target target = MineFinder.find(level, chest, from, pos -> false);
+        helper.assertTrue(target != null && target.block().equals(open), "the exposed stone is the target, got " + target);
+        helper.assertTrue(MineFinder.find(level, chest, from, open::equals) == null, "an ignored block is not a target");
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.AIR);
+        helper.setBlock(new BlockPos(6, 0, 5), Blocks.STONE);
+        helper.assertTrue(MineFinder.find(level, chest, from, pos -> false) == null, "the floor below the chest's level is never dug");
+        helper.setBlock(new BlockPos(6, 0, 5), Blocks.SMOOTH_STONE);
+        helper.setBlock(new BlockPos(5, 1, 4 + MineFinder.RADIUS + 2), Blocks.STONE);
+        helper.assertTrue(MineFinder.find(level, chest, from, pos -> false) == null, "rock beyond the dig radius is left alone");
+        helper.succeed();
+    }
+
+    /** Rock the miner cannot get within reach of is given up on, so the rest of the work goes on. */
+    private static void minerIgnoresUnreachableRock(GameTestHelper helper) {
+        buildQuarry(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        // a stone block walled in by smooth stone two high, open only from above where nothing can climb to
+        BlockPos sealed = new BlockPos(7, 1, 7);
+        helper.setBlock(sealed, Blocks.STONE);
+        for (int y = 1; y <= 2; y++) {
+            helper.setBlock(new BlockPos(6, y, 7), Blocks.SMOOTH_STONE);
+            helper.setBlock(new BlockPos(7, y, 6), Blocks.SMOOTH_STONE);
+            helper.setBlock(new BlockPos(6, y, 6), Blocks.SMOOTH_STONE);
+        }
+        BlockPos reachable = new BlockPos(5, 1, 3);
+        helper.setBlock(reachable, Blocks.STONE);
+        WorkGolem miner = spawnMiner(helper, new BlockPos(3, 1, 4));
+
+        BlockPos sealedAbs = helper.absolutePos(sealed);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(reachable).isAir(), "the reachable stone should be dug" + describe(helper, miner, chest));
+            helper.assertTrue(count(chest, Items.COBBLESTONE) == 1, "and carried to the chest" + describe(helper, miner, chest));
+            helper.assertTrue(helper.getBlockState(sealed).is(Blocks.STONE), "the sealed stone cannot be dug");
+            helper.assertTrue(miner.getData(ModAttachments.TASK).ignoresBlock(sealedAbs, helper.getLevel().getGameTime()), "the golem should have given up on the sealed stone");
+        });
     }
 }

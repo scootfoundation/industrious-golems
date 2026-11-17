@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 
 /** Item tags that profession behaviour is data-driven by (see data/industriousgolems/tags/item). */
 public final class ModTags {
@@ -13,8 +14,17 @@ public final class ModTags {
     public static final TagKey<Item> ANIMAL_FEED = item("animal_feed");
     public static final TagKey<Item> HERDER_OUTPUT = item("herder_output");
     public static final TagKey<Item> LUMBERJACK_OUTPUT = item("lumberjack_output");
+    public static final TagKey<Item> MINER_OUTPUT = item("miner_output");
+
+    /** Plain rock the stone golem digs through, and the ores it prefers (see data/industriousgolems/tags/block). */
+    public static final TagKey<Block> MINER_STONE = block("miner_stone");
+    public static final TagKey<Block> MINER_ORES = block("miner_ores");
 
     private static TagKey<Item> item(String name) {
         return TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(IndustriousGolems.MODID, name));
+    }
+
+    private static TagKey<Block> block(String name) {
+        return TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath(IndustriousGolems.MODID, name));
     }
 }

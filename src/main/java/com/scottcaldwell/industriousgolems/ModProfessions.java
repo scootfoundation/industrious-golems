@@ -3,6 +3,7 @@ package com.scottcaldwell.industriousgolems;
 import com.scottcaldwell.industriousgolems.farm.TendCrops;
 import com.scottcaldwell.industriousgolems.herd.HerdWork;
 import com.scottcaldwell.industriousgolems.lumber.FellTree;
+import com.scottcaldwell.industriousgolems.mine.MineRock;
 import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import com.scottcaldwell.industriousgolems.offering.Offering;
@@ -82,6 +83,17 @@ public final class ModProfessions {
             offerings(Items.AMETHYST_SHARD, Items.RESIN_CLUMP, Items.SPORE_BLOSSOM, Items.PINK_PETALS, Items.GOAT_HORN,
                     Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM),
             ModBlocks.MUSHROOM_CHEST::get, state -> state.is(Blocks.RED_MUSHROOM_BLOCK));
+
+    /** The stone chest is the miner's job site; the stonecutter still counts as one. It digs bare-handed and needs no supplies. */
+    public static final Profession MINER = define("miner",
+            holder -> holder.is(PoiTypes.MASON) || holder.is(ModBlocks.STONE_CHEST_POI.getKey()),
+            0.35,
+            SoundEvents.VILLAGER_WORK_MASON,
+            new ProfessionNeeds(List.of(), s -> s.is(ModTags.MINER_OUTPUT),
+                    new ProfessionNeeds.Work(MineRock::plan, MineRock::new, MineRock::wants)),
+            offerings(Items.NAUTILUS_SHELL, Items.PRISMARINE_CRYSTALS, Items.ECHO_SHARD, Items.DISC_FRAGMENT_5,
+                    Items.CHORUS_FRUIT, Items.PHANTOM_MEMBRANE, Items.GHAST_TEAR, Items.BREEZE_ROD),
+            ModBlocks.STONE_CHEST::get, state -> state.is(Blocks.SMOOTH_STONE));
 
     private ModProfessions() { }
 

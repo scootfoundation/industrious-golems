@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:stone_chest_pattern",
+  "environment": "industriousgolems:work_hours",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 200
+}
