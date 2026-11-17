@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:herder_breeds_sparse_pen",
+  "max_ticks": 3000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

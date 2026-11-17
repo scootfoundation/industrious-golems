@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:herder_milks_cow",
+  "max_ticks": 1500,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

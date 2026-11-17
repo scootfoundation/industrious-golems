@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:farmer_harvests_and_replants",
+  "environment": "industriousgolems:work_hours",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 1200
+}

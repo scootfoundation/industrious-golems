@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:farmer_chest_io",
+  "max_ticks": 1000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

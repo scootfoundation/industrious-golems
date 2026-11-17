@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:farmer_keeps_tool_in_tool_slot",
+  "max_ticks": 300,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

@@ -1,7 +1,7 @@
-# Industrious Villagers — Technical Assessment
+# Industrious Golems — Technical Assessment
 n> **Historical:** written for the original villager-based design. The mod now uses work golems (see prd.md); the analysis of the farming, logging and mining work still applies.
 
-**Scope:** High-level technical viability review of the *Industrious Villagers* PRD (Draft v1).
+**Scope:** High-level technical viability review of the *Industrious Golems* PRD (Draft v1).
 **Assumed constraints:** Personal mod. New worlds only — no save migration concerns. No cross-mod compatibility hedging required. NeoForge target loader (Minecraft / NeoForge version still TBD).
 
 ## Verdict

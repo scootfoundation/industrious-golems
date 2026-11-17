@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_inventory_menu",
+  "max_ticks": 2500,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

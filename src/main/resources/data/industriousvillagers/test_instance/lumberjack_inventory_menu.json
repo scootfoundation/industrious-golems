@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:function",
-  "environment": "industriousvillagers:work_hours",
-  "function": "industriousvillagers:lumberjack_inventory_menu",
-  "max_ticks": 2500,
-  "setup_ticks": 1,
-  "structure": "industriousvillagers:arena"
-}

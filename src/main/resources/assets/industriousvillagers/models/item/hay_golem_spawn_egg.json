@@ -1,6 +1,0 @@
-{
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "industriousvillagers:item/hay_golem_spawn_egg"
-  }
-}
