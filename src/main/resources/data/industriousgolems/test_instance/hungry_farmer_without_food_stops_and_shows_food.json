@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
-  "function": "industriousgolems:hungry_farmer_without_food_stops_and_shows_food",
-  "max_ticks": 600,
-  "setup_ticks": 1,
-  "structure": "industriousgolems:arena"
-}

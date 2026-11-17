@@ -1,14 +1,13 @@
 package com.scottcaldwell.industriousgolems.client;
 
-import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.IndustriousGolems;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
+import com.scottcaldwell.industriousgolems.offering.Offerings;
 import com.scottcaldwell.industriousgolems.needs.StatusData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.AtlasIds;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -16,7 +15,6 @@ import net.minecraft.network.chat.contents.objects.AtlasSprite;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.TriState;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
-import net.minecraft.world.item.Item;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -26,9 +24,9 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Draws a three-line status plate above the golem: profession and tools (red cross for a missing one), then the
- * hunger bar and the health bar using the player's own HUD icons. Shown while looking at the golem, and from a
- * distance when the golem is blocked.
+ * Draws a three-line status plate above the golem: its name and what it craves, the charge it has left, then a
+ * health bar using the player's own HUD icons. Shown while looking at the golem, and from a distance when the golem
+ * is blocked (dormant, or out of a supply).
  */
 @EventBusSubscriber(modid = IndustriousGolems.MODID, value = Dist.CLIENT)
 public final class StatusPlate {
@@ -56,8 +54,8 @@ public final class StatusPlate {
         if (!targeted && !nearBlocked) return;
 
         Component[] lines = {
-                title(golem, needs, status),
-                bar(status.hunger(), "hud/food_full", "hud/food_half", "hud/food_empty"),
+                title(golem),
+                charge(golem),
                 bar(status.health(), "hud/heart/full", "hud/heart/half", "hud/heart/container")
         };
         synchronized (PENDING) {
@@ -84,17 +82,23 @@ public final class StatusPlate {
         }
     }
 
-    private static Component title(WorkGolem golem, ProfessionNeeds needs, StatusData status) {
+    private static Component title(WorkGolem golem) {
         MutableComponent line = Component.empty();
         line.append(golem.getType().getDescription().copy().withStyle(ChatFormatting.WHITE));
-        line.append(Component.literal("  "));
-        java.util.List<Need> tools = needs.toolNeeds();
-        for (int t = 0; t < tools.size(); t++) {
-            line.append(itemSprite(tools.get(t).icon().getItem()));
-            if ((status.tools() & (1 << t)) == 0) line.append(Component.literal("✘").withStyle(ChatFormatting.RED));
-            line.append(Component.literal(" "));
+        var offerings = golem.profession().offerings();
+        int craving = golem.cravingIndex();
+        if (Offerings.acceptsMore(golem) && craving >= 0 && craving < offerings.size()) {
+            line.append(Component.translatable("gui.industriousgolems.wants", offerings.get(craving).displayName())
+                    .withStyle(ChatFormatting.YELLOW));
         }
         return line;
+    }
+
+    private static Component charge(WorkGolem golem) {
+        int seconds = golem.chargeSeconds();
+        if (seconds <= 0) return Component.translatable("gui.industriousgolems.dormant").withStyle(ChatFormatting.GRAY);
+        return Component.translatable("gui.industriousgolems.charge", seconds / 60, String.format("%02d", seconds % 60))
+                .withStyle(ChatFormatting.GREEN);
     }
 
     /** Ten icons for a 0..20 value: full, half and empty, as on the player's own bars. */
@@ -109,10 +113,5 @@ public final class StatusPlate {
 
     private static MutableComponent guiSprite(String path) {
         return Component.object(new AtlasSprite(AtlasIds.GUI, Identifier.withDefaultNamespace(path)));
-    }
-
-    private static MutableComponent itemSprite(Item item) {
-        Identifier id = BuiltInRegistries.ITEM.getKey(item);
-        return Component.object(new AtlasSprite(AtlasIds.ITEMS, id.withPath("item/" + id.getPath())));
     }
 }

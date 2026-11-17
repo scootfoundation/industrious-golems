@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
-  "function": "industriousgolems:lumberjack_needs_axe",
-  "max_ticks": 2500,
-  "setup_ticks": 1,
-  "structure": "industriousgolems:arena"
-}

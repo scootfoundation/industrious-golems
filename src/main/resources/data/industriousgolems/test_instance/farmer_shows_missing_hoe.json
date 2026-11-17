@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
-  "function": "industriousgolems:farmer_shows_missing_hoe",
-  "max_ticks": 600,
-  "setup_ticks": 1,
-  "structure": "industriousgolems:arena"
-}

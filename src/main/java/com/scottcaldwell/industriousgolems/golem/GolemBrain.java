@@ -6,7 +6,6 @@ import com.mojang.datafixers.util.Pair;
 import com.scottcaldwell.industriousgolems.ModActivities;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.behavior.ContainerInteraction;
-import com.scottcaldwell.industriousgolems.behavior.EatFood;
 import com.scottcaldwell.industriousgolems.behavior.StartTask;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.util.valueproviders.UniformInt;
@@ -38,8 +37,9 @@ import java.util.Set;
 
 /**
  * The work golems' brain. Core behaviours (movement, looking, doors, panic) always run; the idle activity looks for a
- * job site and loiters near it; the work activity (job site claimed, work hours) lets {@link StartTask} hand over to
- * the exclusive task activity, which carries out container visits, meals and the profession's own work.
+ * job site and loiters near it; the work activity (job site claimed, golem charged) lets {@link StartTask} hand over to
+ * the exclusive task activity, which carries out container visits and the profession's own work. A golem without
+ * charge rests: nothing but the core behaviours runs.
  */
 public final class GolemBrain {
 
@@ -88,13 +88,14 @@ public final class GolemBrain {
                         Pair.of(RandomStroll.stroll(STROLL_SPEED, 3, 2), 1),
                         Pair.of(new DoNothing(30, 60), 2)))));
         brain.addActivity(Activity.IDLE, loiter);
+        // A golem that has run out of charge is dormant: it stands where it is and does nothing at all.
+        brain.addActivity(Activity.REST, ImmutableList.of(Pair.of(0, new DoNothing(20, 40))));
         brain.addActivityWithConditions(Activity.WORK, loiter,
                 Set.of(Pair.of(MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT)));
 
         // The exclusive task activity: only core behaviours and the task itself run while it is active.
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> tasks = ImmutableList.builder();
         tasks.add(Pair.of(0, new ContainerInteraction()));
-        tasks.add(Pair.of(0, new EatFood()));
         if (profession.needs().work() != null) tasks.add(Pair.of(0, profession.needs().work().runner().get()));
         brain.addActivity(ModActivities.TASK.get(), tasks.build());
 
@@ -104,7 +105,7 @@ public final class GolemBrain {
         return brain;
     }
 
-    /** Picks work or idle from the time of day, unless a task is running (it hands back via {@link #resume}). */
+    /** Picks work or dormancy from the charge, unless a task is running (it hands back via {@link #resume}). */
     public static void updateActivity(WorkGolem golem) {
         if (Tasks.active(golem)) return;
         resume(golem);
@@ -112,6 +113,6 @@ public final class GolemBrain {
 
     public static void resume(WorkGolem golem) {
         golem.getBrain().setActiveActivityToFirstValid(
-                Tasks.scheduleAllowsWork(golem) ? ImmutableList.of(Activity.WORK, Activity.IDLE) : ImmutableList.of(Activity.IDLE));
+                Tasks.mayWork(golem) ? ImmutableList.of(Activity.WORK, Activity.IDLE) : ImmutableList.of(Activity.REST));
     }
 }

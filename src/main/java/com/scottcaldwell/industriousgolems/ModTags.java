@@ -9,8 +9,6 @@ import net.minecraft.world.item.Item;
 public final class ModTags {
     private ModTags() { }
 
-    /** Food golems eat and fetch from containers. */
-    public static final TagKey<Item> GOLEM_FOOD = item("golem_food");
     /** What the herder feeds animals to make them breed. */
     public static final TagKey<Item> ANIMAL_FEED = item("animal_feed");
     public static final TagKey<Item> HERDER_OUTPUT = item("herder_output");

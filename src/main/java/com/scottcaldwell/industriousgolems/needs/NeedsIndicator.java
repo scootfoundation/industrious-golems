@@ -10,19 +10,15 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
 /**
- * Publishes a golem's status (hunger, tool carried, whether blocked) for the client's status plate, and makes a
- * blocked golem shake its head every few seconds.
+ * Publishes a golem's status (health, whether blocked) for the client's status plate, makes a golem that lacks a
+ * supply shake its head every few seconds, and mends charged golems.
  */
 public final class NeedsIndicator {
 
     private static final String MARKER = "industriousgolems_need_icon";
     private static final int CHECK_INTERVAL = 10;
     private static final int SHAKE_INTERVAL = 100;
-    private static final int STARVE_INTERVAL = 80;
     private static final int REGEN_INTERVAL = 100;
-    private static final int REGEN_LEVEL = 14;
-    /** Whether an empty hunger bar can kill a golem (otherwise it leaves them on half a heart). */
-    private static final boolean STARVATION_IS_LETHAL = false;
 
     private NeedsIndicator() { }
 
@@ -46,44 +42,32 @@ public final class NeedsIndicator {
             com.scottcaldwell.industriousgolems.behavior.HeldItem.release(golem);
         }
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        com.scottcaldwell.industriousgolems.inventory.InventoryLayout.organize(golem);
         if (needs == null || golem.isBaby()) {
             publish(golem, StatusData.NONE);
             return;
         }
 
-        int hunger = Hunger.level(golem);
-        applyHungerEffects(golem, hunger);
+        mend(golem);
 
-        // Synced for the client's status plate: hunger, health, whether blocked, and the tools carried.
-        boolean blocked = false;
+        // Synced for the client's status plate: health, and whether the golem is blocked (dormant or out of a supply).
+        boolean dormant = !golem.isCharged();
+        boolean missingSupply = false;
         for (Need need : needs.needs()) {
-            if (need.missing(golem)) { blocked = true; break; }
+            if (need.missing(golem)) { missingSupply = true; break; }
         }
-        int status = StatusData.pack(hunger, Math.round(golem.getHealth()), blocked);
-        int tools = 0;
-        java.util.List<Need> toolNeeds = needs.toolNeeds();
-        for (int t = 0; t < toolNeeds.size(); t++) {
-            if (toolNeeds.get(t).have(golem.getInventory()) > 0) tools |= 1 << t;
-        }
-        StatusData updated = new StatusData(status, tools);
-        publish(golem, updated);
+        publish(golem, StatusData.pack(Math.round(golem.getHealth()), dormant || missingSupply));
 
-        if (blocked && !golem.isSleeping() && golem.tickCount % SHAKE_INTERVAL == 0 && golem.getUnhappyCounter() == 0) {
+        // A dormant golem is just still; one that works but lacks a supply shakes its head now and then.
+        if (missingSupply && !dormant && golem.tickCount % SHAKE_INTERVAL == 0 && golem.getUnhappyCounter() == 0) {
             golem.setUnhappyCounter(40);
             golem.playSound(SoundEvents.VILLAGER_NO, 1.0F, golem.getVoicePitch());
         }
     }
 
-    /** Starving golems take damage; well-fed ones slowly heal. */
-    private static void applyHungerEffects(WorkGolem golem, int hunger) {
-        if (!(golem.level() instanceof net.minecraft.server.level.ServerLevel level) || golem.isDeadOrDying()) return;
-        if (hunger == 0 && golem.tickCount % STARVE_INTERVAL == 0) {
-            // like a player on normal difficulty, starvation never finishes the golem off
-            if (STARVATION_IS_LETHAL || golem.getHealth() > 1.0F) {
-                golem.hurtServer(level, level.damageSources().starve(), 1.0F);
-            }
-        } else if (hunger >= REGEN_LEVEL && golem.getHealth() < golem.getMaxHealth() && golem.tickCount % REGEN_INTERVAL == 0) {
+    /** Charged golems slowly mend. */
+    private static void mend(WorkGolem golem) {
+        if (golem.isCharged() && !golem.isDeadOrDying() && golem.getHealth() < golem.getMaxHealth()
+                && golem.tickCount % REGEN_INTERVAL == 0) {
             golem.heal(1.0F);
         }
     }

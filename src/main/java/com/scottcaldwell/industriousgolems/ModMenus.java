@@ -13,8 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * One menu type per profession, so the client already knows the layout (tool slots, slot allowance) and the open
- * packet needs no extra data.
+ * One menu type per profession, so the client already knows which offerings it takes and the open packet needs no
+ * extra data.
  */
 public class ModMenus {
 
@@ -27,7 +27,7 @@ public class ModMenus {
         for (ModProfessions.Profession profession : ModProfessions.all()) {
             BY_PROFESSION.put(profession.id(), MENUS.register(profession.id(),
                     () -> new MenuType<GolemMenu>(
-                            (id, inventory) -> GolemMenu.client(BY_PROFESSION.get(profession.id()).get(), id, inventory, profession.needs()),
+                            (id, inventory) -> GolemMenu.client(BY_PROFESSION.get(profession.id()).get(), id, inventory, profession),
                             FeatureFlags.DEFAULT_FLAGS)));
         }
     }

@@ -8,39 +8,22 @@ import net.minecraft.world.item.ItemStack;
 import java.util.function.Predicate;
 
 /**
- * Something a golem keeps topped up from containers: a tool, a supply or food. Declared per profession (see
- * {@link ProfessionNeeds}) and used by container visits, the work gate, the inventory screen and the status plate.
+ * Something a golem keeps topped up from containers: materials its work uses up, such as seeds. Declared per
+ * profession (see {@link ProfessionNeeds}) and used by container visits and the status plate. Golems work bare-handed,
+ * so there are no tools, and what keeps them running is an offering, not a need (see
+ * {@link com.scottcaldwell.industriousgolems.offering.Offerings}).
  *
  * @param target         how many the golem tops up to when restocking
  * @param refillBelow    restocking starts when it holds fewer than this
  * @param depositSurplus items beyond {@code target} are deposited
  * @param blocks         when this holds and the golem has none, the shortfall is shown to the player
- * @param gatesWork      such a shortfall also stops the golem working
- * @param tool           gets a dedicated inventory slot and a spot on the status plate
  */
 public record Need(String id, Predicate<ItemStack> match, ItemStack icon, int target, int refillBelow,
-                   boolean depositSurplus, Predicate<WorkGolem> blocks, boolean gatesWork, boolean tool) {
-
-    public static final String FOOD = "food";
-
-    /** A single tool the profession works with; {@code gatesWork} when it cannot work at all without it. */
-    public static Need tool(String id, Predicate<ItemStack> match, Item icon, boolean gatesWork) {
-        return new Need(id, match, new ItemStack(icon), 1, 1, false, v -> true, gatesWork, true);
-    }
-
-    /** A tool that is used up and restocked in quantity, such as buckets. Never gates work. */
-    public static Need consumableTool(String id, Predicate<ItemStack> match, Item icon, int target, int refillBelow) {
-        return new Need(id, match, new ItemStack(icon), target, refillBelow, false, v -> true, false, true);
-    }
+                   boolean depositSurplus, Predicate<WorkGolem> blocks) {
 
     /** Materials the work uses up; whatever is carried beyond {@code target} is deposited. */
     public static Need supply(String id, Predicate<ItemStack> match, Item icon, int target, int refillBelow) {
-        return new Need(id, match, new ItemStack(icon), target, refillBelow, true, v -> true, false, false);
-    }
-
-    /** Food for the golem itself; the shortfall is reported when {@code reportMissing} holds. */
-    public static Need food(Predicate<ItemStack> match, Item icon, Predicate<WorkGolem> reportMissing) {
-        return new Need(FOOD, match, new ItemStack(icon), 6, 3, false, reportMissing, false, false);
+        return new Need(id, match, new ItemStack(icon), target, refillBelow, true, v -> true);
     }
 
     public boolean missing(WorkGolem golem) {

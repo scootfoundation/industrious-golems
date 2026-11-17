@@ -30,24 +30,20 @@ public class ModGameTests {
         FUNCTIONS.register("farmer_harvests_and_replants", () -> ModGameTests::farmerHarvestsAndReplants);
         FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
         FUNCTIONS.register("farmer_chest_preference", () -> ModGameTests::farmerChestPreference);
-        FUNCTIONS.register("farmer_shows_missing_hoe", () -> ModGameTests::farmerShowsMissingHoe);
         FUNCTIONS.register("farmer_inventory_menu", () -> ModGameTests::farmerInventoryMenu);
-        FUNCTIONS.register("farmer_eats_when_hungry", () -> ModGameTests::farmerEatsWhenHungry);
-        FUNCTIONS.register("hungry_farmer_without_food_stops_and_shows_food", () -> ModGameTests::hungryFarmerWithoutFood);
-        FUNCTIONS.register("farmer_keeps_tool_in_tool_slot", () -> ModGameTests::farmerKeepsToolInToolSlot);
         FUNCTIONS.register("herder_shears_sheep", () -> ModGameTests::herderShearsSheep);
         FUNCTIONS.register("herder_milks_cow", () -> ModGameTests::herderMilksCow);
         FUNCTIONS.register("herder_culls_crowded_pen", () -> ModGameTests::herderCullsCrowdedPen);
         FUNCTIONS.register("herder_breeds_sparse_pen", () -> ModGameTests::herderBreedsSparsePen);
         FUNCTIONS.register("herder_inventory_menu", () -> ModGameTests::herderInventoryMenu);
-        FUNCTIONS.register("herder_organizes_tools", () -> ModGameTests::herderOrganizesTools);
         FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
-        FUNCTIONS.register("hunger_gates_work", () -> ModGameTests::hungerGatesWork);
         FUNCTIONS.register("lumberjack_fells_and_replants", () -> ModGameTests::lumberjackFellsAndReplants);
         FUNCTIONS.register("lumberjack_ignores_log_building", () -> ModGameTests::lumberjackIgnoresLogBuilding);
-        FUNCTIONS.register("lumberjack_needs_axe", () -> ModGameTests::lumberjackNeedsAxe);
         FUNCTIONS.register("lumberjack_inventory_menu", () -> ModGameTests::lumberjackInventoryMenu);
-        FUNCTIONS.register("starvation_hurts_and_food_heals", () -> ModGameTests::starvationHurtsAndFoodHeals);
+        FUNCTIONS.register("golem_dormant_until_offered", () -> ModGameTests::golemDormantUntilOffered);
+        FUNCTIONS.register("golem_offering_rules", () -> ModGameTests::golemOfferingRules);
+        FUNCTIONS.register("golem_charge_runs_out", () -> ModGameTests::golemChargeRunsOut);
+        FUNCTIONS.register("golem_menu_offering_slot", () -> ModGameTests::golemMenuOfferingSlot);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -85,9 +81,17 @@ public class ModGameTests {
         helper.setBlock(CHEST, Blocks.CHEST);
     }
 
-    /** Spawns a golem of the given profession with its job site at {@code site}. */
+    /** Spawns a charged golem of the given profession with its job site at {@code site}. */
     private static WorkGolem spawnWorker(GameTestHelper helper, ModProfessions.Profession profession,
                                          BlockPos site, BlockPos at) {
+        WorkGolem golem = spawnDormantWorker(helper, profession, site, at);
+        com.scottcaldwell.industriousgolems.offering.Offerings.fill(golem);
+        return golem;
+    }
+
+    /** Spawns a golem as a spawn egg would: out of charge, waiting for an offering. */
+    private static WorkGolem spawnDormantWorker(GameTestHelper helper, ModProfessions.Profession profession,
+                                                BlockPos site, BlockPos at) {
         var type = profession == ModProfessions.FARMER ? ModEntities.FARMER_GOLEM
                 : profession == ModProfessions.HERDER ? ModEntities.HERDER_GOLEM : ModEntities.LUMBERJACK_GOLEM;
         WorkGolem golem = helper.spawn(type.get(), at);
@@ -108,14 +112,12 @@ public class ModGameTests {
     }
 
     /**
-     * The farmer carries 5 wheat and 20 seeds (4 over the 16 it keeps) and has no hoe or food; the chest holds a hoe
-     * and bread. After a visit the chest should hold the wheat and 4 seeds, and the farmer a hoe and bread.
+     * The farmer carries 5 wheat and 20 seeds (4 over the 16 it keeps). After a visit the chest should hold the wheat
+     * and the 4 surplus seeds.
      */
     private static void farmerChestIo(GameTestHelper helper) {
         buildFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        chest.setItem(0, new ItemStack(Items.IRON_HOE));
-        chest.setItem(1, new ItemStack(Items.BREAD, 10));
 
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
@@ -136,13 +138,10 @@ public class ModGameTests {
             helper.assertTrue(count(chest, Items.WHEAT) == 5, "chest should hold the 5 harvested wheat, has " + count(chest, Items.WHEAT));
             helper.assertTrue(count(chest, Items.WHEAT_SEEDS) == 4, "chest should hold the 4 surplus seeds, has " + count(chest, Items.WHEAT_SEEDS));
             helper.assertTrue(count(farmer.getInventory(), Items.WHEAT_SEEDS) == 16, "farmer should keep 16 seeds, has " + count(farmer.getInventory(), Items.WHEAT_SEEDS));
-            helper.assertTrue(count(farmer.getInventory(), Items.IRON_HOE) == 1, "farmer should have taken the hoe");
-            helper.assertTrue(count(farmer.getInventory(), Items.BREAD) > 0, "farmer should have taken bread");
-            helper.assertTrue(count(chest, Items.IRON_HOE) == 0, "hoe should have left the chest");
         });
     }
 
-    /** The farmer reaps ripe wheat with its hoe and sows the bare soil again from the seeds it carries. */
+    /** The farmer reaps ripe wheat bare-handed and sows the bare soil again from the seeds it carries. */
     private static void farmerHarvestsAndReplants(GameTestHelper helper) {
         buildFarm(helper);
         for (int x = 3; x <= 5; x++) {
@@ -150,7 +149,6 @@ public class ModGameTests {
             helper.setBlock(new BlockPos(x, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
         }
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 2, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
         helper.succeedWhen(() -> {
             helper.assertTrue(count(farmer.getInventory(), Items.WHEAT) >= 3, "farmer should have reaped 3 wheat, has " + count(farmer.getInventory(), Items.WHEAT));
@@ -164,45 +162,23 @@ public class ModGameTests {
 
     private static final BlockPos COPPER_CHEST = new BlockPos(4, 1, 4);
 
-    /** Supplies are taken from the regular chest, and the harvest is deposited into the copper chest. */
+    /** Supplies are taken from the regular chest (seeds here), and the harvest is deposited into the copper chest. */
     private static void farmerChestPreference(GameTestHelper helper) {
         buildFarm(helper);
         helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST);
         Container regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
-        regular.setItem(0, new ItemStack(Items.IRON_HOE));
-        regular.setItem(1, new ItemStack(Items.BREAD, 10));
+        regular.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 10));
 
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.getInventory().addItem(new ItemStack(Items.WHEAT, 5));
-        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
+        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 2));
 
         helper.succeedWhen(() -> {
-            helper.assertTrue(count(farmer.getInventory(), Items.IRON_HOE) == 1, "farmer should take the hoe from the regular chest");
-            helper.assertTrue(count(regular, Items.IRON_HOE) == 0, "hoe should have left the regular chest");
+            helper.assertTrue(count(farmer.getInventory(), Items.WHEAT_SEEDS) == 12, "farmer should top up on seeds from the regular chest, has " + count(farmer.getInventory(), Items.WHEAT_SEEDS));
+            helper.assertTrue(count(regular, Items.WHEAT_SEEDS) == 0, "seeds should have left the regular chest");
             helper.assertTrue(count(copper, Items.WHEAT) == 5, "wheat should go to the copper chest");
             helper.assertTrue(count(regular, Items.WHEAT) == 0, "wheat should not go to the regular chest");
-        });
-    }
-
-    /** A farmer with no hoe (and nowhere to get one) shows a hoe over its head; it disappears once it has one. */
-    private static void farmerShowsMissingHoe(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
-
-        helper.runAtTickTime(60, () -> {
-            var status = farmer.getData(ModAttachments.STATUS);
-            helper.assertTrue(status.enabled() && status.blocked(), "farmer without a hoe should be flagged as blocked");
-            helper.assertTrue(status.tools() == 0, "no tool should be reported");
-        });
-        helper.runAtTickTime(61, () -> farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE)));
-        helper.succeedWhen(() -> {
-            var status = farmer.getData(ModAttachments.STATUS);
-            helper.assertTrue(!status.blocked(), "blocked flag should clear once the hoe is in the inventory");
-            helper.assertTrue(status.tools() > 0, "the carried tool should be reported");
-            helper.assertTrue(status.hunger() == 20, "a freshly seen farmer should be full, was " + status.hunger());
-            helper.assertTrue(status.health() == 20, "a fresh farmer has full health, was " + status.health());
         });
     }
 
@@ -210,8 +186,7 @@ public class ModGameTests {
     private static void farmerInventoryMenu(GameTestHelper helper) {
         buildFarm(helper);
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().setItem(0, new ItemStack(Items.IRON_HOE));
-        farmer.getInventory().setItem(1, new ItemStack(Items.WHEAT, 5));
+        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 5));
         var player = helper.makeMockServerPlayerInLevel();
         // Keep the mock player far away: it has no real connection, so it must never be a tracker of the farmer
         // (the farmer's status attachment syncs to trackers). interactOn does not check reach.
@@ -223,12 +198,9 @@ public class ModGameTests {
             player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
             helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousgolems.inventory.GolemMenu, "right-click should open the golem menu");
             var menu = (com.scottcaldwell.industriousgolems.inventory.GolemMenu) player.containerMenu;
-            helper.assertTrue(menu.getSlot(0).getItem().is(Items.IRON_HOE), "slot 0 is the tool slot and shows the hoe");
             helper.assertTrue(menu.getSlot(1).getItem().is(Items.WHEAT), "first general slot shows the wheat");
-            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_HOE)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.WHEAT)),
-                    "the tool slot accepts only hoes");
             helper.assertTrue(menu.generalSlots() == 7, "farmer allows 7 general slots, has " + menu.generalSlots());
-            // 1 tool + 7 general + 36 player slots
+            // 1 offering + 7 general + 36 player slots
             helper.assertTrue(menu.slots.size() == 1 + 7 + 36, "slot count should match the allowance, was " + menu.slots.size());
             helper.assertTrue(farmer.getTradingPlayer() == player, "farmer should be held for the player while open");
             held[0] = true;
@@ -237,53 +209,6 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(held[0], "menu should have been checked");
             helper.assertTrue(farmer.getTradingPlayer() == null, "farmer should be released when the menu closes");
-        });
-    }
-
-    /** Wheat sitting in the tool slot and the hoe elsewhere: the farmer tidies its inventory so the hoe is in slot 0. */
-    private static void farmerKeepsToolInToolSlot(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 3));
-        farmer.getInventory().setItem(4, new ItemStack(Items.IRON_HOE));
-
-        helper.succeedWhen(() -> {
-            helper.assertTrue(farmer.getInventory().getItem(0).is(Items.IRON_HOE), "hoe should be in the tool slot");
-            helper.assertTrue(count(farmer.getInventory(), Items.WHEAT) == 3, "wheat should still be carried");
-        });
-    }
-
-    private static void makeHungry(WorkGolem farmer) {
-        farmer.setData(ModAttachments.LAST_MEAL, farmer.level().getGameTime() - com.scottcaldwell.industriousgolems.needs.Hunger.INTERVAL - 1);
-    }
-
-    /** A hungry farmer eats one bread, is no longer hungry, and holds nothing afterwards. */
-    private static void farmerEatsWhenHungry(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.BREAD, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
-        makeHungry(farmer);
-
-        helper.succeedWhen(() -> {
-            helper.assertTrue(count(farmer.getInventory(), Items.BREAD) == 2, "farmer should have eaten one bread, has " + count(farmer.getInventory(), Items.BREAD));
-            helper.assertTrue(com.scottcaldwell.industriousgolems.needs.Hunger.level(farmer) >= 5, "bread restores its nutrition, level is " + com.scottcaldwell.industriousgolems.needs.Hunger.level(farmer));
-            helper.assertTrue(farmer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "farmer should not still hold food");
-        });
-    }
-
-    /** Hungry with nothing to eat: the farmer shows bread over its head and will not harvest. */
-    private static void hungryFarmerWithoutFood(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
-        farmer.getInventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 16));
-        makeHungry(farmer);
-
-        helper.succeedWhen(() -> {
-            var status = farmer.getData(ModAttachments.STATUS);
-            helper.assertTrue(status.blocked() && status.hunger() == 0, "hungry farmer without food should be flagged blocked with an empty meter, hunger " + status.hunger());
-            helper.assertTrue(com.scottcaldwell.industriousgolems.needs.ProfessionNeeds.of(farmer).workBlocked(farmer), "should be blocked from working");
         });
     }
 
@@ -314,30 +239,21 @@ public class ModGameTests {
         return count(herder.getInventory(), item) + count(chest, item);
     }
 
-    /** A herder with shears shears a ready sheep in the pen, collects the wool and wears the shears. */
+    /** A herder shears a ready sheep in the pen bare-handed and collects the wool. */
     private static void herderShearsSheep(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
-        herder.getInventory().addItem(new ItemStack(Items.SHEARS));
-        boolean[] held = {false};
         helper.succeedWhen(() -> {
-            if (herder.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).is(Items.SHEARS)) held[0] = true;
-            helper.assertTrue(held[0], "the herder should visibly hold the shears while shearing");
             var sheep = alive(helper, net.minecraft.world.entity.animal.sheep.Sheep.class);
             helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared");
             helper.assertTrue(total(herder, chest, Items.WHITE_WOOL) > 0, "the herder should hold or have deposited wool");
-            int slot = -1;
-            for (int i = 0; i < herder.getInventory().getContainerSize(); i++) {
-                if (herder.getInventory().getItem(i).is(Items.SHEARS)) slot = i;
-            }
-            helper.assertTrue(slot >= 0 && herder.getInventory().getItem(slot).getDamageValue() > 0, "the shears should be worn");
-            helper.assertTrue(herder.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "the tool is put away afterwards");
+            helper.assertTrue(herder.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "the herder holds nothing: it uses its hands");
         });
     }
 
-    /** A herder with a bucket milks a cow: the bucket becomes milk. */
+    /** A herder with a spare bucket milks a cow: the bucket becomes milk. */
     private static void herderMilksCow(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
@@ -356,7 +272,6 @@ public class ModGameTests {
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         for (int i = 0; i < 5; i++) helper.spawn(EntityType.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
-        herder.getInventory().addItem(new ItemStack(Items.IRON_SWORD));
         helper.succeedWhen(() -> {
             helper.assertTrue(alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size() == 3,
                     "pen should be culled to 3 pigs, has " + alive(helper, net.minecraft.world.entity.animal.pig.Pig.class).size());
@@ -377,7 +292,7 @@ public class ModGameTests {
         });
     }
 
-    /** The herder's menu has one dedicated slot per tool (shears, sword, bucket) and five general slots. */
+    /** The herder's menu is the offering slot plus seven general slots, like every golem's. */
     private static void herderInventoryMenu(GameTestHelper helper) {
         buildHerdFarm(helper);
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
@@ -388,30 +303,12 @@ public class ModGameTests {
             player.interactOn(herder, net.minecraft.world.InteractionHand.MAIN_HAND);
             helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousgolems.inventory.GolemMenu, "right-click should open the golem menu");
             var menu = (com.scottcaldwell.industriousgolems.inventory.GolemMenu) player.containerMenu;
-            helper.assertTrue(menu.toolSlots() == 3 && menu.generalSlots() == 5, "3 tool and 5 general slots, got " + menu.toolSlots() + "/" + menu.generalSlots());
-            helper.assertTrue(menu.slots.size() == 3 + 5 + 36, "slot count should match, was " + menu.slots.size());
-            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.SHEARS)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_SWORD)), "slot 0 takes shears");
-            helper.assertTrue(menu.getSlot(1).mayPlace(new ItemStack(Items.IRON_SWORD)) && !menu.getSlot(1).mayPlace(new ItemStack(Items.BUCKET)), "slot 1 takes a sword");
-            helper.assertTrue(menu.getSlot(2).mayPlace(new ItemStack(Items.BUCKET)) && !menu.getSlot(2).mayPlace(new ItemStack(Items.SHEARS)), "slot 2 takes a bucket");
+            helper.assertTrue(menu.generalSlots() == 7, "7 general slots, got " + menu.generalSlots());
+            helper.assertTrue(menu.slots.size() == 1 + 7 + 36, "slot count should match, was " + menu.slots.size());
             checked[0] = true;
             player.closeContainer();
         });
         helper.succeedWhen(() -> helper.assertTrue(checked[0], "menu should have been checked"));
-    }
-
-    /** Tools scattered through the inventory are tidied into their own slots, and the plate reports which are carried. */
-    private static void herderOrganizesTools(GameTestHelper helper) {
-        buildHerdFarm(helper);
-        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
-        herder.getInventory().setItem(0, new ItemStack(Items.BUCKET));
-        herder.getInventory().setItem(5, new ItemStack(Items.SHEARS));
-        herder.getInventory().setItem(6, new ItemStack(Items.IRON_SWORD));
-        helper.succeedWhen(() -> {
-            helper.assertTrue(herder.getInventory().getItem(0).is(Items.SHEARS), "shears belong in slot 0");
-            helper.assertTrue(herder.getInventory().getItem(1).is(Items.IRON_SWORD), "sword belongs in slot 1");
-            helper.assertTrue(herder.getInventory().getItem(2).is(Items.BUCKET), "bucket belongs in slot 2");
-            helper.assertTrue(herder.getData(ModAttachments.STATUS).tools() == 0b111, "all three tools should be reported");
-        });
     }
 
     /** A fenced 4x4 area is a pen; the same fence with a gap leaks into open ground and is not. */
@@ -435,42 +332,6 @@ public class ModGameTests {
         helper.succeed();
     }
 
-    // ---- hunger and health --------------------------------------------------------------------------------
-
-    private static void setHunger(WorkGolem golem, int level) {
-        golem.setData(ModAttachments.LAST_MEAL, golem.level().getGameTime()
-                - (long) (com.scottcaldwell.industriousgolems.needs.Hunger.MAX - level) * com.scottcaldwell.industriousgolems.needs.Hunger.INTERVAL
-                / com.scottcaldwell.industriousgolems.needs.Hunger.MAX);
-    }
-
-    /** At 2 drumsticks or fewer the golem refuses to work even while carrying food; above that it works. */
-    private static void hungerGatesWork(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
-        farmer.getInventory().addItem(new ItemStack(Items.BREAD, 3));
-        var needs = com.scottcaldwell.industriousgolems.needs.ProfessionNeeds.of(farmer);
-        setHunger(farmer, 4);
-        helper.assertTrue(needs.workBlocked(farmer), "4 hunger points (2 drumsticks) with bread in the pack must still block work");
-        setHunger(farmer, 5);
-        helper.assertTrue(!needs.workBlocked(farmer), "5 hunger points allows work");
-        helper.succeed();
-    }
-
-    /** An empty hunger bar hurts but never kills; a well fed golem heals. */
-    private static void starvationHurtsAndFoodHeals(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.getInventory().addItem(new ItemStack(Items.IRON_HOE));
-        setHunger(farmer, 0);
-        helper.runAtTickTime(300, () -> {
-            helper.assertTrue(farmer.getHealth() < 20.0F, "a starving farmer should have taken damage, health " + farmer.getHealth());
-            helper.assertTrue(farmer.isAlive(), "starvation must not kill");
-            farmer.setHealth(5.0F);
-            setHunger(farmer, 20);
-        });
-        helper.succeedWhen(() -> helper.assertTrue(farmer.getHealth() > 5.0F && farmer.tickCount > 400, "a fed farmer should regain health, has " + farmer.getHealth()));
-    }
     // ---- lumberjack -----------------------------------------------------------------------------------------
 
     private static WorkGolem spawnLumberjack(GameTestHelper helper, BlockPos at) {
@@ -499,25 +360,18 @@ public class ModGameTests {
         return n;
     }
 
-    /** The lumberjack fells a natural tree, keeps the logs for the chest, wears the axe and plants a sapling. */
+    /** The lumberjack fells a natural tree bare-handed, keeps the logs for the chest and plants a sapling. */
     private static void lumberjackFellsAndReplants(GameTestHelper helper) {
         buildFarm(helper);
         buildTree(helper, 5, 5);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
-        jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
         jack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING, 2));
-        boolean[] held = {false};
         helper.succeedWhen(() -> {
-            if (jack.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).is(Items.IRON_AXE)) held[0] = true;
-            helper.assertTrue(held[0], "the lumberjack should visibly hold the axe while chopping");
             helper.assertTrue(logsAt(helper, 5, 5) == 0, "all four logs should be felled, " + logsAt(helper, 5, 5) + " left");
             helper.assertTrue(total(jack, chest, Items.OAK_LOG) == 4, "the four logs should be collected, got " + total(jack, chest, Items.OAK_LOG));
             helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood");
-            int axe = -1;
-            for (int i = 0; i < jack.getInventory().getContainerSize(); i++) if (jack.getInventory().getItem(i).is(Items.IRON_AXE)) axe = i;
-            helper.assertTrue(axe >= 0 && jack.getInventory().getItem(axe).getDamageValue() >= 4, "the axe should wear once per log");
-            helper.assertTrue(jack.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "the tool is put away afterwards");
+            helper.assertTrue(jack.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(), "nothing is held afterwards");
         });
     }
 
@@ -527,27 +381,13 @@ public class ModGameTests {
         helper.setBlock(new BlockPos(5, 0, 5), Blocks.GRASS_BLOCK);
         for (int y = 1; y <= 3; y++) helper.setBlock(new BlockPos(5, y, 5), Blocks.OAK_LOG);
         WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
-        jack.getInventory().addItem(new ItemStack(Items.IRON_AXE));
         helper.runAtTickTime(500, () -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 3, "a log structure must not be felled");
             helper.succeed();
         });
     }
 
-    /** No axe, no felling, and the plate says so. */
-    private static void lumberjackNeedsAxe(GameTestHelper helper) {
-        buildFarm(helper);
-        buildTree(helper, 5, 5);
-        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
-        helper.runAtTickTime(500, () -> {
-            helper.assertTrue(logsAt(helper, 5, 5) == 4, "without an axe the tree stays");
-            var status = jack.getData(ModAttachments.STATUS);
-            helper.assertTrue(status.blocked() && status.tools() == 0, "the missing axe should show");
-            helper.succeed();
-        });
-    }
-
-    /** One axe slot plus seven general slots. */
+    /** The lumberjack's menu: the offering slot plus seven general slots. */
     private static void lumberjackInventoryMenu(GameTestHelper helper) {
         buildFarm(helper);
         WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
@@ -558,11 +398,111 @@ public class ModGameTests {
             player.interactOn(jack, net.minecraft.world.InteractionHand.MAIN_HAND);
             helper.assertTrue(player.containerMenu instanceof com.scottcaldwell.industriousgolems.inventory.GolemMenu, "right-click should open the golem menu");
             var menu = (com.scottcaldwell.industriousgolems.inventory.GolemMenu) player.containerMenu;
-            helper.assertTrue(menu.toolSlots() == 1 && menu.generalSlots() == 7, "1 tool and 7 general slots");
-            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_AXE)) && !menu.getSlot(0).mayPlace(new ItemStack(Items.IRON_HOE)), "the tool slot takes only axes");
+            helper.assertTrue(menu.generalSlots() == 7, "7 general slots");
             checked[0] = true;
             player.closeContainer();
         });
         helper.succeedWhen(() -> helper.assertTrue(checked[0], "menu should have been checked"));
+    }
+
+    // ---- offerings ------------------------------------------------------------------------------------------------
+
+    private static net.minecraft.world.item.Item craved(WorkGolem golem) {
+        return golem.profession().offerings().get(golem.cravingIndex()).icon().getItem();
+    }
+
+    private static net.minecraft.world.item.Item notCraved(WorkGolem golem) {
+        for (var offering : golem.profession().offerings()) {
+            if (offering != golem.profession().offerings().get(golem.cravingIndex())) return offering.icon().getItem();
+        }
+        throw new IllegalStateException("a profession needs more than one offering");
+    }
+
+    /** A golem as a spawn egg makes it does nothing and shows what it craves; the right item wakes it and it works. */
+    private static void golemDormantUntilOffered(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
+        helper.setBlock(new BlockPos(3, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+        WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(3, 2, 3));
+        net.minecraft.world.item.Item[] given = {null};
+        helper.runAtTickTime(100, () -> {
+            helper.assertTrue(!farmer.isCharged(), "a new golem starts dormant");
+            helper.assertTrue(farmer.cravingIndex() >= 0, "a dormant golem has chosen what it craves");
+            helper.assertTrue(helper.getBlockState(new BlockPos(3, 2, 5)).getValue(net.minecraft.world.level.block.CropBlock.AGE) == 7, "a dormant golem leaves the crop alone");
+            var status = farmer.getData(ModAttachments.STATUS);
+            helper.assertTrue(status.enabled() && status.blocked(), "a dormant golem is flagged as blocked for the plate");
+            given[0] = craved(farmer);
+            var player = helper.makeMockServerPlayerInLevel();
+            player.setPos(farmer.getX() + 5000, farmer.getY(), farmer.getZ());
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(given[0], 2));
+            player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.assertTrue(farmer.isCharged() && farmer.chargeTicks() == com.scottcaldwell.industriousgolems.offering.Offerings.PER_OFFERING, "45 minutes of charge");
+            helper.assertTrue(craved(farmer) != given[0], "it now craves something different");
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(given[0] != null, "the offering was made");
+            helper.assertTrue(count(farmer.getInventory(), Items.WHEAT) >= 1, "the woken golem should have reaped the wheat");
+        });
+    }
+
+    /** Only the craved item is taken; charge is capped at two offerings; the craving never repeats the last item. */
+    private static void golemOfferingRules(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(3, 1, 3));
+        helper.runAtTickTime(5, () -> {
+            helper.assertTrue(farmer.profession().offerings().size() == 8, "each golem kind has eight offerings");
+            ItemStack wrong = new ItemStack(notCraved(farmer), 3);
+            helper.assertTrue(!com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, wrong) && wrong.getCount() == 3, "an item it does not crave is refused");
+            helper.assertTrue(!com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, new ItemStack(Items.BREAD)), "food is no offering");
+
+            int first = farmer.cravingIndex();
+            ItemStack one = new ItemStack(craved(farmer), 4);
+            helper.assertTrue(com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, one) && one.getCount() == 3, "the craved item is taken");
+            helper.assertTrue(farmer.cravingIndex() != first, "the next craving differs from the last");
+            ItemStack two = new ItemStack(craved(farmer), 4);
+            helper.assertTrue(com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, two), "a second offering fits");
+            helper.assertTrue(farmer.chargeTicks() == com.scottcaldwell.industriousgolems.offering.Offerings.MAX, "charge is two offerings");
+            ItemStack three = new ItemStack(craved(farmer), 4);
+            helper.assertTrue(!com.scottcaldwell.industriousgolems.offering.Offerings.offer(farmer, three) && three.getCount() == 4, "a third does not fit");
+            helper.succeed();
+        });
+    }
+
+    /** The charge runs down only while the golem has a job site; at zero it goes dormant and stops working. */
+    private static void golemChargeRunsOut(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.setChargeTicks(60);
+        // a herder has no loom here to claim as a job site
+        WorkGolem homeless = helper.spawn(ModEntities.HERDER_GOLEM.get(), new BlockPos(5, 1, 5));
+        homeless.setChargeTicks(60);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(farmer.chargeTicks() == 0 && !farmer.isCharged(), "the farmer should have run out, has " + farmer.chargeTicks());
+            helper.assertTrue(farmer.getBrain().isActive(net.minecraft.world.entity.schedule.Activity.REST), "a dormant golem rests");
+            helper.assertTrue(homeless.chargeTicks() == 60, "a golem without a job site does not use charge, has " + homeless.chargeTicks());
+        });
+    }
+
+    /** The menu's offering slot takes only the craved item, and the golem consumes it. */
+    private static void golemMenuOfferingSlot(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(3, 1, 3));
+        var player = helper.makeMockServerPlayerInLevel();
+        player.setPos(farmer.getX() + 5000, farmer.getY(), farmer.getZ());
+        boolean[] done = {false};
+        helper.runAtTickTime(5, () -> {
+            player.interactOn(farmer, net.minecraft.world.InteractionHand.MAIN_HAND);
+            var menu = (com.scottcaldwell.industriousgolems.inventory.GolemMenu) player.containerMenu;
+            menu.broadcastChanges();
+            helper.assertTrue(menu.getSlot(0).mayPlace(new ItemStack(craved(farmer))) && !menu.getSlot(0).mayPlace(new ItemStack(notCraved(farmer))),
+                    "the offering slot accepts only the craved item");
+            menu.getSlot(0).set(new ItemStack(craved(farmer)));
+            menu.broadcastChanges();
+            helper.assertTrue(farmer.isCharged(), "the golem takes what is placed in the offering slot");
+            helper.assertTrue(menu.getSlot(0).getItem().isEmpty(), "the slot is empty again");
+            done[0] = true;
+            player.closeContainer();
+        });
+        helper.succeedWhen(() -> helper.assertTrue(done[0], "menu should have been checked"));
     }
 }

@@ -9,9 +9,8 @@ import net.minecraft.world.entity.ai.behavior.Behavior;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 
 /**
- * Decides what the golem should do next and hands it over to the exclusive task activity, in priority order: eat,
- * visit a container, then the profession's own work. Lives in the work activity (and the idle activity for golems
- * without a job, who only ever eat).
+ * Decides what the golem should do next and hands it over to the exclusive task activity, in priority order: visit a
+ * container, then the profession's own work. Lives in the work and idle activities; a dormant golem starts nothing.
  */
 public class StartTask extends Behavior<WorkGolem> {
 
@@ -26,11 +25,11 @@ public class StartTask extends Behavior<WorkGolem> {
     protected boolean checkExtraStartConditions(ServerLevel level, WorkGolem golem) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
         TaskState state = golem.getData(ModAttachments.TASK);
-        if (needs == null || state.plan != null) return false;
+        if (needs == null || state.plan != null || !Tasks.mayWork(golem)) return false;
 
         long now = level.getGameTime();
-        Object plan = EatFood.plan(golem);
-        if (plan == null && state.due("visit", now, VISIT_INTERVAL)) plan = ContainerInteraction.plan(level, golem);
+        Object plan = null;
+        if (state.due("visit", now, VISIT_INTERVAL)) plan = ContainerInteraction.plan(level, golem);
         if (plan == null && needs.work() != null && !needs.workBlocked(golem) && state.due("work", now, WORK_INTERVAL)) {
             plan = needs.work().planner().plan(level, golem);
         }

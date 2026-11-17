@@ -7,7 +7,6 @@ import com.scottcaldwell.industriousgolems.behavior.Drops;
 import com.scottcaldwell.industriousgolems.behavior.HeldItem;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
-import com.scottcaldwell.industriousgolems.needs.ToolWear;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -35,7 +34,8 @@ import java.util.Map;
  * The herder's work, deliberately slower and more limited than a player: it manages the animals inside an enclosed
  * pen near its job site, keeping the population in a density band. Above the band it culls the most numerous
  * species (never below a breeding pair); below it, it feeds adults so they breed. It also shears ready sheep and
- * milks cows. Each job needs its tool (sword, shears, bucket, feed) and is skipped without it.
+ * milks cows. It works bare-handed; milking uses up a bucket and breeding a unit of feed, and a job is skipped
+ * without its material.
  */
 public class HerdWork extends TaskRunner<HerdPlan> {
 
@@ -68,18 +68,16 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
 
-        boolean sword = needs.has(golem, "sword");
-        boolean shears = needs.has(golem, "shears");
         boolean bucket = needs.has(golem, "bucket");
 
         for (HerdPen pen : HerdPen.find(level, site.pos())) {
-            HerdPlan plan = planFor(level, golem, pen, sword, shears, bucket);
+            HerdPlan plan = planFor(level, golem, pen, bucket);
             if (plan != null) return plan;
         }
         return null;
     }
 
-    private static HerdPlan planFor(ServerLevel level, WorkGolem golem, HerdPen pen, boolean sword, boolean shears, boolean bucket) {
+    private static HerdPlan planFor(ServerLevel level, WorkGolem golem, HerdPen pen, boolean bucket) {
         int total = pen.animals.size();
         int cells = pen.cells.size();
         Map<EntityType<?>, List<Animal>> adults = new HashMap<>();
@@ -88,7 +86,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         }
 
         // too crowded: cull the most numerous species, but always keep a breeding pair
-        if (sword && total * CULL_ABOVE_CELLS_PER_ANIMAL > cells) {
+        if (total * CULL_ABOVE_CELLS_PER_ANIMAL > cells) {
             List<Animal> crowded = null;
             for (List<Animal> species : adults.values()) {
                 if (species.size() > MIN_ADULTS && (crowded == null || species.size() > crowded.size())) crowded = species;
@@ -97,14 +95,12 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             if (victim != null) return new HerdPlan(HerdPlan.Action.CULL, victim.getId());
         }
 
-        if (shears) {
-            List<Animal> ready = new ArrayList<>();
-            for (Animal animal : pen.animals) {
-                if (animal instanceof Sheep sheep && !sheep.isBaby() && sheep.readyForShearing()) ready.add(animal);
-            }
-            Animal sheep = nearest(golem, ready, null);
-            if (sheep != null) return new HerdPlan(HerdPlan.Action.SHEAR, sheep.getId());
+        List<Animal> ready = new ArrayList<>();
+        for (Animal animal : pen.animals) {
+            if (animal instanceof Sheep sheep && !sheep.isBaby() && sheep.readyForShearing()) ready.add(animal);
         }
+        Animal shearable = nearest(golem, ready, null);
+        if (shearable != null) return new HerdPlan(HerdPlan.Action.SHEAR, shearable.getId());
 
         if (bucket) {
             long now = level.getGameTime();
@@ -206,13 +202,12 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         }
     }
 
-    /** The item the golem uses for this job, so it can be seen in its hand. */
+    /** The material the golem uses for this job, so it can be seen in its hand (empty when it works bare-handed). */
     private ItemStack toolFor(WorkGolem golem, Animal animal) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
         SimpleContainer inv = golem.getInventory();
         int slot = switch (plan.action()) {
-            case CULL -> needs.need("sword").slot(inv);
-            case SHEAR -> needs.need("shears").slot(inv);
+            case CULL, SHEAR -> -1; // bare-handed
             case MILK -> needs.need("bucket").slot(inv);
             case BREED -> feedSlot(golem, animal);
         };
@@ -225,17 +220,13 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         SimpleContainer inv = golem.getInventory();
         switch (plan.action()) {
             case CULL -> {
-                if (!needs.has(golem, "sword")) return false;
-                ToolWear.use(level, golem, "sword");
                 animal.hurtServer(level, level.damageSources().mobAttack(golem), animal.getMaxHealth() * 2);
                 Drops.collectFresh(level, golem, animal.position());
                 return true;
             }
             case SHEAR -> {
-                int slot = needs.need("shears").slot(inv);
-                if (slot < 0 || !(animal instanceof Sheep sheep) || !sheep.readyForShearing()) return false;
-                sheep.shear(level, SoundSource.NEUTRAL, inv.getItem(slot).copyWithCount(1));
-                ToolWear.use(level, golem, "shears");
+                if (!(animal instanceof Sheep sheep) || !sheep.readyForShearing()) return false;
+                sheep.shear(level, SoundSource.NEUTRAL, new ItemStack(Items.SHEARS));
                 Drops.collectFresh(level, golem, animal.position());
                 return true;
             }

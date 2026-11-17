@@ -22,9 +22,9 @@ Each new role retires a category of menial player labour, lifting the player up 
 
 ## Player Experience
 
-After a vanilla bootstrap (gather wood, craft stone tools), the player places a composter, spawns a hay golem next to it and gives it a hoe. They till a plot; the golem takes over planting and harvesting. The player adds a mushroom golem (fletching table within a grove) and a terracotta golem (loom beside a pen), sets up vanilla auto-smelters and a recipe-locked crafter, and the loop closes. The player's last hand-crafted tool is the **graduation moment**: from here they design infrastructure rather than swinging tools.
+After a vanilla bootstrap (gather wood, craft stone tools), the player places a composter, spawns a hay golem next to it and wakes it with an offering. They till a plot; the golem takes over planting and harvesting. The player adds a mushroom golem (fletching table within a grove) and a terracotta golem (loom beside a pen), sets up vanilla auto-smelters and a recipe-locked crafter, and the loop closes. The player's last hand-crafted tool is the **graduation moment**: from here they design infrastructure rather than swinging tools.
 
-Scaling generates the gameplay. More golems need more tools need more iron need more mining need more wood for supports.
+Scaling generates the gameplay. More golems need more offerings, and offerings are uncommon finds from all over the world, so running a bigger operation means going out and exploring: new biomes, structures and mobs.
 
 ## Golems
 
@@ -32,38 +32,42 @@ All golems share:
 
 - **Obtained** from spawn eggs for now (creative tab); a crafting or building recipe is future work.
 - Claim the nearest unclaimed job site of their kind (within 48 blocks) and stay near it.
-- Work during the daytime work hours of the villager schedule; they never sleep, they idle at night.
-- Consume food (vanilla definition) and show a hunger bar; they refuse to work when too hungry and starve down to half a heart.
-- Pull inputs from and deposit outputs to adjacent chests.
-- Tool wear matches vanilla.
-- Right-clicking a golem opens its inventory (tool slots, supplies, food).
-- A status plate shows hunger, health and missing tools.
+- Work bare-handed, day and night, but only while **charged**. A golem starts dormant (head hanging, standing still) and does nothing until a player gives it what it currently craves.
+- Each golem kind has eight **offerings**: uncommon finds from different biomes, structures and mobs, deliberately unrelated to the golem's trade and never something it produces itself. It craves one at a time (shown on its status plate and in its screen); one offering is worth 45 minutes of work, and after it is accepted the golem craves something different, so no single item is enough. It stores at most two offerings' worth (90 minutes). The clock runs only while the golem is loaded and has a job site.
+- Give an offering by right-clicking the golem with it, or by placing it in the offering slot of the golem's screen.
+- Pull supplies from and deposit outputs to adjacent chests.
+- Right-clicking a golem without its craving opens its inventory (offering slot, supplies, output).
+- A status plate shows what it craves, the charge left and its health.
 
 ### Hay golem (farmer)
 
 - **Job site:** Composter.
-- **Consumes:** Food, hoes, seeds.
+- **Consumes:** Seeds.
+- **Wants:** Slimeball, glow ink sac, pufferfish, cobweb, rabbit's foot, cactus flower, pointed dripstone, glow berries.
 - **Produces:** Crops the player has planted on pre-tilled soil within range.
 - **Behaviour:** Harvests mature crops and replants from harvest yields. Works pre-tilled blocks only. Player provides the first generation of seeds.
 
 ### Mushroom golem (lumberjack)
 
 - **Job site:** Fletching Table.
-- **Consumes:** Food, axes, saplings.
+- **Consumes:** Saplings.
+- **Wants:** Amethyst shard, resin clump, spore blossom, pink petals, goat horn, armadillo scute, honey bottle, open eyeblossom.
 - **Produces:** Logs, saplings, sticks, apples.
 - **Behaviour:** Works a grove around the job site. Fells natural trees log by log and replants saplings from output. Ignores player-built log structures.
 
 ### Terracotta golem (herder)
 
 - **Job site:** Loom.
-- **Consumes:** Food, shears, a sword, buckets, animal feed.
+- **Consumes:** Buckets (turned into milk), animal feed.
+- **Wants:** Turtle scute, sea pickle, cocoa beans, mangrove propagule, powder snow bucket, any pottery sherd, shroomlight, big dripleaf.
 - **Produces:** Wool, milk, meat and hides, kept to a target herd size.
 - **Behaviour:** Shears sheep, milks cows, breeds sparse pens and culls crowded ones.
 
 ### Stone golem (miner) — planned
 
 - **Job site:** Stonecutter, placed at the target Y level by the player.
-- **Consumes:** Food, pickaxes, wood (tunnel supports), torches, optionally rails.
+- **Consumes:** Wood (tunnel supports), torches, optionally rails.
+- **Wants:** Eight offerings still to be chosen (candidates: ender pearl, honeycomb, calcite, packed ice, moss block, sweet berries, phantom membrane, nether quartz).
 - **Produces:** Cobblestone and the ore distribution at the chosen Y level.
 - **Behaviour:** Excavates a 3×3 trunk-and-branch mine in the four cardinal directions; seals off lava and caves.
 

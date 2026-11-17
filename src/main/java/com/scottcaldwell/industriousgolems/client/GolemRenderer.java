@@ -38,5 +38,6 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         super.extractRenderState(golem, state, partialTick);
         ArmedEntityRenderState.extractArmedEntityRenderState(golem, state, itemModelResolver, partialTick);
         state.unhappy = golem.getUnhappyCounter();
+        state.dormant = !golem.isCharged();
     }
 }

@@ -6,6 +6,7 @@ import com.scottcaldwell.industriousgolems.ModMenus;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.inventory.GolemMenu;
 import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
+import com.scottcaldwell.industriousgolems.offering.Offerings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,7 +35,6 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.InventoryCarrier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.ContainerOpenersCounter;
@@ -44,20 +44,23 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import org.jspecify.annotations.Nullable;
 
-import java.util.Set;
-
 /**
  * A work golem: a golem that holds a job. Which job (farmer, lumberjack or herder) is fixed by its entity type, see
- * {@link ModEntities}. It claims a job site, keeps itself fed and stocked from nearby chests, and does its work while
- * it is work time; {@link GolemBrain} holds the behaviour.
+ * {@link ModEntities}. It claims a job site, restocks from nearby chests and does its work bare-handed, but only while
+ * it is charged: it stays dormant until a player gives it what it craves (see {@link Offerings}).
+ * {@link GolemBrain} holds the behaviour.
  */
 public class WorkGolem extends AbstractGolem implements InventoryCarrier, ContainerUser {
 
-    private static final Set<net.minecraft.world.item.Item> WANTED = Set.of(Items.BREAD, Items.POTATO, Items.CARROT,
-            Items.WHEAT, Items.WHEAT_SEEDS, Items.BEETROOT, Items.BEETROOT_SEEDS, Items.TORCHFLOWER_SEEDS, Items.PITCHER_POD);
     private static final EntityDataAccessor<Integer> UNHAPPY = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
+    /** Index into the profession's offerings of what the golem craves now, or -1. */
+    private static final EntityDataAccessor<Integer> CRAVING = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
+    /** Charge left, in whole seconds (rounded up), for the client. */
+    private static final EntityDataAccessor<Integer> CHARGE = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
 
-    private final SimpleContainer inventory = new SimpleContainer(8);
+    private final SimpleContainer inventory = new SimpleContainer(GolemMenu.CONTAINER_SIZE);
+    private int chargeTicks;
+    private int lastOffering = -1;
     private @Nullable Player interactingPlayer;
     private @Nullable BlockPos openedChestPos;
 
@@ -116,6 +119,7 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
         GolemBrain.updateActivity(this);
         profiler.pop();
         if (getUnhappyCounter() > 0) setUnhappyCounter(getUnhappyCounter() - 1);
+        Offerings.tick(this);
         NeedsIndicator.tick(this);
         super.customServerAiStep(level);
     }
@@ -126,6 +130,48 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(UNHAPPY, 0);
+        builder.define(CRAVING, -1);
+        builder.define(CHARGE, 0);
+    }
+
+    // ---- charge ---------------------------------------------------------------------------------------------------
+
+    /** Ticks of work left. The server's clock; clients only know {@link #chargeSeconds()}. */
+    public int chargeTicks() {
+        return chargeTicks;
+    }
+
+    public void setChargeTicks(int ticks) {
+        chargeTicks = Math.max(0, Math.min(Offerings.MAX, ticks));
+        int seconds = (chargeTicks + 19) / 20;
+        if (entityData.get(CHARGE) != seconds) entityData.set(CHARGE, seconds);
+    }
+
+    public int chargeSeconds() {
+        return entityData.get(CHARGE);
+    }
+
+    /** Whether the golem will work; a dormant one stands still until it is given what it craves. */
+    public boolean isCharged() {
+        return chargeSeconds() > 0;
+    }
+
+    /** Index of the profession offering the golem craves now, or -1 before it has chosen. */
+    public int cravingIndex() {
+        return entityData.get(CRAVING);
+    }
+
+    public void setCravingIndex(int index) {
+        entityData.set(CRAVING, index);
+    }
+
+    /** Index of the offering it last accepted, so the next craving differs; -1 when none yet. */
+    public int lastOffering() {
+        return lastOffering;
+    }
+
+    public void setLastOffering(int index) {
+        lastOffering = index;
     }
 
     /** Ticks left of the head shake shown when the golem cannot work. */
@@ -146,12 +192,18 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     public void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         writeInventoryToTag(output);
+        output.putInt("ChargeTicks", chargeTicks);
+        output.putInt("Craving", cravingIndex());
+        output.putInt("LastOffering", lastOffering);
     }
 
     @Override
     public void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         readInventoryFromTag(input);
+        setChargeTicks(input.getIntOr("ChargeTicks", 0));
+        setCravingIndex(input.getIntOr("Craving", -1));
+        lastOffering = input.getIntOr("LastOffering", -1);
     }
 
     // ---- items ----------------------------------------------------------------------------------------------------
@@ -168,8 +220,7 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
 
     @Override
     public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
-        var item = stack.getItem();
-        return (WANTED.contains(item) || profession().picksUp().contains(item)) && inventory.canAddItem(stack);
+        return profession().picksUp().contains(stack.getItem()) && inventory.canAddItem(stack);
     }
 
     // ---- the player's inventory screen ----------------------------------------------------------------------------
@@ -186,6 +237,14 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (!isAlive() || player.isSecondaryUseActive()) return InteractionResult.PASS;
+        ItemStack held = player.getItemInHand(hand);
+        if (Offerings.wants(this, held)) { // what it craves: take it instead of opening the screen
+            if (!level().isClientSide()) {
+                Offerings.offer(this, held);
+                player.getInventory().setChanged();
+            }
+            return InteractionResult.SUCCESS;
+        }
         if (player instanceof ServerPlayer serverPlayer && interactingPlayer == null) {
             var type = ModMenus.typeFor(this);
             serverPlayer.openMenu(new SimpleMenuProvider(

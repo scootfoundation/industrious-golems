@@ -11,7 +11,7 @@ import net.minecraft.world.entity.HumanoidArm;
 /**
  * The model shared by the three work golems (they differ in proportions only, built by {@link GolemModels}). Poses:
  * walking swings the legs and arms; holding a tool brings the right arm forward; a swing lifts the arm and strikes it
- * down; a golem that cannot work shakes its head.
+ * down; a golem short of a supply shakes its head, and a dormant one hangs it.
  */
 public class GolemModel extends EntityModel<GolemRenderState> implements ArmedModel<GolemRenderState>, HeadedModel {
 
@@ -45,7 +45,10 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         super.setupAnim(state);
         head.xRot = state.xRot * Mth.DEG_TO_RAD;
         head.yRot = state.yRot * Mth.DEG_TO_RAD;
-        if (state.unhappy > 0) { // shaking its head: it cannot work
+        if (state.dormant) { // out of charge: head hanging, not following anything
+            head.xRot = 0.75F;
+            head.yRot = 0.0F;
+        } else if (state.unhappy > 0) { // shaking its head: it cannot work
             head.zRot = 0.3F * Mth.sin(0.45F * state.ageInTicks);
             head.xRot = 0.4F;
         }

@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
-  "function": "industriousgolems:hunger_gates_work",
-  "max_ticks": 1500,
-  "setup_ticks": 1,
-  "structure": "industriousgolems:arena"
-}

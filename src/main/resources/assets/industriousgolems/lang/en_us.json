@@ -4,5 +4,9 @@
   "entity.industriousgolems.terracotta_golem": "Terracotta Golem",
   "item.industriousgolems.hay_golem_spawn_egg": "Hay Golem Spawn Egg",
   "item.industriousgolems.mushroom_golem_spawn_egg": "Mushroom Golem Spawn Egg",
-  "item.industriousgolems.terracotta_golem_spawn_egg": "Terracotta Golem Spawn Egg"
+  "item.industriousgolems.terracotta_golem_spawn_egg": "Terracotta Golem Spawn Egg",
+  "offering.industriousgolems.any_sherd": "Any Pottery Sherd",
+  "gui.industriousgolems.wants": "  wants %s",
+  "gui.industriousgolems.charge": "%s:%s left",
+  "gui.industriousgolems.dormant": "Dormant"
 }

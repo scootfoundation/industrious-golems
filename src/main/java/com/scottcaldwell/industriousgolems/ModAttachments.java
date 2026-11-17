@@ -12,13 +12,7 @@ public class ModAttachments {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENTS =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, IndustriousGolems.MODID);
 
-    /** Game time of the golem's last meal; {@link Long#MIN_VALUE} until first observed. Saved with the golem. */
-    public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> LAST_MEAL =
-            ATTACHMENTS.register("last_meal", () -> AttachmentType.builder(() -> Long.MIN_VALUE)
-                    .serialize(Codec.LONG.fieldOf("time"))
-                    .build());
-
-    /** Hunger, tool and blocked state for the client's status plate. Recomputed constantly, so not saved. */
+    /** Health and blocked state for the client's status plate. Recomputed constantly, so not saved. */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousgolems.needs.StatusData>> STATUS =
             ATTACHMENTS.register("status", () -> AttachmentType
                     .builder(() -> com.scottcaldwell.industriousgolems.needs.StatusData.NONE)

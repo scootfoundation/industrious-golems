@@ -4,7 +4,6 @@ import com.scottcaldwell.industriousgolems.behavior.Drops;
 import com.scottcaldwell.industriousgolems.behavior.HeldItem;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
-import com.scottcaldwell.industriousgolems.needs.ToolWear;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -28,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Fells a natural tree log by log, bottom first: walk up, stop and look at the log, chop it (the axe wears), pause,
+ * Fells a natural tree log by log, bottom first: walk up, stop and look at the log, chop it bare-handed, pause,
  * and repeat; then replant a sapling where the trunk stood. Runs in the exclusive task activity.
  */
 public class FellTree extends TaskRunner<FellTree.FellPlan> {
@@ -57,13 +56,12 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
-    /** Picks a tree to fell, or null (no axe, nothing worth felling, or mob griefing is off). */
+    /** Picks a tree to fell, or null (nothing worth felling, or mob griefing is off). */
     public static Object plan(ServerLevel level, WorkGolem golem) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
         GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
         if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
-        if (!needs.has(golem, "axe")) return null;
         TreeFinder.Tree tree = TreeFinder.find(level, site.pos(), golem.blockPosition());
         return tree == null ? null : new FellPlan(tree.logs(), tree.base(), tree.logType());
     }
@@ -109,10 +107,10 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
         holdStill(golem);
         stalled = 0;
-        if (phase == Phase.WORK) { // arrived: take up the axe (or a sapling) and look before swinging
+        if (phase == Phase.WORK) { // arrived: take up a sapling to plant, or just look at the log before swinging
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
-            int slot = planting ? findSapling(golem) : ProfessionNeeds.of(golem).need("axe").slot(golem.getInventory());
+            int slot = planting ? findSapling(golem) : -1;
             if (slot >= 0) HeldItem.hold(golem, golem.getInventory().getItem(slot));
         }
         if (--timer > 0) return;
@@ -132,7 +130,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private boolean nextTarget(ServerLevel level, WorkGolem golem) {
         while (!remaining.isEmpty()) {
             BlockPos log = remaining.get(0);
-            if (level.getBlockState(log).is(net.minecraft.tags.BlockTags.LOGS) && hasAxe(golem)) {
+            if (level.getBlockState(log).is(net.minecraft.tags.BlockTags.LOGS)) {
                 current = log;
                 return true;
             }
@@ -147,13 +145,8 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         return false;
     }
 
-    private boolean hasAxe(WorkGolem golem) {
-        return ProfessionNeeds.of(golem).has(golem, "axe");
-    }
-
     private void chop(ServerLevel level, WorkGolem golem, BlockPos log) {
         level.destroyBlock(log, true, golem);
-        ToolWear.use(level, golem, "axe");
         Drops.collectFresh(level, golem, Vec3.atCenterOf(log));
     }
 

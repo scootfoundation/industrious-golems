@@ -34,9 +34,9 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
     /** Called when the task ends for any reason, before the golem is handed back to its schedule. */
     protected void end(ServerLevel level, WorkGolem golem, long time) { }
 
-    /** Whether the schedule still allows this task; by default only while it is time to work. */
+    /** Whether the task may still continue; by default only while the golem is charged. */
     protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
-        return Tasks.scheduleAllowsWork(level, golem);
+        return Tasks.mayWork(golem);
     }
 
     /** Ends the task at the next opportunity. */

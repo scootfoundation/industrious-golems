@@ -5,7 +5,6 @@ import com.scottcaldwell.industriousgolems.behavior.HeldItem;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
-import com.scottcaldwell.industriousgolems.needs.ToolWear;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
@@ -29,7 +28,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Works the pre-tilled soil around the job site: reaps each ripe crop with the hoe and sows seeds on bare farmland (so
+ * Works the pre-tilled soil around the job site: reaps each ripe crop bare-handed and sows seeds on bare farmland (so
  * the same plot is replanted from the harvest). Like a player, the farmer walks up, stops and looks at the spot for a
  * moment, then swings. Runs in the exclusive task activity.
  */
@@ -65,12 +64,11 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (site == null || !site.dimension().equals(level.dimension())) return null;
         if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
-        boolean hasHoe = needs.has(golem, "hoe");
         boolean hasSeeds = needs.has(golem, "seeds");
         List<BlockPos> found = new ArrayList<>();
         BlockPos.betweenClosedStream(site.pos().offset(-RADIUS, -HEIGHT, -RADIUS), site.pos().offset(RADIUS, HEIGHT, RADIUS))
                 .forEach(p -> {
-                    if ((hasHoe && isRipe(level.getBlockState(p))) || (hasSeeds && isBareFarmland(level, p))) found.add(p.immutable());
+                    if (isRipe(level.getBlockState(p)) || (hasSeeds && isBareFarmland(level, p))) found.add(p.immutable());
                 });
         if (found.isEmpty()) return null;
         BlockPos from = golem.blockPosition();
@@ -117,11 +115,11 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         holdStill(golem);
         stalled = 0;
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        if (phase == Phase.WALK) { // arrived: take up the hoe to reap, seeds to sow
+        if (phase == Phase.WALK) { // arrived: reap with bare hands, or take up seeds to sow
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
             SimpleContainer inventory = golem.getInventory();
-            int slot = level.getBlockState(current).isAir() ? needs.need("seeds").slot(inventory) : needs.need("hoe").slot(inventory);
+            int slot = level.getBlockState(current).isAir() ? needs.need("seeds").slot(inventory) : -1;
             if (slot >= 0) HeldItem.hold(golem, inventory.getItem(slot));
         }
         if (--timer > 0) return;
@@ -145,7 +143,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         while (!remaining.isEmpty()) {
             BlockPos pos = remaining.get(0);
             BlockState state = level.getBlockState(pos);
-            if ((isRipe(state) && needs.has(golem, "hoe")) || (isBareFarmland(level, pos) && needs.has(golem, "seeds"))) {
+            if (isRipe(state) || (isBareFarmland(level, pos) && needs.has(golem, "seeds"))) {
                 current = pos;
                 return true;
             }
@@ -156,7 +154,6 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     private void reap(ServerLevel level, WorkGolem golem, BlockPos pos) {
         level.destroyBlock(pos, true, golem);
-        ToolWear.use(level, golem, "hoe");
         Drops.collectFresh(level, golem, Vec3.atCenterOf(pos));
     }
 

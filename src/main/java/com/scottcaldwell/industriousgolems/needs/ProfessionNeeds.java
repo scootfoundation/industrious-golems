@@ -1,25 +1,20 @@
 package com.scottcaldwell.industriousgolems.needs;
 
 import com.scottcaldwell.industriousgolems.ModProfessions;
-import com.scottcaldwell.industriousgolems.ModTags;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * What a profession needs in order to work: tools, supplies and food it keeps topped up from containers, which items
- * it produces (always deposited) and, optionally, its own kind of work. Declared once per profession in
- * {@link ModProfessions}; container visits, the work gate, the inventory screen, the status plate and the brain are
- * all derived from it.
- *
- * <p>Tool needs, in declaration order, get the dedicated inventory slots 0..n-1.
+ * What a profession uses up in its work: supplies it keeps topped up from containers, which items it produces (always
+ * deposited) and, optionally, its own kind of work. Declared once per profession in {@link ModProfessions}; container
+ * visits, the status plate and the brain are derived from it.
  *
  * @param work what the profession does besides eating and restocking; null for none
  */
@@ -41,21 +36,11 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Wo
 
     // ---- queries ----------------------------------------------------------------------------------------------
 
-    /** The needs that are tools, in slot order. */
-    public List<Need> toolNeeds() {
-        return needs.stream().filter(Need::tool).toList();
-    }
-
     public Need need(String id) {
         for (Need need : needs) {
             if (need.id().equals(id)) return need;
         }
         return null;
-    }
-
-    /** The golem's own food need (every profession and the basic golem have one). */
-    public Need food() {
-        return need(Need.FOOD);
     }
 
     /** Whether the golem carries something that satisfies the need with this id. */
@@ -64,13 +49,9 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Wo
         return need != null && need.have(golem.getInventory()) > 0;
     }
 
-    /** True when the golem will not work: too hungry (whatever it carries), or a work-gating need is missing. */
+    /** True when the golem will not work: it is dormant, waiting for an offering. */
     public boolean workBlocked(WorkGolem golem) {
-        if (Hunger.tooHungryToWork(golem)) return true;
-        for (Need need : needs) {
-            if (need.gatesWork() && need.missing(golem)) return true;
-        }
-        return false;
+        return !golem.isCharged();
     }
 
     /** Number of items in {@code slot} that this profession wants to hand over to a container. */

@@ -4,9 +4,6 @@ import com.scottcaldwell.industriousgolems.ModActivities;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
-import net.minecraft.world.entity.schedule.Activity;
-import net.minecraft.world.attribute.EnvironmentAttributes;
-
 import java.util.ArrayList;
 
 public final class Tasks {
@@ -24,18 +21,9 @@ public final class Tasks {
         return golem.getBrain().isActive(ModActivities.TASK.get());
     }
 
-    /** The task only continues while the golem's schedule still says it is time to work. */
-    public static boolean scheduleAllowsWork(WorkGolem golem) {
-        return golem.level() instanceof ServerLevel level && scheduleAllowsWork(level, golem);
-    }
-
-    public static boolean scheduleAllowsWork(ServerLevel level, WorkGolem golem) {
-        return level.environmentAttributes().getValue(EnvironmentAttributes.VILLAGER_ACTIVITY, golem.position()) == Activity.WORK;
-    }
-
-    /** Meals are allowed whenever the golem is not meant to be asleep. */
-    public static boolean scheduleAllowsEating(ServerLevel level, WorkGolem golem) {
-        return true; // golems never sleep, so they eat whenever they are hungry
+    /** Golems work whenever they are charged, day or night; a task only continues while that holds. */
+    public static boolean mayWork(WorkGolem golem) {
+        return golem.isCharged();
     }
 
     /** Ends the task: forgets it and hands the golem back to work or idling. */
