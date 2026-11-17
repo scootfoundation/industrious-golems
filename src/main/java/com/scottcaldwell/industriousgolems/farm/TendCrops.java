@@ -1,7 +1,5 @@
 package com.scottcaldwell.industriousgolems.farm;
 
-import com.scottcaldwell.industriousgolems.behavior.Drops;
-import com.scottcaldwell.industriousgolems.behavior.HeldItem;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
@@ -10,9 +8,7 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.item.BlockItem;
@@ -23,57 +19,67 @@ import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
+import java.util.Optional;
 
 /**
- * Works the pre-tilled soil around the job site: reaps each ripe crop bare-handed and sows seeds on bare farmland (so
- * the same plot is replanted from the harvest). Like a player, the farmer walks up, stops and looks at the spot for a
- * moment, then swings. Runs in the exclusive task activity.
+ * Works the pre-tilled soil around the job site one plant at a time. The golem stands on the plot it is working: it
+ * walks onto a ripe crop and breaks it, which drops its yield as it would for a player, or onto bare farmland to sow
+ * the seeds it carries. It carries a single stack, so it reaps with a free hand (the drops are picked up, stack by
+ * stack, and taken to the chest elsewhere) and sows whatever seeds it is holding. Runs in the exclusive task activity.
  */
 public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     private static final int RADIUS = 10;
     private static final int HEIGHT = 2;
-    private static final int MAX_TARGETS = 12;
-    private static final double REACH = 4.5;
-    private static final int LOOK_TICKS = 15;
-    private static final int PAUSE_TICKS = 8;
-    private static final int STALL_TICKS = 200;
+    private static final int LOOK_TICKS = 20;
+    /** Long enough for the drops to be picked up before the next job. */
+    private static final int PAUSE_TICKS = 16;
+    private static final int STALL_TICKS = 400;
 
     private enum Phase { WALK, LOOK, PAUSE }
 
-    /** The spots to tend, nearest first: ripe crops to reap and bare farmland to sow. */
-    public record CropPlan(List<BlockPos> targets) { }
+    public enum Kind { REAP, SOW }
 
-    private final List<BlockPos> remaining = new ArrayList<>();
-    private BlockPos current;
+    /** One plot to tend: reap the ripe crop at {@code pos}, or sow the carried seeds on the bare farmland there. */
+    public record CropPlan(Kind kind, BlockPos pos) { }
+
     private Phase phase = Phase.WALK;
     private int timer;
     private int stalled;
 
     public TendCrops() {
-        super(CropPlan.class, 1800);
+        super(CropPlan.class, 1200);
     }
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
+    /** Carrying seeds: sow the nearest bare farmland. Hands free: reap the nearest ripe crop. Otherwise nothing. */
     public static Object plan(ServerLevel level, WorkGolem golem) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
         GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (site == null || !site.dimension().equals(level.dimension())) return null;
         if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
-        boolean hasSeeds = needs.has(golem, "seeds");
-        List<BlockPos> found = new ArrayList<>();
-        BlockPos.betweenClosedStream(site.pos().offset(-RADIUS, -HEIGHT, -RADIUS), site.pos().offset(RADIUS, HEIGHT, RADIUS))
-                .forEach(p -> {
-                    if (isRipe(level.getBlockState(p)) || (hasSeeds && isBareFarmland(level, p))) found.add(p.immutable());
-                });
-        if (found.isEmpty()) return null;
+        if (golem.isCarrying()) {
+            if (!needs.isSupply("seeds", golem.carried())) return null;
+            return nearest(level, site.pos(), golem, false).map(p -> new CropPlan(Kind.SOW, p)).orElse(null);
+        }
+        return nearest(level, site.pos(), golem, true).map(p -> new CropPlan(Kind.REAP, p)).orElse(null);
+    }
+
+    /** Seeds would let the golem sow some bare farmland. */
+    public static String wants(ServerLevel level, WorkGolem golem) {
+        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
+        if (site == null || !site.dimension().equals(level.dimension()) || golem.isCarrying()) return null;
+        return nearest(level, site.pos(), golem, false).isPresent() ? "seeds" : null;
+    }
+
+    private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, boolean ripe) {
         BlockPos from = golem.blockPosition();
-        found.sort(Comparator.comparingDouble(p -> p.distSqr(from)));
-        return new CropPlan(List.copyOf(found.subList(0, Math.min(MAX_TARGETS, found.size()))));
+        return BlockPos.betweenClosedStream(center.offset(-RADIUS, -HEIGHT, -RADIUS), center.offset(RADIUS, HEIGHT, RADIUS))
+                .filter(p -> ripe ? isRipe(level.getBlockState(p)) : isBareFarmland(level, p))
+                .map(BlockPos::immutable)
+                .min(Comparator.comparingDouble(p -> p.distSqr(from)));
     }
 
     private static boolean isRipe(BlockState state) {
@@ -88,95 +94,69 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
-        remaining.clear();
-        remaining.addAll(plan.targets());
-        current = null;
         phase = Phase.WALK;
         stalled = 0;
     }
 
+    /** Whether the golem stands on the plot: its middle is within the block's footprint. */
+    private static boolean onPlot(WorkGolem golem, BlockPos pos) {
+        return Math.abs(golem.getX() - (pos.getX() + 0.5)) < 0.55 && Math.abs(golem.getZ() - (pos.getZ() + 0.5)) < 0.55
+                && Math.abs(golem.getY() - pos.getY()) < 1.2;
+    }
+
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
+        BlockPos pos = plan.pos();
         if (phase == Phase.PAUSE) {
             holdStill(golem);
-            if (--timer <= 0) { phase = Phase.WALK; current = null; }
+            if (--timer <= 0) finish();
             return;
         }
-        if (current == null && !nextTarget(level, golem)) { finish(); return; }
+        if (!stillWorthIt(level, golem)) { finish(); return; }
 
-        lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(current)));
-        if (golem.getEyePosition().distanceTo(Vec3.atCenterOf(current)) > REACH) {
+        lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(pos)));
+        if (!onPlot(golem, pos)) {
             phase = Phase.WALK;
-            if (++stalled > STALL_TICKS) { remaining.remove(current); current = null; stalled = 0; return; }
-            walkTo(golem, new BlockPosTracker(current), 2);
+            if (++stalled > STALL_TICKS) { finish(); return; }
+            walkTo(golem, new BlockPosTracker(pos), 0);
             return;
         }
 
         holdStill(golem);
         stalled = 0;
-        ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        if (phase == Phase.WALK) { // arrived: reap with bare hands, or take up seeds to sow
+        if (phase == Phase.WALK) { // arrived: look at the plot a moment before working it
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
-            SimpleContainer inventory = golem.getInventory();
-            int slot = level.getBlockState(current).isAir() ? needs.need("seeds").slot(inventory) : -1;
-            if (slot >= 0) HeldItem.hold(golem, inventory.getItem(slot));
         }
         if (--timer > 0) return;
         golem.swing(InteractionHand.MAIN_HAND);
-        if (isRipe(level.getBlockState(current))) {
-            reap(level, golem, current);
-            phase = Phase.LOOK; // look again, then sow the same spot from the harvest
-            timer = LOOK_TICKS / 2;
-            int seeds = needs.need("seeds").slot(golem.getInventory());
-            if (seeds >= 0) HeldItem.hold(golem, golem.getInventory().getItem(seeds));
-        } else {
-            if (isBareFarmland(level, current)) sow(level, golem, current);
-            remaining.remove(current);
-            phase = Phase.PAUSE;
-            timer = PAUSE_TICKS;
-        }
+        if (plan.kind() == Kind.REAP) level.destroyBlock(pos, true, golem); // drops like a player's break
+        else sow(level, golem, pos);
+        phase = Phase.PAUSE;
+        timer = PAUSE_TICKS;
     }
 
-    private boolean nextTarget(ServerLevel level, WorkGolem golem) {
-        ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        while (!remaining.isEmpty()) {
-            BlockPos pos = remaining.get(0);
-            BlockState state = level.getBlockState(pos);
-            if (isRipe(state) || (isBareFarmland(level, pos) && needs.has(golem, "seeds"))) {
-                current = pos;
-                return true;
-            }
-            remaining.remove(0);
-        }
-        return false;
-    }
-
-    private void reap(ServerLevel level, WorkGolem golem, BlockPos pos) {
-        level.destroyBlock(pos, true, golem);
-        Drops.collectFresh(level, golem, Vec3.atCenterOf(pos));
+    private boolean stillWorthIt(ServerLevel level, WorkGolem golem) {
+        return plan.kind() == Kind.REAP
+                ? isRipe(level.getBlockState(plan.pos())) && !golem.isCarrying()
+                : isBareFarmland(level, plan.pos()) && golem.isCarrying();
     }
 
     private void sow(ServerLevel level, WorkGolem golem, BlockPos pos) {
-        SimpleContainer inventory = golem.getInventory();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            ItemStack stack = inventory.getItem(i);
-            if (stack.isEmpty() || !stack.is(ItemTags.VILLAGER_PLANTABLE_SEEDS) || !(stack.getItem() instanceof BlockItem item)) continue;
-            Block block = item.getBlock();
-            if (!(block instanceof CropBlock)) continue;
-            BlockState crop = block.defaultBlockState();
-            if (!crop.canSurvive(level, pos)) continue;
-            level.setBlockAndUpdate(pos, crop);
-            level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
-            inventory.removeItem(i, 1);
-            return;
-        }
+        ItemStack stack = golem.carried();
+        if (!(stack.getItem() instanceof BlockItem item)) return;
+        Block block = item.getBlock();
+        if (!(block instanceof CropBlock)) return;
+        BlockState crop = block.defaultBlockState();
+        if (!crop.canSurvive(level, pos)) return;
+        level.setBlockAndUpdate(pos, crop);
+        level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
+        stack.shrink(1);
+        if (stack.isEmpty()) golem.setCarried(ItemStack.EMPTY);
     }
 
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
-        current = null;
-        remaining.clear();
         phase = Phase.WALK;
     }
 }

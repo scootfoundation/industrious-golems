@@ -65,7 +65,6 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
     @Override
     protected final void stop(ServerLevel level, WorkGolem golem, long time) {
         end(level, golem, time);
-        HeldItem.release(golem);
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         golem.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         plan = null;

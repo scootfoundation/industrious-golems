@@ -66,7 +66,7 @@ public final class ModEntities {
 
     @SubscribeEvent
     public static void attributes(EntityAttributeCreationEvent event) {
-        for (var type : all()) event.put(type.get(), WorkGolem.createAttributes().build());
+        for (var type : all()) event.put(type.get(), WorkGolem.createAttributes(professionOf(type.get()).speed()).build());
     }
 
     public static void register(IEventBus modEventBus) {

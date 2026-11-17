@@ -96,6 +96,7 @@ public final class GolemBrain {
         // The exclusive task activity: only core behaviours and the task itself run while it is active.
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> tasks = ImmutableList.builder();
         tasks.add(Pair.of(0, new ContainerInteraction()));
+        tasks.add(Pair.of(0, new com.scottcaldwell.industriousgolems.behavior.PickUp()));
         if (profession.needs().work() != null) tasks.add(Pair.of(0, profession.needs().work().runner().get()));
         brain.addActivity(ModActivities.TASK.get(), tasks.build());
 

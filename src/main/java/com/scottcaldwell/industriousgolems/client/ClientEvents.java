@@ -2,14 +2,12 @@ package com.scottcaldwell.industriousgolems.client;
 
 import com.scottcaldwell.industriousgolems.IndustriousGolems;
 import com.scottcaldwell.industriousgolems.ModEntities;
-import com.scottcaldwell.industriousgolems.ModMenus;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
-import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 @EventBusSubscriber(modid = IndustriousGolems.MODID, value = Dist.CLIENT)
 public final class ClientEvents {
@@ -26,11 +24,6 @@ public final class ClientEvents {
 
     private static Identifier texture(String name) {
         return Identifier.fromNamespaceAndPath(IndustriousGolems.MODID, "textures/entity/" + name + ".png");
-    }
-
-    @SubscribeEvent
-    public static void registerScreens(RegisterMenuScreensEvent event) {
-        for (var menu : ModMenus.all()) event.register(menu.get(), GolemScreen::new);
     }
 
     @SubscribeEvent

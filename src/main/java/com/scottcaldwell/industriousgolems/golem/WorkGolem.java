@@ -2,14 +2,11 @@ package com.scottcaldwell.industriousgolems.golem;
 
 import com.mojang.serialization.Dynamic;
 import com.scottcaldwell.industriousgolems.ModEntities;
-import com.scottcaldwell.industriousgolems.ModMenus;
 import com.scottcaldwell.industriousgolems.ModProfessions;
-import com.scottcaldwell.industriousgolems.inventory.GolemMenu;
 import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
 import com.scottcaldwell.industriousgolems.offering.Offerings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -19,11 +16,10 @@ import net.minecraft.util.profiling.Profiler;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.ContainerUser;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -32,7 +28,6 @@ import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.animal.golem.AbstractGolem;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.npc.InventoryCarrier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -46,11 +41,12 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * A work golem: a golem that holds a job. Which job (farmer, lumberjack or herder) is fixed by its entity type, see
- * {@link ModEntities}. It claims a job site, restocks from nearby chests and does its work bare-handed, but only while
- * it is charged: it stays dormant until a player gives it what it craves (see {@link Offerings}).
+ * {@link ModEntities}. It claims a job site (its chest) and does its work bare-handed, carrying one stack at a time
+ * between the work and the chest, but only while it is charged: it stays dormant until a player gives it what it
+ * craves (see {@link Offerings}).
  * {@link GolemBrain} holds the behaviour.
  */
-public class WorkGolem extends AbstractGolem implements InventoryCarrier, ContainerUser {
+public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     private static final EntityDataAccessor<Integer> UNHAPPY = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
     /** Index into the profession's offerings of what the golem craves now, or -1. */
@@ -58,21 +54,22 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     /** Charge left, in whole seconds (rounded up), for the client. */
     private static final EntityDataAccessor<Integer> CHARGE = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
 
-    private final SimpleContainer inventory = new SimpleContainer(GolemMenu.CONTAINER_SIZE);
     private int chargeTicks;
     private int lastOffering = -1;
-    private @Nullable Player interactingPlayer;
+    /** Where the last tree stood, so the lumberjack can replant it; not saved. */
+    private @Nullable BlockPos replantPos;
     private @Nullable BlockPos openedChestPos;
 
     public WorkGolem(EntityType<? extends WorkGolem> type, Level level) {
         super(type, level);
         getNavigation().setCanOpenDoors(true);
         setPersistenceRequired();
+        setDropChance(EquipmentSlot.MAINHAND, 1.0F); // whatever it carries drops with it
     }
 
-    public static AttributeSupplier.Builder createAttributes() {
+    public static AttributeSupplier.Builder createAttributes(double speed) {
         return Mob.createMobAttributes()
-                .add(Attributes.MOVEMENT_SPEED, 0.5)
+                .add(Attributes.MOVEMENT_SPEED, speed)
                 .add(Attributes.MAX_HEALTH, 20.0)
                 .add(Attributes.STEP_HEIGHT, 1.0)
                 .add(Attributes.FOLLOW_RANGE, 48.0);
@@ -184,14 +181,8 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     }
 
     @Override
-    public SimpleContainer getInventory() {
-        return inventory;
-    }
-
-    @Override
     public void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
-        writeInventoryToTag(output);
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
@@ -200,13 +191,33 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     @Override
     public void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
-        readInventoryFromTag(input);
         setChargeTicks(input.getIntOr("ChargeTicks", 0));
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
     }
 
-    // ---- items ----------------------------------------------------------------------------------------------------
+    // ---- carrying -------------------------------------------------------------------------------------------------
+
+    /** The one stack the golem carries (its main hand): fresh from its work, on the way to the chest, or seeds to sow. */
+    public ItemStack carried() {
+        return getItemBySlot(EquipmentSlot.MAINHAND);
+    }
+
+    public void setCarried(ItemStack stack) {
+        setItemSlot(EquipmentSlot.MAINHAND, stack);
+    }
+
+    public boolean isCarrying() {
+        return !carried().isEmpty();
+    }
+
+    public @Nullable BlockPos replantPos() {
+        return replantPos;
+    }
+
+    public void setReplantPos(@Nullable BlockPos pos) {
+        replantPos = pos;
+    }
 
     @Override
     public boolean canPickUpLoot() {
@@ -214,41 +225,35 @@ public class WorkGolem extends AbstractGolem implements InventoryCarrier, Contai
     }
 
     @Override
-    protected void pickUpItem(ServerLevel level, ItemEntity item) {
-        InventoryCarrier.pickUpItem(level, this, this, item);
+    public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
+        return isCharged() && !isCarrying() && profession().needs().picksUp(stack);
     }
 
     @Override
-    public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
-        return profession().picksUp().contains(stack.getItem()) && inventory.canAddItem(stack);
+    protected void pickUpItem(ServerLevel level, ItemEntity item) {
+        pickUp(item);
     }
 
-    // ---- the player's inventory screen ----------------------------------------------------------------------------
-
-    public @Nullable Player getTradingPlayer() {
-        return interactingPlayer;
+    /** Takes the whole stack lying there, if the golem has a free hand. */
+    public void pickUp(ItemEntity item) {
+        if (isCarrying() || item.isRemoved() || item.getItem().isEmpty()) return;
+        ItemStack stack = item.getItem().copy();
+        onItemPickup(item);
+        setCarried(stack);
+        take(item, stack.getCount());
+        item.discard();
     }
 
-    /** The player whose inventory screen is open; the golem stands still meanwhile. */
-    public void setTradingPlayer(@Nullable Player player) {
-        interactingPlayer = player;
-    }
+    // ---- being given an offering ----------------------------------------------------------------------------------
 
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (!isAlive() || player.isSecondaryUseActive()) return InteractionResult.PASS;
         ItemStack held = player.getItemInHand(hand);
-        if (Offerings.wants(this, held)) { // what it craves: take it instead of opening the screen
-            if (!level().isClientSide()) {
-                Offerings.offer(this, held);
-                player.getInventory().setChanged();
-            }
-            return InteractionResult.SUCCESS;
-        }
-        if (player instanceof ServerPlayer serverPlayer && interactingPlayer == null) {
-            var type = ModMenus.typeFor(this);
-            serverPlayer.openMenu(new SimpleMenuProvider(
-                    (id, playerInventory, p) -> GolemMenu.forGolem(type, id, playerInventory, this), getDisplayName()));
+        if (!Offerings.wants(this, held)) return InteractionResult.PASS;
+        if (!level().isClientSide()) {
+            Offerings.offer(this, held);
+            player.getInventory().setChanged();
         }
         return InteractionResult.SUCCESS;
     }

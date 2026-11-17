@@ -12,13 +12,6 @@ public class ModAttachments {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENTS =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, IndustriousGolems.MODID);
 
-    /** Health and blocked state for the client's status plate. Recomputed constantly, so not saved. */
-    public static final DeferredHolder<AttachmentType<?>, AttachmentType<com.scottcaldwell.industriousgolems.needs.StatusData>> STATUS =
-            ATTACHMENTS.register("status", () -> AttachmentType
-                    .builder(() -> com.scottcaldwell.industriousgolems.needs.StatusData.NONE)
-                    .sync(com.scottcaldwell.industriousgolems.needs.StatusData.STREAM_CODEC)
-                    .build());
-
     /** Game time a cow was last milked by a golem; limits how often it can be milked. */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> MILKED_AT =
             ATTACHMENTS.register("milked_at", () -> AttachmentType.builder(() -> Long.MIN_VALUE)

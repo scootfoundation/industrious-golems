@@ -9,54 +9,44 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.ContainerUser;
-import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.HashSet;
-import java.util.Set;
-
 /**
- * Profession-agnostic container visit, driven by the profession's {@link ProfessionNeeds}. The golem behaves like a
- * player: walks over, looks at the chest, pauses, opens it (lid animation and sound), moves one stack at a time with
- * pauses between, closes it, looks away and leaves.
+ * A visit to a chest, carrying one stack at a time. A golem carrying something takes it to the chest and puts it in;
+ * an empty-handed golem whose work needs a supply takes one stack of it out. It behaves like a player: walks over,
+ * looks at the chest, pauses, opens it (lid animation and sound), moves the stack, closes it, looks away and leaves.
  *
- * <p>Chest preference: the golem's own chest first (it is both where it deposits and where it restocks), then deposits go to copper chests and supplies (tools, food, inputs) are preferred from regular
- * chests, each falling back to the other kind. Vanilla copper golems carry items from copper chests into regular
- * chests, so this makes a golem ferry the golem's output to a regular chest that the golem restocks from.
+ * <p>Its own chest (see {@link GolemChestBlock}) comes first; otherwise containers next to the job site are used,
+ * deposits preferring copper chests and supplies regular ones.
  */
 public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> {
 
     /** Containers within this many blocks (horizontally; +-2 vertically) of the job site count as "adjacent". */
     public static final int SEARCH_RADIUS = 3;
-    public static final int COOLDOWN_TICKS = 200;
     private static final int DURATION = 1200;
     private static final double INTERACT_DIST_SQR = 2.5 * 2.5;
 
     private static final int PAUSE_LOOK = 15;
     private static final int PAUSE_OPEN = 12;
-    private static final int PAUSE_STEP = 10;
+    private static final int PAUSE_STEP = 14;
     private static final int PAUSE_CLOSE = 12;
     private static final int PAUSE_AWAY = 15;
 
     private enum Phase { APPROACH, LOOK, TRANSFER, CLOSING, LOOK_AWAY, DONE }
 
     private BlockPos chestPos;
-    private boolean deposit;
-    private boolean take;
+    private Plan visit;
     private Phase phase = Phase.DONE;
     private int timer;
     private Container opened;
-    private final Set<Integer> failedSlots = new HashSet<>();
-    private final Set<String> doneNeeds = new HashSet<>();
-    private final Set<String> restocking = new HashSet<>();
 
     public ContainerInteraction() {
         super(Plan.class, DURATION);
@@ -64,60 +54,73 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     // ---- choosing a container ---------------------------------------------------------------------------------
 
-    /** Which container to visit and what to do there. */
-    public record Plan(BlockPos pos, boolean deposit, boolean take) { }
+    /** Which container to visit; {@code supply} is the need to take from it, or null to put the carried stack in. */
+    public record Plan(BlockPos pos, String supply) { }
 
-    /** Picks the container worth visiting right now, or null. Used by {@link StartTask}. */
-    public static Plan plan(ServerLevel level, WorkGolem golem) {
+    /** Puts what the golem carries away: always the first thing to do with a full hand. */
+    public static Plan planDeposit(ServerLevel level, WorkGolem golem) {
+        ItemStack carried = golem.carried();
+        if (carried.isEmpty()) return null;
+        BlockPos pos = best(level, golem, chest -> room(chest, carried), true);
+        return pos == null ? null : new Plan(pos, null);
+    }
+
+    /** Fetches a stack of the supply the work is waiting for, when a container nearby holds some. */
+    public static Plan planSupply(ServerLevel level, WorkGolem golem) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        if (needs == null) return null;
+        if (needs == null || needs.work() == null || golem.isCarrying()) return null;
+        String id = needs.work().wants().need(level, golem);
+        Need need = id == null ? null : needs.need(id);
+        if (need == null) return null;
+        BlockPos pos = best(level, golem, chest -> slotWith(need, chest) >= 0, false);
+        return pos == null ? null : new Plan(pos, need.id());
+    }
+
+    private static BlockPos best(ServerLevel level, WorkGolem golem, java.util.function.Predicate<Container> usable,
+                                 boolean deposit) {
         GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (site == null || !site.dimension().equals(level.dimension())) return null;
-
-        boolean hasDeposits = false;
-        SimpleContainer inv = golem.getInventory();
-        for (int i = 0; i < inv.getContainerSize() && !hasDeposits; i++) hasDeposits = needs.depositAmount(inv, i) > 0;
-
-        record Candidate(BlockPos pos, int depositPref, int takePref, double dist) { }
-        java.util.List<Candidate> candidates = new java.util.ArrayList<>();
-        int bestDeposit = 0;
-        int bestTake = 0;
+        BlockPos best = null;
+        int bestPref = 0;
+        double bestDist = 0;
         for (BlockPos p : BlockPos.betweenClosed(site.pos().offset(-SEARCH_RADIUS, -2, -SEARCH_RADIUS),
                 site.pos().offset(SEARCH_RADIUS, 2, SEARCH_RADIUS))) {
             if (level.getBlockEntity(p) == null) continue;
             Container c = HopperBlockEntity.getContainerAt(level, p);
-            if (c == null) continue;
-            boolean copper = level.getBlockState(p).is(BlockTags.COPPER_CHESTS);
-            boolean own = level.getBlockState(p).getBlock() instanceof GolemChestBlock; // the golem's own chest wins
-            int depositPref = hasDeposits ? (own ? 3 : copper ? 2 : 1) : 0;
-            int takePref = canTakeSomething(needs, inv, c) ? (own ? 3 : copper ? 1 : 2) : 0;
-            if (depositPref == 0 && takePref == 0) continue;
-            bestDeposit = Math.max(bestDeposit, depositPref);
-            bestTake = Math.max(bestTake, takePref);
-            candidates.add(new Candidate(p.immutable(), depositPref, takePref, p.distSqr(golem.blockPosition())));
-        }
-
-        Candidate best = null;
-        for (Candidate c : candidates) {
-            boolean serves = (c.depositPref() > 0 && c.depositPref() == bestDeposit)
-                    || (c.takePref() > 0 && c.takePref() == bestTake);
-            if (serves && (best == null || c.dist() < best.dist())) best = c;
-        }
-        if (best == null) return null;
-        return new Plan(best.pos(),
-                best.depositPref() > 0 && best.depositPref() == bestDeposit,
-                best.takePref() > 0 && best.takePref() == bestTake);
-    }
-
-    private static boolean canTakeSomething(ProfessionNeeds needs, Container inv, Container chest) {
-        for (Need need : needs.needs()) {
-            if (!need.unmet(inv)) continue;
-            for (int i = 0; i < chest.getContainerSize(); i++) {
-                ItemStack s = chest.getItem(i);
-                if (!s.isEmpty() && need.match().test(s)) return true;
+            if (c == null || !usable.test(c)) continue;
+            BlockState state = level.getBlockState(p);
+            int pref = state.getBlock() instanceof GolemChestBlock ? 3
+                    : state.is(BlockTags.COPPER_CHESTS) == deposit ? 2 : 1;
+            double dist = p.distSqr(golem.blockPosition());
+            if (pref > bestPref || (pref == bestPref && dist < bestDist)) {
+                best = p.immutable();
+                bestPref = pref;
+                bestDist = dist;
             }
         }
-        return false;
+        return best;
+    }
+
+    private static int slotWith(Need need, Container chest) {
+        for (int i = 0; i < chest.getContainerSize(); i++) {
+            ItemStack s = chest.getItem(i);
+            if (!s.isEmpty() && need.match().test(s)) return i;
+        }
+        return -1;
+    }
+
+    /** Whether the whole stack fits. */
+    private static boolean room(Container chest, ItemStack stack) {
+        int left = stack.getCount();
+        for (int i = 0; i < chest.getContainerSize() && left > 0; i++) {
+            if (!chest.canPlaceItem(i, stack)) continue;
+            ItemStack there = chest.getItem(i);
+            if (there.isEmpty()) left -= Math.min(stack.getMaxStackSize(), chest.getMaxStackSize());
+            else if (ItemStack.isSameItemSameComponents(there, stack)) {
+                left -= Math.min(there.getMaxStackSize(), chest.getMaxStackSize()) - there.getCount();
+            }
+        }
+        return left <= 0;
     }
 
     // ---- the visit (runs in the exclusive task activity) --------------------------------------------------------
@@ -125,12 +128,8 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         chestPos = plan.pos();
-        deposit = plan.deposit();
-        take = plan.take();
+        visit = plan;
         phase = Phase.APPROACH;
-        failedSlots.clear();
-        doneNeeds.clear();
-        restocking.clear();
         lookAtChest(golem);
         walkToChest(golem);
     }
@@ -179,17 +178,13 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 holdStill(golem);
                 lookAtChest(golem);
                 if (--timer > 0) return;
-                ProfessionNeeds needs = ProfessionNeeds.of(golem);
-                boolean moved = needs != null && opened != null
-                        && ((deposit && depositOne(needs, golem, opened)) || (take && takeOne(needs, golem, opened)));
-                if (moved) {
-                    golem.getInventory().setChanged();
+                if (opened != null) {
+                    if (visit.supply() == null) deposit(golem, opened);
+                    else take(ProfessionNeeds.of(golem).need(visit.supply()), golem, opened);
                     opened.setChanged();
-                    timer = PAUSE_STEP;
-                } else {
-                    phase = Phase.CLOSING;
-                    timer = PAUSE_CLOSE;
                 }
+                phase = Phase.CLOSING;
+                timer = PAUSE_CLOSE;
             }
             case CLOSING -> {
                 holdStill(golem);
@@ -213,7 +208,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
-        closeChest(golem); // also covers interruptions (night, panic, damage, timeout)
+        closeChest(golem); // also covers interruptions (panic, damage, timeout)
         chestPos = null;
         phase = Phase.DONE;
     }
@@ -225,47 +220,24 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         opened = null;
     }
 
-    // ---- moving one stack -------------------------------------------------------------------------------------
+    // ---- moving the stack -------------------------------------------------------------------------------------
 
-    private boolean depositOne(ProfessionNeeds needs, WorkGolem golem, Container chest) {
-        SimpleContainer inv = golem.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (failedSlots.contains(i)) continue;
-            int amount = needs.depositAmount(inv, i);
-            if (amount <= 0) continue;
-            ItemStack stack = inv.getItem(i);
-            ItemStack rest = insert(chest, stack.copyWithCount(amount));
-            int moved = amount - rest.getCount();
-            if (moved <= 0) { failedSlots.add(i); continue; } // chest full for this item
-            stack.shrink(moved);
-            if (stack.isEmpty()) inv.setItem(i, ItemStack.EMPTY);
-            return true;
-        }
-        return false;
+    /** Puts the carried stack into the chest; whatever does not fit stays in the hand. */
+    private static void deposit(WorkGolem golem, Container chest) {
+        ItemStack rest = insert(chest, golem.carried().copy());
+        golem.setCarried(rest);
     }
 
-    private boolean takeOne(ProfessionNeeds needs, WorkGolem golem, Container chest) {
-        SimpleContainer inv = golem.getInventory();
-        for (Need need : needs.needs()) {
-            if (doneNeeds.contains(need.id())) continue;
-            int have = need.have(inv);
-            boolean wanted = have < need.refillBelow() || (restocking.contains(need.id()) && have < need.target());
-            if (!wanted) continue;
-            for (int i = 0; i < chest.getContainerSize(); i++) {
-                ItemStack s = chest.getItem(i);
-                if (s.isEmpty() || !need.match().test(s)) continue;
-                int n = Math.min(need.target() - have, s.getCount());
-                ItemStack rest = inv.addItem(s.copyWithCount(n));
-                int moved = n - rest.getCount();
-                if (moved <= 0) break; // golem inventory full
-                s.shrink(moved);
-                if (s.isEmpty()) chest.setItem(i, ItemStack.EMPTY);
-                restocking.add(need.id());
-                return true;
-            }
-            doneNeeds.add(need.id());
-        }
-        return false;
+    /** Takes one stack of the supply (at most what the need allows) from the chest into the hand. */
+    private static void take(Need need, WorkGolem golem, Container chest) {
+        if (need == null || golem.isCarrying()) return;
+        int slot = slotWith(need, chest);
+        if (slot < 0) return;
+        ItemStack in = chest.getItem(slot);
+        int n = Math.min(need.carry(), in.getCount());
+        golem.setCarried(in.copyWithCount(n));
+        in.shrink(n);
+        if (in.isEmpty()) chest.setItem(slot, ItemStack.EMPTY);
     }
 
     /** Inserts into the container, merging into matching stacks first; returns whatever did not fit. */

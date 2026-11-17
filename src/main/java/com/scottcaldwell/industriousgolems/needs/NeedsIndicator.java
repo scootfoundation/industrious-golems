@@ -1,23 +1,23 @@
 package com.scottcaldwell.industriousgolems.needs;
 
-import com.scottcaldwell.industriousgolems.ModAttachments;
+import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import com.scottcaldwell.industriousgolems.offering.Offering;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
-import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
+import java.util.List;
+
 /**
- * Publishes a golem's status (health, whether blocked) for the client's status plate, makes a golem that lacks a
- * supply shake its head every few seconds, and mends charged golems.
+ * Small upkeep for each golem: it holds the item it craves in its off hand while it is dormant (the only sign of what
+ * to give it) and charged golems slowly mend. The off-hand item is a display copy that never drops.
  */
 public final class NeedsIndicator {
 
     private static final String MARKER = "industriousgolems_need_icon";
     private static final int CHECK_INTERVAL = 10;
-    private static final int SHAKE_INTERVAL = 100;
     private static final int REGEN_INTERVAL = 100;
 
     private NeedsIndicator() { }
@@ -37,31 +37,24 @@ public final class NeedsIndicator {
 
     /** Called every tick on the server for each golem. */
     public static void tick(WorkGolem golem) {
-        if (golem.tickCount % CHECK_INTERVAL != 0) return;
-        if (com.scottcaldwell.industriousgolems.behavior.HeldItem.stale(golem)) {
-            com.scottcaldwell.industriousgolems.behavior.HeldItem.release(golem);
-        }
-        ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        if (needs == null || golem.isBaby()) {
-            publish(golem, StatusData.NONE);
+        if (golem.tickCount % CHECK_INTERVAL != 0 || golem.isBaby()) return;
+        mend(golem);
+        showCraving(golem);
+    }
+
+    /** A dormant golem holds out what it craves; a charged one has an empty off hand. */
+    private static void showCraving(WorkGolem golem) {
+        ItemStack held = golem.getItemBySlot(EquipmentSlot.OFFHAND);
+        if (golem.isCharged()) {
+            if (isIcon(held)) golem.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
             return;
         }
-
-        mend(golem);
-
-        // Synced for the client's status plate: health, and whether the golem is blocked (dormant or out of a supply).
-        boolean dormant = !golem.isCharged();
-        boolean missingSupply = false;
-        for (Need need : needs.needs()) {
-            if (need.missing(golem)) { missingSupply = true; break; }
-        }
-        publish(golem, StatusData.pack(Math.round(golem.getHealth()), dormant || missingSupply));
-
-        // A dormant golem is just still; one that works but lacks a supply shakes its head now and then.
-        if (missingSupply && !dormant && golem.tickCount % SHAKE_INTERVAL == 0 && golem.getUnhappyCounter() == 0) {
-            golem.setUnhappyCounter(40);
-            golem.playSound(SoundEvents.VILLAGER_NO, 1.0F, golem.getVoicePitch());
-        }
+        List<Offering> offerings = golem.profession().offerings();
+        int craving = golem.cravingIndex();
+        if (craving < 0 || craving >= offerings.size()) return;
+        ItemStack icon = offerings.get(craving).icon();
+        if (isIcon(held) && ItemStack.isSameItem(held, icon)) return;
+        golem.setItemSlot(EquipmentSlot.OFFHAND, markAsDisplay(icon.copyWithCount(1)));
     }
 
     /** Charged golems slowly mend. */
@@ -72,20 +65,8 @@ public final class NeedsIndicator {
         }
     }
 
-    /**
-     * Sets the synced status. A client without this mod that tracks the golem (a bot, a mock player) cannot receive
-     * the sync payload and NeoForge throws; that must never crash the server, the client simply sees no status plate.
-     */
-    private static void publish(WorkGolem golem, StatusData status) {
-        try {
-            if (!golem.getData(ModAttachments.STATUS).equals(status)) golem.setData(ModAttachments.STATUS, status);
-        } catch (UnsupportedOperationException ignored) {
-            // unsupported tracker; the value is stored server side regardless
-        }
-    }
-
     /** The icon is not a real item: never let it drop on death. */
     public static void clearOnDeath(WorkGolem golem) {
-        if (isIcon(golem.getItemBySlot(EquipmentSlot.MAINHAND))) golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        if (isIcon(golem.getItemBySlot(EquipmentSlot.OFFHAND))) golem.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
     }
 }

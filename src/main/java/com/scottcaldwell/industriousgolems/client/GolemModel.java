@@ -66,6 +66,7 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         rightArm.yRot = 0.0F;
         leftArm.yRot = 0.0F;
         if (holding) rightArm.xRot = Math.min(rightArm.xRot, -0.9F);
+        if (!state.leftHandItemState.isEmpty()) leftArm.xRot = Math.min(leftArm.xRot, -0.9F); // holding out what it craves
 
         if (state.attackTime > 0.0F) { // working: lift the arm and strike down (both arms when empty-handed)
             float strike = Mth.sin(state.attackTime * Mth.PI);

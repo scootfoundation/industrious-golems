@@ -42,8 +42,8 @@ final class GolemModels {
         return LayerDefinition.create(mesh, 128, 128);
     }
 
-    /** Where the held item sits, in the right arm's own pixels (mirrored for the left arm). */
-    static final float[] HAY_HAND = {-1F, 10F, 0F};
+    /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
+    static final float[] HAY_HAND = {-1F, 0F, 0F};
 
     static LayerDefinition mushroom() {
         MeshDefinition mesh = new MeshDefinition().transformed(p -> p.translated(0.0F, 24.0F, 0.0F));
@@ -72,8 +72,8 @@ final class GolemModels {
         return LayerDefinition.create(mesh, 128, 128);
     }
 
-    /** Where the held item sits, in the right arm's own pixels (mirrored for the left arm). */
-    static final float[] MUSHROOM_HAND = {-1.5F, 9F, 0F};
+    /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
+    static final float[] MUSHROOM_HAND = {-1.5F, -1F, 0F};
 
     static LayerDefinition terracotta() {
         MeshDefinition mesh = new MeshDefinition().transformed(p -> p.translated(0.0F, 24.0F, 0.0F));
@@ -103,7 +103,7 @@ final class GolemModels {
         return LayerDefinition.create(mesh, 128, 128);
     }
 
-    /** Where the held item sits, in the right arm's own pixels (mirrored for the left arm). */
-    static final float[] TERRACOTTA_HAND = {-2F, 17F, 0F};
+    /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
+    static final float[] TERRACOTTA_HAND = {-2F, 7F, 0F};
 
 }

@@ -35,10 +35,8 @@ All golems share:
 - Claim the nearest unclaimed job site of their kind (within 48 blocks) and stay near it. A golem's own chest is its job site; the vanilla block it used to use (composter, fletching table, loom) still counts as a fallback.
 - Work bare-handed, day and night, but only while **charged**. A golem starts dormant (head hanging, standing still) and does nothing until a player gives it what it currently craves.
 - Each golem kind has eight **offerings**: uncommon finds from different biomes, structures and mobs, deliberately unrelated to the golem's trade and never something it produces itself. It craves one at a time (shown on its status plate and in its screen); one offering is worth 45 minutes of work, and after it is accepted the golem craves something different, so no single item is enough. It stores at most two offerings' worth (90 minutes). The clock runs only while the golem is loaded and has a job site.
-- Give an offering by right-clicking the golem with it, or by placing it in the offering slot of the golem's screen.
-- Pull supplies from and deposit outputs to adjacent chests.
-- Right-clicking a golem without its craving opens its inventory (offering slot, supplies, output).
-- A status plate shows what it craves, the charge left and its health.
+- Give an offering by right-clicking the golem with it. A dormant golem holds out what it craves in its off hand; there is no inventory screen and no status plate.
+- **Carry one stack at a time.** A golem has no inventory. It breaks a block (or shears, milks, culls) and the result drops in the world as it would for a player. The golem picks up one stack in its hand, takes it to its chest, and goes back for the next. Supplies (seeds, saplings, buckets, feed) come from the chest the same way, a stack at a time, and are used from the hand.
 
 ### Hay golem (farmer)
 
@@ -46,7 +44,7 @@ All golems share:
 - **Consumes:** Seeds.
 - **Wants:** Slimeball, glow ink sac, pufferfish, cobweb, rabbit's foot, cactus flower, pointed dripstone, glow berries.
 - **Produces:** Crops the player has planted on pre-tilled soil within range.
-- **Behaviour:** Harvests mature crops and replants from harvest yields. Works pre-tilled blocks only. Player provides the first generation of seeds.
+- **Behaviour:** Stands on each plot it works: walks onto a ripe crop and breaks it, then onto bare farmland to sow the seeds it carries. Works pre-tilled blocks only. Deliberately slow (it walks at less than half the others' pace). Player provides the first generation of seeds.
 
 ### Mushroom golem (lumberjack)
 

@@ -1,6 +1,5 @@
 package com.scottcaldwell.industriousgolems.offering;
 
-import com.scottcaldwell.industriousgolems.behavior.HeldItem;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -85,7 +84,6 @@ public final class Offerings {
         golem.getNavigation().stop();
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         golem.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
-        HeldItem.release(golem);
         golem.playSound(SoundEvents.RESPAWN_ANCHOR_DEPLETE.value(), 1.0F, 1.2F);
     }
 

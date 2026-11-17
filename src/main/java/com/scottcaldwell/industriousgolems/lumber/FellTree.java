@@ -1,24 +1,18 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
-import com.scottcaldwell.industriousgolems.behavior.Drops;
-import com.scottcaldwell.industriousgolems.behavior.HeldItem;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -27,8 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Fells a natural tree log by log, bottom first: walk up, stop and look at the log, chop it bare-handed, pause,
- * and repeat; then replant a sapling where the trunk stood. Runs in the exclusive task activity.
+ * Fells a natural tree log by log, bottom first: walk up, stop and look at the log, chop it bare-handed (the logs drop
+ * as for a player and are carried off a stack at a time, see PickUp), pause, and repeat; then replant a sapling where the
+ * trunk stood, if the golem is holding one. Runs in the exclusive task activity.
  */
 public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
@@ -56,14 +51,36 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
-    /** Picks a tree to fell, or null (nothing worth felling, or mob griefing is off). */
+    /**
+     * With a free hand or a sapling in it: a tree to fell (the sapling then goes in where it stood). With a sapling in
+     * hand and a stump to replant: just the planting. Null when there is nothing to do, or mob griefing is off.
+     */
     public static Object plan(ServerLevel level, WorkGolem golem) {
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
         GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
         if (needs == null || site == null || !site.dimension().equals(level.dimension())) return null;
         if (!net.neoforged.neoforge.event.EventHooks.canEntityGrief(level, golem)) return null;
+        boolean sapling = golem.carried().is(ItemTags.SAPLINGS);
+        if (golem.isCarrying() && !sapling) return null;
+        BlockPos stump = golem.replantPos();
+        if (sapling && stump != null && canPlantAt(level, stump, golem.carried())) return new FellPlan(List.of(), stump, null);
         TreeFinder.Tree tree = TreeFinder.find(level, site.pos(), golem.blockPosition());
         return tree == null ? null : new FellPlan(tree.logs(), tree.base(), tree.logType());
+    }
+
+    /** A sapling from the chest would replant the last tree's stump; a tree still to fell wants one too. */
+    public static String wants(ServerLevel level, WorkGolem golem) {
+        BlockPos stump = golem.replantPos();
+        if (golem.isCarrying()) return null;
+        if (stump != null && level.getBlockState(stump).isAir()) return "saplings";
+        GlobalPos site = golem.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
+        if (site == null || !site.dimension().equals(level.dimension())) return null;
+        return TreeFinder.find(level, site.pos(), golem.blockPosition()) == null ? null : "saplings";
+    }
+
+    private static boolean canPlantAt(ServerLevel level, BlockPos pos, ItemStack sapling) {
+        return sapling.getItem() instanceof BlockItem item && level.getBlockState(pos).isAir()
+                && item.getBlock().defaultBlockState().canSurvive(level, pos);
     }
 
     // ---- the job ------------------------------------------------------------------------------------------------
@@ -72,6 +89,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         remaining.clear();
         remaining.addAll(plan.logs());
+        golem.setReplantPos(plan.replant());
         current = null;
         planting = false;
         phase = Phase.WORK;
@@ -110,8 +128,6 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         if (phase == Phase.WORK) { // arrived: take up a sapling to plant, or just look at the log before swinging
             phase = Phase.LOOK;
             timer = LOOK_TICKS;
-            int slot = planting ? findSapling(golem) : -1;
-            if (slot >= 0) HeldItem.hold(golem, golem.getInventory().getItem(slot));
         }
         if (--timer > 0) return;
         golem.swing(InteractionHand.MAIN_HAND);
@@ -136,8 +152,8 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             }
             remaining.remove(0);
         }
-        if (!planting && plan.replant() != null && findSapling(golem) >= 0
-                && level.getBlockState(plan.replant()).isAir()) {
+        if (!planting && plan.replant() != null && golem.carried().is(ItemTags.SAPLINGS)
+                && canPlantAt(level, plan.replant(), golem.carried())) {
             planting = true;
             current = plan.replant();
             return true;
@@ -146,36 +162,17 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     }
 
     private void chop(ServerLevel level, WorkGolem golem, BlockPos log) {
-        level.destroyBlock(log, true, golem);
-        Drops.collectFresh(level, golem, Vec3.atCenterOf(log));
+        level.destroyBlock(log, true, golem); // drops like a player's break; the stacks are carried off afterwards
     }
 
     private void plant(ServerLevel level, WorkGolem golem, BlockPos pos) {
-        int slot = findSapling(golem);
-        if (slot < 0 || !level.getBlockState(pos).isAir()) return;
-        ItemStack stack = golem.getInventory().getItem(slot);
-        if (!(stack.getItem() instanceof BlockItem blockItem)) return;
-        BlockState sapling = blockItem.getBlock().defaultBlockState();
-        if (!sapling.canSurvive(level, pos)) return;
-        level.setBlockAndUpdate(pos, sapling);
+        ItemStack stack = golem.carried();
+        if (!stack.is(ItemTags.SAPLINGS) || !canPlantAt(level, pos, stack)) return;
+        level.setBlockAndUpdate(pos, ((BlockItem) stack.getItem()).getBlock().defaultBlockState());
         level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
-        golem.getInventory().removeItem(slot, 1);
-    }
-
-    /** The sapling of the felled species if carried, otherwise any sapling. */
-    private int findSapling(WorkGolem golem) {
-        Identifier logId = BuiltInRegistries.BLOCK.getKey(plan.logType());
-        String species = logId.getPath().replace("stripped_", "").replace("_log", "").replace("_wood", "");
-        Item matching = BuiltInRegistries.ITEM.getOptional(logId.withPath(species + "_sapling")).orElse(null);
-        int any = -1;
-        SimpleContainer inv = golem.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (stack.isEmpty() || !stack.is(ItemTags.SAPLINGS)) continue;
-            if (matching != null && stack.is(matching)) return i;
-            if (any < 0) any = i;
-        }
-        return any;
+        stack.shrink(1);
+        if (stack.isEmpty()) golem.setCarried(ItemStack.EMPTY);
+        golem.setReplantPos(null);
     }
 
     @Override

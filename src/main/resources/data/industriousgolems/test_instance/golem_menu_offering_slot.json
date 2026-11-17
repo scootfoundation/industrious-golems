@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:function",
-  "function": "industriousgolems:golem_menu_offering_slot",
-  "environment": "industriousgolems:work_hours",
-  "structure": "industriousgolems:arena",
-  "max_ticks": 1200
-}

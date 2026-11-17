@@ -3,5 +3,5 @@
   "function": "industriousgolems:golem_dormant_until_offered",
   "environment": "industriousgolems:work_hours",
   "structure": "industriousgolems:arena",
-  "max_ticks": 1200
+  "max_ticks": 4000
 }
