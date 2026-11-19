@@ -233,8 +233,11 @@ spawn logic, and amethyst gives a natural brake on supply.
 ### Link to decay
 
 Survey your base while it is in good shape. If it later decays, a wright can rebuild it from that
-record, so repair comes from something done earlier, not from guesswork. Because wrights only fill
-gaps, rebuilding a decayed build restores what has gone missing and leaves intact blocks alone.
+record, so repair comes from something done earlier, not from guesswork. **Open problem:** decay mostly
+*replaces* blocks (stone brick -> cracked -> cobble -> gravel -> dirt) rather than removing them, so
+a wright that only fills gaps would not repair a cracked wall. Repair needs a "restore" rule:
+a wright may replace a block when it is a decay descendant of the blueprint's block. That requires
+each block's decay chain to be defined as data, which the decay mod needs anyway.
 Paths and early wear heal themselves (traffic or time), so wrights only matter for rebuilding
 what has been lost; they do not fight the path system.
 
