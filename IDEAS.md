@@ -155,7 +155,7 @@ Any structure can be captured as a blueprint, any time. Nothing is inferred; it 
 1. **Draw the footprint.** Place survey **stakes** around the structure and join them with
    **string** to form a closed 2D outline at ground level. The outline can be any shape (an L, a
    courtyard), not just a rectangle.
-2. **A wright (or allay) scans it.** It flies the outline and then scans **layer by layer upward**
+2. **A wright scans it.** It flies the outline and then scans **layer by layer upward**
    inside it, until it reaches a layer that is entirely air. The height emerges from the scan, so
    there is no third axis to set. The scan takes time proportional to height and area.
 3. **Name the result.** It becomes a **blueprint item**.
@@ -180,8 +180,8 @@ chest. The bill of materials is a real planning step.
   stakes at the lowest level you want captured.
 - **Disconnected pieces.** Anything above an all-air layer is not captured. Arguably correct.
 - **Chicken and egg.** Making a wright needs a blueprint, and surveying needs a wright. Resolve it
-  by letting an **allay** do the scan; a blueprint it surveys promotes it to a wright (see below).
-  Starter vanilla blueprints are a fallback.
+  by having **villagers sell blueprints**: buy one, give it to an allay to apprentice it, and you
+  have a wright who can then do all the scanning. Surveying stays entirely the wright's job.
 
 ### Using blueprints
 
@@ -191,7 +191,7 @@ chest. The bill of materials is a real planning step.
 - **Repeat.** Survey one segment (a wall bay, a field row, a house) and tell the wrights to repeat
   it N times along a direction. Makes row houses, fences and farms trivial.
 - **Duplication.** Copy a blueprint at a cartography table, the way maps are copied, so players
-  can share them and villagers can sell them.
+  can share them. Villagers also sell blueprints, which is how you get your first wright.
 
 ### Wright acquisition
 
