@@ -166,12 +166,20 @@ Any region can be captured as a blueprint, any time. Nothing is inferred; it is 
 Surveying is a record, not a duplication tool: wrights can only place what is actually in the
 chest. The bill of materials is a real planning step.
 
+### Wright acquisition
+
+**Apprenticed allays.** Give an allay a blueprint and it becomes a wright. Allays are already
+obtainable in vanilla (caged in pillager outposts, duplicated with amethyst), so there is no new
+spawn logic, and amethyst gives a natural brake on supply.
+
 ### Building
 
-1. Place a **wright's banner** and a **chest of materials** next to it.
-2. Right-click the banner with a blueprint. A ghost outline previews the placement; sneak-click
-   rotates or mirrors it. Confirm.
-3. The banner shows a **bill of materials**: what is needed against what the chest holds.
+1. Place a **wright's lodge** (a block like a beehive). It holds a few wrights (capacity limits how
+   many you have), has a blueprint slot and a bill-of-materials screen, and draws materials from an
+   **adjacent chest**.
+2. Put a blueprint in the lodge. A ghost outline previews the placement; sneak-click rotates or
+   mirrors it. Confirm.
+3. The lodge shows a **bill of materials**: what is needed against what the chest holds.
 4. Wrights fly to the chest, take **one block at a time**, fly to the build site and place it.
    Each wright flies at a decent pace; more wrights build faster.
 
@@ -193,8 +201,8 @@ chest. The bill of materials is a real planning step.
 
 - How a wright decides a block "has space" for gravity blocks, fluids and waterlogged states.
 - Pathing around obstacles, and what happens in unloaded chunks (probably pause).
-- How the banner finds the chest (adjacent, or linked).
-- Wright acquisition: how you get them (craft, tame, spawn from the banner).
+- Whether a wright returns to being an allay (e.g. when released from the lodge).
+- Surveying method beyond two-corner selection (under discussion; see below).
 
 ### Link to decay
 
