@@ -13,11 +13,18 @@ Three ideas, one shared theme: **make distance and time matter.** They overlap h
 Goal: make it hard to travel so fast that you don't experience the world, while still allowing fast
 travel when it is genuinely needed.
 
-- Horses get a speed boost on compacted (trodden) grass.
-- Horses running on grass have a chance to compact it.
+- Horses get a speed boost on compacted (trodden) grass. (Compaction itself, i.e. horses
+  wearing the ground, belongs to mod 2; this mod only reads the trodden state.)
 - Rockets no longer accelerate you while flying an elytra.
-- A world map that teleports you to named waypoints, at a cost (e.g. XP).
+- Fast travel between named waypoints, at a cost (see below).
 - Nether-to-overworld ratio changed from 8:1 to 1:1.
+
+### Waypoint design
+
+- **Waypoints are lodestones** that get activated and named (how: TBD, e.g. a name tag).
+- **The map UI** opens by right-clicking a vanilla map placed in an item frame.
+- The UI shows all discovered waypoints; **hovering shows the travel cost**: a fixed cost plus a
+  cost proportional to distance.
 
 ### Notes
 
@@ -28,9 +35,9 @@ travel when it is genuinely needed.
   shortcut in vanilla, so the nether becomes a parallel world rather than a highway.
 - **Waypoint map is the hardest part and the one that most cuts against the goal.** Open questions:
   - Discovery: unlock waypoints by visiting them. Keeps travel meaningful.
-  - Cost: a flat cost is weak. Scale it with distance (per hundred metres) so short hops are cheap
-    and long ones deliberate.
-  - Where the map lives (item, block or screen), and whether waypoints are per player or per world.
+  - Cost: fixed + per-distance (see above); decide the currency (XP is the working assumption).
+  - Whether waypoints are per player or per world, and how cross-dimension travel is priced.
+  - The client UI needs a custom screen drawn over the map; unexplored areas stay blank.
 - **Positive feedback loop to cap:** the speed bonus rewards worn paths, which draws more traffic,
   which wears them more. Cap the wear level and flatten the bonus at the top, or every hub becomes
   a motorway.
