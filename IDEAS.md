@@ -150,21 +150,48 @@ An automated builder.
 
 ### Surveying
 
-Any region can be captured as a blueprint, any time. Nothing is inferred; it is a plain copy.
+Any structure can be captured as a blueprint, any time. Nothing is inferred; it is a plain copy.
 
-1. **Survey tool** (stake or rod item): right-click one block to set a corner, another to set the
-   opposite corner. A particle outline shows the box. Sneak-click to confirm.
-2. **Name it** (anvil or name tag). The result is a **blueprint item**.
-3. **Limits:** cap the size (e.g. 32 m on a side). May cost a little (paper and ink).
-4. **Captures** block types and block states (orientation, door halves, stair shapes). **Leaves
+1. **Draw the footprint.** Place survey **stakes** around the structure and join them with
+   **string** to form a closed 2D outline at ground level. The outline can be any shape (an L, a
+   courtyard), not just a rectangle.
+2. **A wright (or allay) scans it.** It flies the outline and then scans **layer by layer upward**
+   inside it, until it reaches a layer that is entirely air. The height emerges from the scan, so
+   there is no third axis to set. The scan takes time proportional to height and area.
+3. **Name the result.** It becomes a **blueprint item**.
+4. **Limits:** cap the number of stakes and the footprint area.
+5. **Captures** block types and block states (orientation, door halves, stair shapes). **Leaves
    out** container contents and most entities.
-5. Blueprints are stored server-side as ordinary structure data; the item only points to it, which
+6. Blueprints are stored server-side as ordinary structure data; the item only points to it, which
    avoids item size limits.
-6. **Vanilla blueprints** (villager houses, camps, etc.) ship in the same format, so there is only
-   one system. Vanilla structure NBT files can be converted.
+7. **Vanilla blueprints** (villager houses, camps, etc.) ship in the same format, so there is only
+   one system. Vanilla structure NBT files can be converted; their generated bounding boxes are
+   known, so no outline is needed for them.
 
 Surveying is a record, not a duplication tool: wrights can only place what is actually in the
 chest. The bill of materials is a real planning step.
+
+**Known issues with the outline-and-scan approach**
+
+- **Slopes.** An outline on a hillside includes terrain above the stakes, which is solid, so the
+  scan would not terminate until above the hill. Mitigation: ignore natural terrain blocks (dirt,
+  stone, grass, sand, gravel) above the stake layer; flat or cleared sites work without it.
+- **Basements.** The scan starts at the stake layer, so anything below is missed. Place the
+  stakes at the lowest level you want captured.
+- **Disconnected pieces.** Anything above an all-air layer is not captured. Arguably correct.
+- **Chicken and egg.** Making a wright needs a blueprint, and surveying needs a wright. Resolve it
+  by letting an **allay** do the scan; a blueprint it surveys promotes it to a wright (see below).
+  Starter vanilla blueprints are a fallback.
+
+### Using blueprints
+
+- **Material substitution.** Before building, the lodge's bill of materials lets you swap one
+  block type for another (oak for spruce, stone brick for deepslate brick), preserving block
+  states. One survey then gives many variants. Works with any survey method.
+- **Repeat.** Survey one segment (a wall bay, a field row, a house) and tell the wrights to repeat
+  it N times along a direction. Makes row houses, fences and farms trivial.
+- **Duplication.** Copy a blueprint at a cartography table, the way maps are copied, so players
+  can share them and villagers can sell them.
 
 ### Wright acquisition
 
@@ -202,7 +229,6 @@ spawn logic, and amethyst gives a natural brake on supply.
 - How a wright decides a block "has space" for gravity blocks, fluids and waterlogged states.
 - Pathing around obstacles, and what happens in unloaded chunks (probably pause).
 - Whether a wright returns to being an allay (e.g. when released from the lodge).
-- Surveying method beyond two-corner selection (under discussion; see below).
 
 ### Link to decay
 
