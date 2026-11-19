@@ -180,8 +180,12 @@ chest. The bill of materials is a real planning step.
 - **Only fill gaps.** Wrights place blocks only where there is space for them; they never clear or
   replace what is already there.
 - **No foundations, no site preparation.** If a house ends up floating, so be it.
-- **Placing order:** bottom-up is a sensible default so supports tend to go in first, but nothing
-  depends on it.
+- **Placement order (dependency rule):** a block is not placed until the block **beneath it in the
+  blueprint** has been placed. If there is no blueprint block beneath it, it waits for a block on
+  **any other side** (a horizontal neighbour, or the block above) to be placed first. Partial
+  builds then always look like plausible construction sites rather than scattered blocks.
+  - Each connected group of blocks needs a starting block; use its lowest block as the root.
+  - Gravity blocks (sand, gravel) need no special case: whatever is beneath them is placed first.
 - **Missing materials:** skip that block and mark it, rather than stopping.
 - **No permissions, claims or ownership.** Just build the functionality.
 
