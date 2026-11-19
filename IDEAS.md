@@ -142,35 +142,63 @@ block seeds a neighbour roughly once every 20 minutes. Decide whether to respect
 
 ---
 
-## 3. Illustrious allays
+## 3. Wrights
 
 A mob that does the opposite of the vanilla allay: instead of collecting items into your inventory,
-it **takes items out and puts them in the world**, building from blueprints. A kind of automated
-builder.
+a **wright** takes items out of a chest and **puts them in the world**, building from blueprints.
+An automated builder.
 
-### UX sketch
+### Surveying
 
-- A special banner is placed in the world and selects a blueprint.
-- Default blueprints include structures that exist in Minecraft: villager buildings, camps, etc.
-  (Vanilla structure NBT files can be used.)
-- Custom designs: build it in the world and **scan** it by selecting two corners with a wand. This
-  is far more tractable than describing a design in words, which would need an external AI
-  service.
+Any region can be captured as a blueprint, any time. Nothing is inferred; it is a plain copy.
 
-### Hard parts
+1. **Survey tool** (stake or rod item): right-click one block to set a corner, another to set the
+   opposite corner. A particle outline shows the box. Sneak-click to confirm.
+2. **Name it** (anvil or name tag). The result is a **blueprint item**.
+3. **Limits:** cap the size (e.g. 32 m on a side). May cost a little (paper and ink).
+4. **Captures** block types and block states (orientation, door halves, stair shapes). **Leaves
+   out** container contents and most entities.
+5. Blueprints are stored server-side as ordinary structure data; the item only points to it, which
+   avoids item size limits.
+6. **Vanilla blueprints** (villager houses, camps, etc.) ship in the same format, so there is only
+   one system. Vanilla structure NBT files can be converted.
 
-- **Materials:** taking items from the player's inventory is intrusive. Prefer drawing from nearby
-  linked chests; inventory only if the player hands items over.
-- **Building:** flying, placing blocks at a sensible pace, missing materials, lava and mobs, loaded
-  chunks only.
-- **Permissions:** on servers, claims and ownership must apply to what an allay builds.
+Surveying is a record, not a duplication tool: wrights can only place what is actually in the
+chest. The bill of materials is a real planning step.
 
-### The link to decay
+### Building
 
-If the world wears, allays are the repair crew that rebuilds ruins. Decay creates a need; allays
-answer it. Vanilla villager buildings and camps are a natural first set of blueprints. Paths and
-early wear heal themselves (traffic or time), so allays only need to handle ruin; they do not
-fight the path system.
+1. Place a **wright's banner** and a **chest of materials** next to it.
+2. Right-click the banner with a blueprint. A ghost outline previews the placement; sneak-click
+   rotates or mirrors it. Confirm.
+3. The banner shows a **bill of materials**: what is needed against what the chest holds.
+4. Wrights fly to the chest, take **one block at a time**, fly to the build site and place it.
+   Each wright flies at a decent pace; more wrights build faster.
+
+### Rules
+
+- **Only fill gaps.** Wrights place blocks only where there is space for them; they never clear or
+  replace what is already there.
+- **No foundations, no site preparation.** If a house ends up floating, so be it.
+- **Placing order:** bottom-up is a sensible default so supports tend to go in first, but nothing
+  depends on it.
+- **Missing materials:** skip that block and mark it, rather than stopping.
+- **No permissions, claims or ownership.** Just build the functionality.
+
+### Open questions
+
+- How a wright decides a block "has space" for gravity blocks, fluids and waterlogged states.
+- Pathing around obstacles, and what happens in unloaded chunks (probably pause).
+- How the banner finds the chest (adjacent, or linked).
+- Wright acquisition: how you get them (craft, tame, spawn from the banner).
+
+### Link to decay
+
+Survey your base while it is in good shape. If it later decays, a wright can rebuild it from that
+record, so repair comes from something done earlier, not from guesswork. Because wrights only fill
+gaps, rebuilding a decayed build restores what has gone missing and leaves intact blocks alone.
+Paths and early wear heal themselves (traffic or time), so wrights only matter for rebuilding
+what has been lost; they do not fight the path system.
 
 ---
 
@@ -185,8 +213,8 @@ A shared **wear** idea ties all three together:
 
 - Transport uses the trodden state for the horse speed bonus.
 - Decay produces ruins and spreads by neighbour rules and environment.
-- Allays repair ruin, completing the loop.
+- Wrights rebuild from surveys taken earlier, completing the loop.
 
 Which to build first is to be decided when the work starts. Rough difficulty, easiest to hardest:
 rocket disable and horse speed; trodden states and the 1:1 nether (datapack); decay with chunk
-catch-up; waypoint map; allays with scanned blueprints.
+catch-up; waypoint map; wrights with surveyed blueprints.
