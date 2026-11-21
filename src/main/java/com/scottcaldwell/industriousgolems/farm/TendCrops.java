@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.farm;
 
+import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
@@ -36,18 +37,31 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     private static final int HEIGHT = 2;
     private static final int STALL_TICKS = 400;
 
-    private enum Phase { WALK, PLAY }
+    private enum State { APPROACH, WORKING, FOLLOW_THROUGH, DONE }
+
+    public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("tend-crops", "Farmer: reap a crop / sow seeds",
+            "Hay golem. Stands a set distance from the plot, facing it, and plays the reap or sow clip; the crop is cut or the seed "
+                    + "planted at a moment in the clip. Reaped crops are left to be picked up afterwards.", State.class)
+            .start(State.APPROACH)
+            .state(State.APPROACH, "Walking to the spot a set distance from the plot.")
+            .state(State.WORKING, "On the spot, the clip playing; the reap or sow has not happened yet.")
+            .state(State.FOLLOW_THROUGH, "The crop is cut (or the seed planted); the clip is finishing.")
+            .state(State.DONE, "(end) Task over.")
+            .edge(State.APPROACH, State.WORKING, "settled on the spot, facing the plot")
+            .edge(State.APPROACH, State.DONE, "the plot is no longer ripe / bare or the hands changed, or no path for 20 s")
+            .edge(State.WORKING, State.FOLLOW_THROUGH, "the clip reaches the harvest / plant moment")
+            .edge(State.WORKING, State.DONE, "the clip ends without the act")
+            .edge(State.FOLLOW_THROUGH, State.DONE, "the clip ends");
 
     public enum Kind { REAP, SOW }
 
     /** One plot to tend: reap the ripe crop at {@code pos}, or sow the carried seeds on the bare farmland there. */
     public record CropPlan(Kind kind, BlockPos pos) { }
 
-    private Phase phase = Phase.WALK;
+    private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
     private int stalled;
     private Vec3 spot;
-    private boolean acted;
 
     public TendCrops() {
         super(CropPlan.class, 1200);
@@ -93,32 +107,31 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
-        phase = Phase.WALK;
+        machine.reset();
         stalled = 0;
         spot = null;
-        acted = false;
         golem.setPickupSuspended(true); // what a crop drops is picked up afterwards, as its own job
     }
 
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         BlockPos pos = plan.pos();
-        if (phase == Phase.PLAY) {
+        if (!machine.is(State.APPROACH)) {
             holdStill(golem);
             Face.toward(golem, Vec3.atCenterOf(pos));
             timer++;
             float at = plan.kind() == Kind.REAP ? Anim.H_HARVEST_AT : Anim.H_REPLANT_AT;
             float len = plan.kind() == Kind.REAP ? Anim.H_HARVEST_LEN : Anim.H_REPLANT_LEN;
-            if (!acted && timer >= Math.round(at * 20)) {
-                acted = true;
+            if (machine.is(State.WORKING) && timer >= Math.round(at * 20)) {
+                machine.to(State.FOLLOW_THROUGH);
                 golem.swing(InteractionHand.MAIN_HAND);
                 if (plan.kind() == Kind.REAP) level.destroyBlock(pos, true, golem); // drops like a player's break
                 else sow(level, golem, pos);
             }
-            if (timer >= Math.round(len * 20)) finish();
+            if (timer >= Math.round(len * 20)) done();
             return;
         }
-        if (!stillWorthIt(level, golem)) { finish(); return; }
+        if (!stillWorthIt(level, golem)) { done(); return; }
 
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(pos)));
         // stand where the clip expects the plant to be: 12 pixels ahead
@@ -127,14 +140,19 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
             if (spot == null) spot = Vec3.atCenterOf(pos).subtract(0, 0.5, 0); // nowhere to stand back: work from the plot itself
         }
         if (!standAt(golem, spot, 0.9)) {
-            if (++stalled > STALL_TICKS) finish();
+            if (++stalled > STALL_TICKS) done();
             return;
         }
         Face.toward(golem, Vec3.atCenterOf(pos));
         holdStill(golem);
         golem.playClip(plan.kind() == Kind.REAP ? Anim.H_HARVEST : Anim.H_REPLANT);
-        phase = Phase.PLAY;
+        machine.to(State.WORKING);
         timer = 0;
+    }
+
+    private void done() {
+        machine.to(State.DONE);
+        finish();
     }
 
     private boolean stillWorthIt(ServerLevel level, WorkGolem golem) {
@@ -159,6 +177,5 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
         golem.setPickupSuspended(false);
-        phase = Phase.WALK;
     }
 }

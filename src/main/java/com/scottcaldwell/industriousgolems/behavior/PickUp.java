@@ -24,14 +24,29 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     private static final int GIVE_UP_TICKS = 240;
     private static final int IGNORE_TICKS = 6000;
 
+    private enum State { WALK, CROUCH, RISE, DONE }
+
+    public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("pick-up", "Pick up a lying stack",
+            "Any golem with a free hand. Stands where the clip expects the stack to lie, crouches, and takes the whole stack.", State.class)
+            .start(State.WALK)
+            .state(State.WALK, "Walking to the spot a set distance from the stack, facing it.")
+            .state(State.CROUCH, "On the spot, clip playing, hand still empty.")
+            .state(State.RISE, "The stack has reached the hand; the clip is finishing.")
+            .state(State.DONE, "(end) Task over.")
+            .edge(State.WALK, State.CROUCH, "settled on the spot")
+            .edge(State.WALK, State.DONE, "stack gone, hand already full, strayed over 12 blocks, or no path for 12 s (the stack is then ignored for 5 min)")
+            .edge(State.CROUCH, State.RISE, "the clip reaches its grab time: the stack moves into the hand")
+            .edge(State.CROUCH, State.DONE, "the clip ends without a grab (nothing left to take)")
+            .edge(State.RISE, State.DONE, "the clip ends");
+
     /** @param itemId entity id of the stack to fetch */
     public record Plan(int itemId) { }
 
+    private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
     private int walking;
     private Anim.Pick spec;
     private Vec3 spot;
-    private boolean grabbed;
 
     public PickUp() {
         super(Plan.class, 900);
@@ -53,27 +68,30 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
 
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
+        machine.reset();
         timer = -1;
         walking = 0;
-        grabbed = false;
         spot = null;
         spec = Anim.pick(golem.profession().id());
     }
 
+    private void done() {
+        machine.to(State.DONE);
+        finish();
+    }
+
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
-        if (timer >= 0) { // crouching over the stack: it reaches the hand partway through the clip
-            holdStill(golem);
-            timer++;
-            if (!grabbed && timer >= Math.round(spec.grab() * 20)) {
-                grabbed = true;
-                if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && !golem.isCarrying()) golem.pickUp(item);
-            }
-            if (timer >= Math.round(spec.len() * 20)) finish();
-            return;
+        switch (machine.state()) {
+            case WALK -> walk(level, golem, time);
+            case CROUCH, RISE -> crouch(level, golem);
+            case DONE -> { }
         }
+    }
+
+    private void walk(ServerLevel level, WorkGolem golem, long time) {
         if (!(level.getEntity(plan.itemId()) instanceof ItemEntity item) || item.isRemoved() || golem.isCarrying()) {
-            finish();
+            done();
             return;
         }
         lookAt(golem, new EntityTracker(item, true));
@@ -84,11 +102,11 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             spot = item.position().add(away.normalize().scale(spec.dist()));
             if (!Stand.reachable(level, golem, spot)) spot = item.position(); // no room to stand back from it
         }
-        if (walking > 0 && golem.distanceToSqr(item) > 12 * 12) { finish(); return; }
+        if (walking > 0 && golem.distanceToSqr(item) > 12 * 12) { done(); return; }
         if (!standAt(golem, spot, 0.9)) {
             if (++walking > GIVE_UP_TICKS) { // stuck behind something: leave it, so it does not hold up the rest of the work
                 golem.getData(ModAttachments.TASK).ignoreItem(item.getId(), time + IGNORE_TICKS);
-                finish();
+                done();
             }
             return;
         }
@@ -96,5 +114,17 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         holdStill(golem);
         if (spec.clip() != null) golem.playClip(spec.clip());
         timer = 0;
+        machine.to(State.CROUCH);
+    }
+
+    /** Crouching over the stack: it reaches the hand partway through the clip. */
+    private void crouch(ServerLevel level, WorkGolem golem) {
+        holdStill(golem);
+        timer++;
+        if (machine.is(State.CROUCH) && timer >= Math.round(spec.grab() * 20)) {
+            if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && !golem.isCarrying()) golem.pickUp(item);
+            machine.to(State.RISE);
+        }
+        if (timer >= Math.round(spec.len() * 20)) done();
     }
 }

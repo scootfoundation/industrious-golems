@@ -1,6 +1,7 @@
 {
   "model": {
-    "type": "minecraft:model",
-    "model": "industriousgolems:block/stone_chest"
+    "type": "minecraft:special",
+    "base": "minecraft:item/chest",
+    "model": { "type": "minecraft:chest", "texture": "industriousgolems:stone" }
   }
 }

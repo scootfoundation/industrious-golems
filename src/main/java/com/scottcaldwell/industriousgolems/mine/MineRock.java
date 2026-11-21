@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems.mine;
 
 import com.scottcaldwell.industriousgolems.ModAttachments;
+import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import com.scottcaldwell.industriousgolems.golem.Anim;
@@ -42,13 +43,29 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     /** The block chosen by {@link #plan}, the first of the batch. */
     public record MinePlan(MineFinder.Target first) { }
 
+    private enum State { SEEK, APPROACH, SWING, SETTLE, DONE }
+
+    public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("mine-rock", "Miner: dig a batch of rock",
+            "Stone golem. Digs up to a dozen exposed blocks bare-handed, one swing each, leaving the drops lying; then the pick-up and "
+                    + "deposit tasks carry them to the chest.", State.class)
+            .start(State.SEEK)
+            .state(State.SEEK, "Choosing the next exposed block to dig (nearest first, skipping ones recently given up on).")
+            .state(State.APPROACH, "Walking to a spot within reach of the block, looking at it.")
+            .state(State.SWING, "In reach: the smash clip plays and a crack grows; the block breaks at the hit moment.")
+            .state(State.SETTLE, "The block is gone and the golem is settling from the blow.")
+            .state(State.DONE, "(end) Task over.")
+            .edge(State.SEEK, State.APPROACH, "a block was found (the first one comes with the plan)")
+            .edge(State.SEEK, State.DONE, "twelve blocks dug, or no rock left in reach of the chest")
+            .edge(State.APPROACH, State.SWING, "within reach with a clear line to the block")
+            .edge(State.APPROACH, State.SEEK, "the block is already gone or no longer safe to cut, or unreachable for 8 s (ignored for 5 min)")
+            .edge(State.SWING, State.SETTLE, "hit moment: the block breaks, the drops fall")
+            .edge(State.SETTLE, State.SEEK, "the swing has settled");
+
+    private final Machine.Run<State> machine = GRAPH.run();
     private MineFinder.Target target;
-    private boolean done = true;
     private int mined;
     private int stalled;
     private int progress;
-    private boolean smashing;
-    private boolean dug;
 
     public MineRock() {
         super(MinePlan.class, 2400);
@@ -81,79 +98,82 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
+        machine.reset();
         target = plan.first();
-        done = false;
+        machine.to(State.APPROACH);
         mined = 0;
         stalled = 0;
         progress = 0;
-        smashing = false;
-        dug = false;
         golem.setPickupSuspended(true);
     }
 
-    @Override
-    protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
-        return !done && super.allowedNow(level, golem);
+    private void done() {
+        machine.to(State.DONE);
+        finish();
     }
 
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
-        if (target == null && !nextTarget(level, golem)) {
-            finish();
-            return;
+        switch (machine.state()) {
+            case SEEK -> {
+                if (!nextTarget(level, golem)) done();
+                else machine.to(State.APPROACH);
+            }
+            case APPROACH -> approach(level, golem, time);
+            case SWING -> swing(level, golem);
+            case SETTLE -> {
+                holdStill(golem);
+                progress++;
+                if (progress / 20.0F >= Anim.S_MINE_LEN) { target = null; progress = 0; machine.to(State.SEEK); }
+            }
+            case DONE -> { }
         }
+    }
+
+    private void approach(ServerLevel level, WorkGolem golem, long time) {
         BlockPos block = target.block();
-        if (!smashing && !MineFinder.isMineable(level, block)) { // already gone, or no longer safe to cut
+        if (!MineFinder.isMineable(level, block)) { // already gone, or no longer safe to cut
             clearCrack(level, golem);
             target = null;
+            machine.to(State.SEEK);
             return;
         }
-        if (smashing && dug) { // the block is gone; the golem is still settling from the blow
-            holdStill(golem);
-            progress++;
-            if (progress / 20.0F >= Anim.S_MINE_LEN) { smashing = false; dug = false; target = null; progress = 0; }
-            return;
-        }
-
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(block)));
         if (!inReach(level, golem, block)) {
             if (++stalled > STALL_TICKS) { // cannot get there: leave it alone for a while
                 golem.getData(ModAttachments.TASK).ignoreBlock(block, time + IGNORE_TICKS);
                 clearCrack(level, golem);
                 target = null;
+                machine.to(State.SEEK);
                 return;
             }
             walkTo(golem, new BlockPosTracker(target.stand()), 1);
             return;
         }
-
         holdStill(golem);
         stalled = 0;
-        BlockState state = level.getBlockState(block);
-        if (!smashing) { // in reach: square up to the block and bring a fist down on it
-            Face.toward(golem, Vec3.atCenterOf(block));
-            golem.playClip(Anim.S_MINE);
-            smashing = true;
-            dug = false;
-            progress = 0;
-        }
+        Face.toward(golem, Vec3.atCenterOf(block)); // in reach: square up to the block and bring a fist down on it
+        golem.playClip(Anim.S_MINE);
+        progress = 0;
+        machine.to(State.SWING);
+        swing(level, golem);
+    }
+
+    private void swing(ServerLevel level, WorkGolem golem) {
+        BlockPos block = target.block();
+        holdStill(golem);
         progress++;
         float t = progress / 20.0F;
-        if (!dug && t >= Anim.S_MINE_HIT) {
+        if (t >= Anim.S_MINE_HIT) {
+            BlockState state = level.getBlockState(block);
             golem.swing(InteractionHand.MAIN_HAND);
             level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
             clearCrack(level, golem);
             dig(level, golem, block, state);
             mined++;
-            dug = true;
-        } else if (!dug && progress % 6 == 0) {
+            machine.to(State.SETTLE);
+        } else if (progress % 6 == 0) {
             level.destroyBlockProgress(golem.getId(), block, Math.min(9, Math.round(t / Anim.S_MINE_HIT * 10.0F)));
-        }
-        if (t >= Anim.S_MINE_LEN) { // the swing has settled: on to the next block
-            smashing = false;
-            dug = false;
-            target = null;
-            progress = 0;
         }
     }
 
@@ -183,7 +203,6 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     private void clearCrack(ServerLevel level, WorkGolem golem) {
         if (target != null) level.destroyBlockProgress(golem.getId(), target.block(), -1);
-        progress = 0;
     }
 
     @Override
@@ -191,6 +210,5 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         clearCrack(level, golem);
         golem.setPickupSuspended(false);
         target = null;
-        done = true;
     }
 }

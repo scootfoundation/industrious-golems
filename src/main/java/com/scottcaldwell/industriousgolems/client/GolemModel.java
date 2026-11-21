@@ -7,6 +7,7 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HeadedModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.world.entity.HumanoidArm;
+import org.joml.Vector3f;
 
 /**
  * The model shared by the work golems (they differ in proportions and parts only, built by {@link GolemModels}). It does
@@ -28,8 +29,16 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
     /** Where an item held in front of the chest sits, in body pixels. */
     private final float[] front;
 
+    /** Whether a carried item sits between the two hands, rather than in the right one. */
+    private final boolean between;
+
     public GolemModel(ModelPart root, float[] hand, float[] front) {
+        this(root, hand, front, false);
+    }
+
+    public GolemModel(ModelPart root, float[] hand, float[] front, boolean between) {
         super(root);
+        this.between = between;
         this.body = root.getChild("body");
         this.head = body.getChild("head");
         this.rightArm = body.getChild("right_arm");
@@ -90,11 +99,25 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
             poseStack.translate(front[0] / 16.0F, front[1] / 16.0F, front[2] / 16.0F);
             return;
         }
+        if (between && hold == null) { // cradled between both hands: halfway between where each would hold it
+            Vector3f r = handPoint(rightArm, rightFore, hand[0]), l = handPoint(leftArm, leftFore, -hand[0]);
+            poseStack.translate((r.x + l.x) / 2, (r.y + l.y) / 2, (r.z + l.z) / 2);
+            return;
+        }
         ModelPart a = right ? rightArm : leftArm;
         a.translateAndRotate(poseStack);
         ModelPart fore = right ? rightFore : leftFore;
         if (fore != null) fore.translateAndRotate(poseStack);
         poseStack.translate((right ? hand[0] : -hand[0]) / 16.0F, hand[1] / 16.0F, hand[2] / 16.0F);
+    }
+
+    /** Where a hand is, in the body's space, with the item's offset down the arm. */
+    private Vector3f handPoint(ModelPart arm, ModelPart fore, float sideways) {
+        PoseStack ps = new PoseStack();
+        arm.translateAndRotate(ps);
+        if (fore != null) fore.translateAndRotate(ps);
+        ps.translate(sideways / 16.0F, hand[1] / 16.0F, hand[2] / 16.0F);
+        return ps.last().pose().transformPosition(new Vector3f());
     }
 
     @Override

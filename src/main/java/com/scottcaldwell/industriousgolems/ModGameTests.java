@@ -64,46 +64,70 @@ public class ModGameTests {
             DeferredRegister.create(Registries.TEST_FUNCTION, IndustriousGolems.MODID);
 
     static {
-        FUNCTIONS.register("farmer_harvests_and_replants", () -> ModGameTests::farmerHarvestsAndReplants);
-        FUNCTIONS.register("farmer_chest_io", () -> ModGameTests::farmerChestIo);
-        FUNCTIONS.register("farmer_chest_preference", () -> ModGameTests::farmerChestPreference);
-        FUNCTIONS.register("herder_shears_sheep", () -> ModGameTests::herderShearsSheep);
-        FUNCTIONS.register("herder_milks_cow", () -> ModGameTests::herderMilksCow);
-        FUNCTIONS.register("herder_culls_crowded_pen", () -> ModGameTests::herderCullsCrowdedPen);
-        FUNCTIONS.register("herder_breeds_sparse_pen", () -> ModGameTests::herderBreedsSparsePen);
-        FUNCTIONS.register("pen_detection", () -> ModGameTests::penDetection);
-        FUNCTIONS.register("lumberjack_fells_and_replants", () -> ModGameTests::lumberjackFellsAndReplants);
-        FUNCTIONS.register("lumberjack_ignores_log_building", () -> ModGameTests::lumberjackIgnoresLogBuilding);
-        FUNCTIONS.register("golem_dormant_until_offered", () -> ModGameTests::golemDormantUntilOffered);
-        FUNCTIONS.register("golem_offering_rules", () -> ModGameTests::golemOfferingRules);
-        FUNCTIONS.register("golem_charge_runs_out", () -> ModGameTests::golemChargeRunsOut);
+        strictly("farmer_harvests_and_replants", ModGameTests::farmerHarvestsAndReplants);
+        strictly("farmer_chest_io", ModGameTests::farmerChestIo);
+        strictly("farmer_chest_preference", ModGameTests::farmerChestPreference);
+        strictly("herder_shears_sheep", ModGameTests::herderShearsSheep);
+        strictly("herder_milks_cow", ModGameTests::herderMilksCow);
+        strictly("herder_culls_crowded_pen", ModGameTests::herderCullsCrowdedPen);
+        strictly("herder_breeds_sparse_pen", ModGameTests::herderBreedsSparsePen);
+        strictly("pen_detection", ModGameTests::penDetection);
+        strictly("lumberjack_fells_and_replants", ModGameTests::lumberjackFellsAndReplants);
+        strictly("lumberjack_ignores_log_building", ModGameTests::lumberjackIgnoresLogBuilding);
+        strictly("golem_dormant_until_offered", ModGameTests::golemDormantUntilOffered);
+        strictly("golem_offering_rules", ModGameTests::golemOfferingRules);
+        strictly("golem_charge_runs_out", ModGameTests::golemChargeRunsOut);
         FUNCTIONS.register("hay_chest_pattern", () -> h -> chestPattern(h, ModProfessions.FARMER, Blocks.HAY_BLOCK.defaultBlockState(), ModBlocks.HAY_CHEST.get()));
         FUNCTIONS.register("mushroom_chest_pattern", () -> h -> chestPattern(h, ModProfessions.LUMBERJACK, Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(), ModBlocks.MUSHROOM_CHEST.get()));
         FUNCTIONS.register("terracotta_chest_pattern", () -> h -> chestPattern(h, ModProfessions.HERDER, Blocks.TERRACOTTA.defaultBlockState(), ModBlocks.TERRACOTTA_CHEST.get()));
-        FUNCTIONS.register("chest_pattern_needs_matching_body", () -> ModGameTests::chestPatternNeedsMatchingBody);
-        FUNCTIONS.register("golem_death_drops_carried_stack", () -> ModGameTests::golemDeathDropsCarriedStack);
-        FUNCTIONS.register("golem_state_survives_save_and_load", () -> ModGameTests::golemStateSurvivesSaveAndLoad);
-        FUNCTIONS.register("golem_picks_up_only_what_it_works_with", () -> ModGameTests::golemPicksUpOnlyWhatItWorksWith);
-        FUNCTIONS.register("golem_uses_its_own_chest", () -> ModGameTests::golemUsesItsOwnChest);
-        FUNCTIONS.register("golem_keeps_stack_when_chest_full", () -> ModGameTests::golemKeepsStackWhenChestFull);
-        FUNCTIONS.register("farmer_does_not_sow_non_seeds", () -> ModGameTests::farmerDoesNotSowNonSeeds);
-        FUNCTIONS.register("lumberjack_fells_tall_tree", () -> ModGameTests::lumberjackFellsTallTree);
-        FUNCTIONS.register("lumberjack_fetches_saplings", () -> ModGameTests::lumberjackFetchesSaplings);
-        FUNCTIONS.register("herder_fetches_one_bucket", () -> ModGameTests::herderFetchesOneBucket);
-        FUNCTIONS.register("herder_accepts_any_sherd", () -> ModGameTests::herderAcceptsAnySherd);
-        FUNCTIONS.register("chest_pattern_via_place_event", () -> ModGameTests::chestPatternViaPlaceEvent);
-        FUNCTIONS.register("chest_pattern_needs_headroom", () -> ModGameTests::chestPatternNeedsHeadroom);
+        strictly("chest_pattern_needs_matching_body", ModGameTests::chestPatternNeedsMatchingBody);
+        strictly("golem_death_drops_carried_stack", ModGameTests::golemDeathDropsCarriedStack);
+        strictly("golem_state_survives_save_and_load", ModGameTests::golemStateSurvivesSaveAndLoad);
+        strictly("golem_picks_up_only_what_it_works_with", ModGameTests::golemPicksUpOnlyWhatItWorksWith);
+        strictly("golem_uses_its_own_chest", ModGameTests::golemUsesItsOwnChest);
+        strictly("golem_keeps_stack_when_chest_full", ModGameTests::golemKeepsStackWhenChestFull);
+        strictly("farmer_does_not_sow_non_seeds", ModGameTests::farmerDoesNotSowNonSeeds);
+        strictly("lumberjack_fells_tall_tree", ModGameTests::lumberjackFellsTallTree);
+        strictly("lumberjack_fetches_saplings", ModGameTests::lumberjackFetchesSaplings);
+        strictly("herder_fetches_one_bucket", ModGameTests::herderFetchesOneBucket);
+        strictly("herder_accepts_any_sherd", ModGameTests::herderAcceptsAnySherd);
+        strictly("chest_pattern_via_place_event", ModGameTests::chestPatternViaPlaceEvent);
+        strictly("chest_pattern_needs_headroom", ModGameTests::chestPatternNeedsHeadroom);
         FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, Blocks.SMOOTH_STONE.defaultBlockState(), ModBlocks.STONE_CHEST.get()));
-        FUNCTIONS.register("miner_digs_and_delivers", () -> ModGameTests::minerDigsAndDelivers);
-        FUNCTIONS.register("miner_dig_rules", () -> ModGameTests::minerDigRules);
-        FUNCTIONS.register("miner_ignores_unreachable_rock", () -> ModGameTests::minerIgnoresUnreachableRock);
-        FUNCTIONS.register("golem_meets_chest_face_on_and_opens_it", () -> ModGameTests::golemMeetsChestFaceOn);
-        FUNCTIONS.register("lumberjack_plants_spaced_saplings", () -> ModGameTests::lumberjackPlantsSpacedSaplings);
-        FUNCTIONS.register("registry_consistency", () -> ModGameTests::registryConsistency);
+        strictly("miner_digs_and_delivers", ModGameTests::minerDigsAndDelivers);
+        strictly("miner_dig_rules", ModGameTests::minerDigRules);
+        strictly("miner_ignores_unreachable_rock", ModGameTests::minerIgnoresUnreachableRock);
+        strictly("golem_meets_chest_face_on_and_opens_it", ModGameTests::golemMeetsChestFaceOn);
+        strictly("lumberjack_plants_spaced_saplings", ModGameTests::lumberjackPlantsSpacedSaplings);
+        strictly("registry_consistency", ModGameTests::registryConsistency);
+        strictly("state_graphs", ModGameTests::stateGraphs);
+        strictly("golem_leaves_chest_top_before_animating", ModGameTests::golemLeavesChestTopBeforeAnimating);
     }
 
     public static void register(IEventBus modEventBus) {
         FUNCTIONS.register(modEventBus);
+    }
+
+    /** Registers a test that runs with the state machines strict: a transition nobody declared fails it. */
+    private static void strictly(String name, Consumer<GameTestHelper> test) {
+        FUNCTIONS.register(name, () -> helper -> {
+            com.scottcaldwell.industriousgolems.behavior.Machine.strict = true;
+            test.accept(helper);
+        });
+    }
+
+    /** Every state machine is fully described; also refreshes docs/state-machines.json for the diagram page. */
+    private static void stateGraphs(GameTestHelper helper) {
+        for (var graph : com.scottcaldwell.industriousgolems.behavior.Graphs.all()) {
+            helper.assertTrue(graph.problems().isEmpty(), String.join("; ", graph.problems()));
+        }
+        try {
+            java.nio.file.Path docs = java.nio.file.Path.of("..", "..", "docs");
+            if (java.nio.file.Files.isDirectory(docs)) java.nio.file.Files.writeString(docs.resolve("state-machines.json"), com.scottcaldwell.industriousgolems.behavior.Graphs.json());
+        } catch (java.io.IOException e) {
+            IndustriousGolems.LOGGER.warn("could not write the state machine description", e);
+        }
+        helper.succeed();
     }
 
     private static final BlockPos COMPOSTER = new BlockPos(2, 1, 2);
@@ -630,7 +654,7 @@ public class ModGameTests {
         String[] where = {""};
         helper.succeedWhen(() -> {
             BlockPos chestAbs = helper.absolutePos(COMPOSTER);
-            if (helper.getBlockState(COMPOSTER).getValue(com.scottcaldwell.industriousgolems.block.GolemChestBlock.OPEN)) {
+            if (helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class).getEntitiesWithContainerOpen().isEmpty() == false) {
                 seen[0] = true;
                 where[0] = where[0].isEmpty() || !seen[1] ? farmer.position() + " chest " + chestAbs + " " + helper.getLevel().getBlockState(chestAbs) : where[0];
                 net.minecraft.core.Direction f = helper.getLevel().getBlockState(chestAbs)
@@ -641,6 +665,24 @@ public class ModGameTests {
             helper.assertTrue(count(own, Items.WHEAT) == 5, "the wheat goes in the chest");
             helper.assertTrue(seen[0], "the lid was raised during the visit");
             helper.assertTrue(seen[1], "the golem stood squarely in front of the chest while it was open: " + where[0]);
+        });
+    }
+
+    /** A golem found standing on top of its chest climbs down and only starts the clip at ground level in front. */
+    private static void golemLeavesChestTopBeforeAnimating(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get().defaultBlockState()
+                .setValue(net.minecraft.world.level.block.ChestBlock.FACING, net.minecraft.core.Direction.EAST));
+        helper.setBlock(CHEST, Blocks.AIR);
+        WorkGolem farmer = spawnFarmer(helper, COMPOSTER.above());
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        Container own = helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class);
+        boolean[] high = {false};
+        helper.succeedWhen(() -> {
+            if (!helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class).getEntitiesWithContainerOpen().isEmpty()
+                    && farmer.getY() > helper.absolutePos(COMPOSTER).getY() + 0.4) high[0] = true;
+            helper.assertTrue(count(own, Items.WHEAT) == 5, "the wheat goes in the chest");
+            helper.assertTrue(!high[0], "the golem was up on the chest while it was open");
         });
     }
 

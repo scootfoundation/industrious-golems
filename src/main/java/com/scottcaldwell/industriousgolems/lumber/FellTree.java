@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
 import com.scottcaldwell.industriousgolems.ModAttachments;
+import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.PickUp;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
@@ -39,13 +40,38 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     /** How far from the sapling's centre the golem stands to plant it (9 pixels). */
     private static final double PLANT_DIST = 9.0 / 16.0;
 
-    private enum Phase { WALK, SNEEZE, APPEAR, BREAK, STEP_BACK, PLANT, DONE }
+    private enum State { WALK, SNEEZE, APPEAR, BREAK, DESCEND, STEP_BACK, PLANT, DONE }
+
+    public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("fell-tree", "Lumberjack: fell a tree, plant a sapling",
+            "Mushroom golem. Walks to the foot of a tree, sneezes, vanishes and reappears on top of the crown, then mines straight down "
+                    + "through the trunk. On the ground it steps back and plants a sapling. With no tree to fell it plants a new one instead.",
+            State.class)
+            .start(State.WALK)
+            .state(State.WALK, "Walking to within 3.5 blocks of the foot of the tree (or of the spot to plant, when there is no tree).")
+            .state(State.SNEEZE, "Sneeze-and-vanish clip; a puff of spores at the end.")
+            .state(State.APPEAR, "Teleported onto the crown; the appear clip plays.")
+            .state(State.BREAK, "Standing on the top block of the trunk's column, the break clip playing; the block below breaks at the hit moment.")
+            .state(State.DESCEND, "Swing done and the block is gone: waiting to land on the next block down.")
+            .state(State.STEP_BACK, "On the ground (or planting only): walking to the spot beside the sapling place.")
+            .state(State.PLANT, "Plant clip playing; the sapling goes in at the planting moment.")
+            .state(State.DONE, "(end) Task over. If interrupted up in the tree he poofs back to the ground.")
+            .edge(State.WALK, State.SNEEZE, "within 3.5 blocks of the tree and there is room on top of the crown")
+            .edge(State.WALK, State.STEP_BACK, "no tree to fell (planting only), or no room on top of the crown")
+            .edge(State.WALK, State.DONE, "no path for 30 s (tree ignored for 2.5 min)")
+            .edge(State.SNEEZE, State.APPEAR, "vanish moment reached: teleports onto the crown")
+            .edge(State.APPEAR, State.BREAK, "appear clip ends")
+            .edge(State.BREAK, State.DESCEND, "break clip ends")
+            .edge(State.DESCEND, State.BREAK, "landed, and another log or leaf is directly below")
+            .edge(State.DESCEND, State.STEP_BACK, "landed on something that is not part of the tree")
+            .edge(State.STEP_BACK, State.PLANT, "standing on the planting spot with a sapling in hand")
+            .edge(State.STEP_BACK, State.DONE, "no sapling, the place is taken, no spot to stand, or no path for 30 s")
+            .edge(State.PLANT, State.DONE, "plant clip ends");
 
     /** The tree chosen by {@link #plan}: chop {@code logs}, then replant at {@code replant}. */
     public record FellPlan(List<BlockPos> logs, BlockPos replant) { }
 
     private final List<BlockPos> remaining = new ArrayList<>();
-    private Phase phase = Phase.DONE;
+    private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
     private int stalled;
     /** The spot on top of the crown the golem pops out at (its feet), or null when there is none. */
@@ -112,14 +138,10 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         top = remaining.isEmpty() ? null : crownTop(level, plan.logs(), plan.replant());
         plantSpot = null;
         stalled = 0;
-        phase = remaining.isEmpty() ? Phase.STEP_BACK : Phase.WALK;
+        machine.reset();
+        if (remaining.isEmpty()) machine.to(State.STEP_BACK);
         timer = 0;
         golem.setPickupSuspended(true); // the drops are left lying until the felling is done, then picked up in turn
-    }
-
-    @Override
-    protected boolean allowedNow(ServerLevel level, WorkGolem golem) {
-        return phase != Phase.DONE && super.allowedNow(level, golem);
     }
 
     /**
@@ -146,7 +168,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
-        switch (phase) {
+        switch (machine.state()) {
             case WALK -> {
                 BlockPos base = plan.replant();
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(base)));
@@ -156,10 +178,10 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                     walkTo(golem, new BlockPosTracker(base), 2);
                     return;
                 }
-                if (top == null) { phase = Phase.STEP_BACK; return; } // no room on top: fall back to just replanting
+                if (top == null) { machine.to(State.STEP_BACK); return; } // no room on top: fall back to just replanting
                 holdStill(golem);
                 golem.playClip(Anim.M_SNEEZE_VANISH);
-                phase = Phase.SNEEZE;
+                machine.to(State.SNEEZE);
                 timer = 0;
             }
             case SNEEZE -> {
@@ -172,7 +194,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 golem.setDeltaMovement(Vec3.ZERO);
                 puff(level, golem.position().add(0, 0.6, 0));
                 golem.playClip(Anim.M_SNEEZE_APPEAR);
-                phase = Phase.APPEAR;
+                machine.to(State.APPEAR);
                 timer = 0;
             }
             case APPEAR -> {
@@ -188,15 +210,19 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                     BlockPos below = golem.blockPosition().below();
                     if (isTreeBlock(level, below)) level.destroyBlock(below, true, golem);
                 }
-                if (timer < Math.round(Anim.M_BREAK_LEN * 20) || !golem.onGround()) return;
+                if (timer >= Math.round(Anim.M_BREAK_LEN * 20)) machine.to(State.DESCEND);
+            }
+            case DESCEND -> {
+                holdStill(golem);
+                if (!golem.onGround()) return;
                 if (isTreeBlock(level, golem.blockPosition().below())) startBreak(golem);
-                else { golem.stopClip(); phase = Phase.STEP_BACK; stalled = 0; }
+                else { golem.stopClip(); machine.to(State.STEP_BACK); stalled = 0; }
             }
             case STEP_BACK -> {
                 // down on the ground: step back from the stump and plant, if holding a sapling
-                if (!golem.carried().is(ItemTags.SAPLINGS) || !canPlantAt(level, plan.replant(), golem.carried())) { finish(); return; }
+                if (!golem.carried().is(ItemTags.SAPLINGS) || !canPlantAt(level, plan.replant(), golem.carried())) { done(); return; }
                 if (plantSpot == null) plantSpot = chooseSpot(level, golem, plan.replant());
-                if (plantSpot == null) { finish(); return; }
+                if (plantSpot == null) { done(); return; }
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(plan.replant())));
                 if (!standAt(golem, plantSpot, 0.9)) {
                     if (++stalled > STALL_TICKS) giveUp(golem, time);
@@ -204,7 +230,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 }
                 holdStill(golem);
                 golem.playClip(Anim.M_PLANT);
-                phase = Phase.PLANT;
+                machine.to(State.PLANT);
                 timer = 0;
             }
             case PLANT -> {
@@ -212,21 +238,26 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(plan.replant())));
                 timer++;
                 if (timer == Math.round(Anim.M_PLANT_AT * 20)) plant(level, golem, plan.replant());
-                if (timer >= Math.round(Anim.M_PLANT_LEN * 20)) finish();
+                if (timer >= Math.round(Anim.M_PLANT_LEN * 20)) done();
             }
             case DONE -> { }
         }
     }
 
+    private void done() {
+        machine.to(State.DONE);
+        finish();
+    }
+
     /** It cannot get there: leave this tree or spot alone for a while rather than trying it again at once. */
     private void giveUp(WorkGolem golem, long time) {
         golem.getData(ModAttachments.TASK).ignoreBlock(plan.replant(), time + 3000);
-        finish();
+        done();
     }
 
     private void startBreak(WorkGolem golem) {
         golem.playClip(Anim.M_BREAK_BELOW);
-        phase = Phase.BREAK;
+        machine.to(State.BREAK);
         timer = 0;
     }
 
@@ -274,6 +305,5 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         remaining.clear();
         top = null;
         plantSpot = null;
-        phase = Phase.DONE;
     }
 }

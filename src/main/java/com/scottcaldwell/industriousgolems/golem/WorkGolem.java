@@ -69,6 +69,12 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     private @Nullable BlockPos openedChestPos;
     /** Set while the work itself drops things the golem should leave lying until it is done (mining); not saved. */
     private boolean pickupSuspended;
+    /** What the golem is doing at the top level; see {@link GolemMode}. Not saved: it is read off the golem again. */
+    private final com.scottcaldwell.industriousgolems.behavior.Machine.Run<GolemMode> mode = GolemMode.GRAPH.run();
+
+    public GolemMode mode() {
+        return mode.state();
+    }
 
     public WorkGolem(EntityType<? extends WorkGolem> type, Level level) {
         super(type, level);
@@ -129,6 +135,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
             profiler.pop();
             profiler.push("workGolemActivity");
             GolemBrain.updateActivity(this);
+            mode.to(GolemMode.of(this));
             profiler.pop();
         } else {
             getNavigation().stop();
