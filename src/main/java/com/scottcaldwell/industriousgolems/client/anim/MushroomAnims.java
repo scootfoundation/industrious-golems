@@ -219,7 +219,7 @@ public final class MushroomAnims {
         P.lleg.rx += -0.5 * cr;
         double w = sstep(1.3, 1.95, t);
         P.offZ = (float) (LOB_Z + (walkTo - LOB_Z) * w);
-        double wk = win(t, 1.3, 1.4, 1.85, 1.95);
+        double wk = walkTo == LOB_Z ? 0 : win(t, 1.3, 1.4, 1.85, 1.95); // no steps when it stays where it is
         P.legs(sin(t * 13) * wk, 0.7);
         P.body.y -= abs(sin(t * 13)) * wk * 0.8;
     }
@@ -348,7 +348,7 @@ public final class MushroomAnims {
             P.lleg.rx += 0.35 * hop;
         });
         Clip clamber = new Clip("clamber-up", (float) UP_LEN, false, 0, (P, t, c) -> perch(P, t + C0, new double[]{0, 0.7, C0, 0, 1e9}));
-        Clip putIn = new Clip("put-in-chest", 2.1F, false, 0, (P, t, c) -> lobPose(P, t, STAND_Z)).hold("front", 0, (float) LOB_REL);
+        Clip putIn = new Clip("put-in-chest", 2.1F, false, 0, (P, t, c) -> lobPose(P, t, LOB_Z)).hold("front", 0, (float) LOB_REL);
         Clip leap = new Clip("leap-and-close", 1.6F, false, 0, (P, t, c) -> leapMotion(P, t, null));
         Clip leapItem = new Clip("leap-and-close-item", 1.6F, false, 0, (P, t, c) -> leapMotion(P, t, c.item == null ? "log" : c.item)).hold("front");
         final double RT_REL = 3.5;
@@ -372,7 +372,16 @@ public final class MushroomAnims {
         stand.stand = (float) LOB_Z;
         Clip.Ctx thrown = opt();
         thrown.thrown = true;
-        Clip put = Clip.seq(Anim.M_PUT_IN, Clip.seg(openLid, 0, stand), Clip.seg(putIn, 1.8F, null), Clip.seg(clamber, 3.9F, null), Clip.seg(leap, 8.0F, null));
+        // putting in needs no climb: it opens the lid, lobs the item in and swats the lid shut from the floor
+        Clip swat = new Clip("swat-lid", 1.2F, false, 0, (P, t, c) -> {
+            P.offZ = (float) LOB_Z;
+            double a = kf(t, k(0, 0), k(0.3, -2.1, 'o'), k(0.5, -1.2, 'i'), k(0.7, -1.2), k(1.1, 0));
+            P.arms(a, 0.2 * win(t, 0.05, 0.3, 0.5, 0.7));
+            P.body.rx += 0.18 * win(t, 0.3, 0.5, 0.6, 1.0);
+            P.body.y += 0.8 * win(t, 0.1, 0.3, 0.45, 0.6);
+            P.head.rx += 0.2 * win(t, 0.3, 0.5, 0.7, 1.0);
+        });
+        Clip put = Clip.seq(Anim.M_PUT_IN, Clip.seg(openLid, 0, stand), Clip.seg(putIn, 1.8F, null), Clip.seg(swat, 3.9F, null));
         CLIPS.put(Anim.M_PUT_IN, put);
         Clip fetch = Clip.seq(Anim.M_FETCH, Clip.seg(openLid, 0, null), Clip.seg(clamber, 1.8F, null), Clip.seg(rummage, 5.9F, null), Clip.seg(leap, 10.7F, thrown));
         CLIPS.put(Anim.M_FETCH, fetch);

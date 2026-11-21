@@ -77,7 +77,7 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         boolean moving = state.walkAnimationSpeed > 0.04F;
         AnimState memory = this.memory.computeIfAbsent(golem, g -> new AnimState());
         state.hold = Animator.evaluate(kit, state.pose, clip.isEmpty() ? null : clip, clipTime, moving, walkDist, state.ageInTicks / 20.0,
-                state.dormant && golem.cravingIndex() >= 0, item, memory);
+                state.dormant && golem.cravingIndex() >= 0, state.dormant, item, memory);
         state.headYaw = state.yRot;
     }
 

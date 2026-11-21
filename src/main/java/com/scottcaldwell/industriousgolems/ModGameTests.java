@@ -331,29 +331,30 @@ public class ModGameTests {
         });
     }
 
-    /** Five pigs in a 16-cell pen is over the density band: the herder culls down to three, collecting the meat. */
+    /** Six pigs in a 16-cell pen is over the density band: the herder culls down to four, collecting the meat. */
     private static void herderCullsCrowdedPen(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        for (int i = 0; i < 5; i++) helper.spawn(EntityTypes.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
+        for (int i = 0; i < 6; i++) helper.spawn(EntityTypes.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
-            helper.assertTrue(alive(helper, Pig.class).size() == 3,
-                    "pen should be culled to 3 pigs, has " + alive(helper, Pig.class).size());
+            helper.assertTrue(alive(helper, Pig.class).size() == 4,
+                    "pen should be culled to 4 pigs, has " + alive(helper, Pig.class).size());
             helper.assertTrue(total(herder, chest, Items.PORKCHOP) > 0, "the meat should be collected" + describe(helper, herder, chest));
         });
     }
 
-    /** Two cows in a 16-cell pen is below the density band: the herder feeds wheat and a calf is born. */
+    /** Three cows in a 16-cell pen is below the density band: the herder feeds wheat and a calf is born. */
     private static void herderBreedsSparsePen(GameTestHelper helper) {
         buildHerdFarm(helper);
         helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
         helper.spawn(EntityTypes.COW, new BlockPos(6, 1, 6));
+        helper.spawn(EntityTypes.COW, new BlockPos(7, 1, 5));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.setCarried(new ItemStack(Items.WHEAT, 8));
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         helper.succeedWhen(() -> {
-            helper.assertTrue(alive(helper, Cow.class).size() >= 3, "a calf should have been born");
+            helper.assertTrue(alive(helper, Cow.class).size() >= 4, "a calf should have been born");
             helper.assertTrue(total(herder, chest, Items.WHEAT) < 8, "the herder should have fed wheat");
         });
     }

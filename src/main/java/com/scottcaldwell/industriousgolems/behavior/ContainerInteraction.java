@@ -192,7 +192,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (spot == null && golem.onGround() && Math.abs(golem.getY() - chestPos.getY()) < 0.5) spot = golem.position();
             if (spot == null) { done(); return; }
         }
-        if (golem.blockPosition().equals(chestPos.above())) { // up on top of the chest: climb down first, the clip needs level ground
+        // up on top of the chest (its lid is under a block high, so the golem's block position is the chest's own, not the one above):
+        // climb down first, the clip needs level ground
+        if (golem.getBlockX() == chestPos.getX() && golem.getBlockZ() == chestPos.getZ() && golem.getY() > chestPos.getY() + 0.3) {
             if (++stalled > 400) { done(); return; }
             golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             golem.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new net.minecraft.world.entity.ai.memory.WalkTarget(new BlockPosTracker(BlockPos.containing(spot)), 0.5F, 0));

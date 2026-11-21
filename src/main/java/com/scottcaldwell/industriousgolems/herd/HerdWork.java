@@ -40,9 +40,12 @@ import java.util.Map;
  */
 public class HerdWork extends TaskRunner<HerdPlan> {
 
-    /** Cull above one animal per this many pen cells; breed below one per {@link #BREED_BELOW_CELLS_PER_ANIMAL}. */
-    static final int CULL_ABOVE_CELLS_PER_ANIMAL = 5;
-    static final int BREED_BELOW_CELLS_PER_ANIMAL = 6;
+    /**
+     * Cull above one animal per this many pen cells; breed below one per {@link #BREED_BELOW_CELLS_PER_ANIMAL}. The gap between them
+     * is what stops it breeding a calf only to cull it again: in a 16-cell pen it breeds up to four and culls from five.
+     */
+    static final double CULL_ABOVE_CELLS_PER_ANIMAL = 3.5;
+    static final double BREED_BELOW_CELLS_PER_ANIMAL = 4.0;
     /** Never cull a species down to fewer adults than this. */
     static final int MIN_ADULTS = 2;
     static final long MILK_COOLDOWN = 6000;

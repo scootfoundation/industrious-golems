@@ -21,7 +21,7 @@ public final class Animator {
      * @param walkDist how far the golem has walked, in 1/16 blocks (drives the stride)
      */
     public static String evaluate(Kit kit, Pose pose, String clipId, double clipTime, boolean moving, double walkDist, double ageSeconds,
-                                  boolean waiting, String item, AnimState state) {
+                                  boolean waiting, boolean dormant, String item, AnimState state) {
         pose.clear();
         Clip clip = kit.get(clipId);
         double t = clipTime;
@@ -33,7 +33,8 @@ public final class Animator {
                 clip = item != null && kit.get(kit.walkItem()) != null ? kit.get(kit.walkItem()) : kit.get(kit.walk());
                 t = clip.move > 0 ? walkDist / clip.move : ageSeconds;
             } else {
-                clip = kit.get(kit.idle());
+                // a golem with charge is between jobs (searching): it looks around; a dormant one keeps its slumped idle
+                clip = dormant ? kit.get(kit.idle()) : BasicAnims.LOOK_AROUND;
                 t = ageSeconds;
             }
         }
