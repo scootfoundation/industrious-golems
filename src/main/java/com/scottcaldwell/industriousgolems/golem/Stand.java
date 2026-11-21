@@ -28,11 +28,27 @@ public final class Stand {
         return best;
     }
 
+    /**
+     * The spot {@code dist} blocks in front of a chest, on the side it faces, so the golem meets it face on; another side only when the
+     * front has no room to stand.
+     */
+    public static Vec3 front(ServerLevel level, BlockPos chest, WorkGolem golem, double dist) {
+        var state = level.getBlockState(chest);
+        if (state.hasProperty(net.minecraft.world.level.block.ChestBlock.FACING)) {
+            Direction d = state.getValue(net.minecraft.world.level.block.ChestBlock.FACING);
+            Vec3 centre = Vec3.atCenterOf(chest);
+            Vec3 at = new Vec3(centre.x + d.getStepX() * dist, chest.getY(), centre.z + d.getStepZ() * dist);
+            if (reachable(level, golem, at)) return at;
+        }
+        return cardinal(level, chest, golem, dist);
+    }
+
     /** Whether the golem can stand at the point and get there from where it is. */
     public static boolean reachable(ServerLevel level, WorkGolem golem, Vec3 at) {
         BlockPos feet = BlockPos.containing(at);
         BlockPos below = feet.below();
         if (!free(level, at) || level.getBlockState(below).getCollisionShape(level, below).isEmpty()) return false;
+        if (!golem.onGround() && !golem.isInLiquid()) return true; // a golem in the air cannot plan a path yet: judge by the ground alone
         var path = golem.getNavigation().createPath(feet, 0);
         return path != null && path.canReach();
     }

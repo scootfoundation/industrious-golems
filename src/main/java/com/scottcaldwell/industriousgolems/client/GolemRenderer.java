@@ -2,6 +2,21 @@ package com.scottcaldwell.industriousgolems.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import com.scottcaldwell.industriousgolems.offering.Offering;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.entity.HumanoidArm;
+import java.util.List;
 import com.scottcaldwell.industriousgolems.client.anim.AnimState;
 import com.scottcaldwell.industriousgolems.client.anim.Animator;
 import com.scottcaldwell.industriousgolems.client.anim.Kit;
@@ -53,7 +68,9 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         state.unhappy = golem.getUnhappyCounter();
         state.dormant = !golem.isCharged();
         String item = ItemKind.of(golem.carried());
-        if (item == null) item = ItemKind.of(golem.getItemBySlot(EquipmentSlot.OFFHAND));
+        // the craving is drawn floating above the head, not in the off hand where the server keeps a copy of it
+        (state.mainArm == HumanoidArm.RIGHT ? state.leftHandItemState : state.rightHandItemState).clear();
+        extractNeed(golem, state);
         String clip = golem.clip();
         double clipTime = (golem.level().getGameTime() + partialTick - golem.clipStart()) / 20.0;
         double walkDist = state.walkAnimationPos * 4.0;
@@ -62,6 +79,67 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         state.hold = Animator.evaluate(kit, state.pose, clip.isEmpty() ? null : clip, clipTime, moving, walkDist, state.ageInTicks / 20.0,
                 state.dormant && golem.cravingIndex() >= 0, item, memory);
         state.headYaw = state.yRot;
+    }
+
+    /** What a dormant golem is asking for. */
+    private void extractNeed(WorkGolem golem, GolemRenderState state) {
+        List<Offering> offerings = golem.profession().offerings();
+        int craving = golem.cravingIndex();
+        state.asking = !golem.isCharged() && craving >= 0 && craving < offerings.size();
+        state.needSprite = null;
+        state.needName = null;
+        if (!state.asking) {
+            state.need.clear();
+            return;
+        }
+        Offering offering = offerings.get(craving);
+        ItemStack icon = offering.icon();
+        itemModelResolver.updateForNonLiving(state.need, icon, ItemDisplayContext.GROUND, golem);
+        state.needSprite = state.need.pickParticleIcon(RandomSource.create(1L));
+        if (entityRenderDispatcher.crosshairPickEntity == golem) {
+            state.needName = offering.displayName();
+            Vec3 at = state.nameTagAttachment;
+            state.nameTag = state.needName;
+            state.nameTagAttachment = (at == null ? new Vec3(0, state.boundingBoxHeight + 0.5, 0) : at).add(0, 0.8, 0);
+        }
+    }
+
+    /** After the golem itself: the item it is asking for, a see-through icon that turns to face the camera and bobs above its head. */
+    @Override
+    public void submit(GolemRenderState state, PoseStack pose, SubmitNodeCollector out, CameraRenderState camera) {
+        super.submit(state, pose, out, camera);
+        if (!state.asking || state.need.isEmpty()) return;
+        float bob = Mth.sin(state.ageInTicks / 12.0F) * 0.06F;
+        pose.pushPose();
+        pose.translate(0.0F, state.boundingBoxHeight + 0.5F + bob, 0.0F);
+        TextureAtlasSprite sprite = state.needSprite;
+        if (sprite == null) { // no flat picture of it: the real model, turning
+            pose.mulPose(Axis.YP.rotationDegrees(state.ageInTicks * 3.0F));
+            pose.scale(0.6F, 0.6F, 0.6F);
+            state.need.submit(pose, out, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor);
+        } else {
+            pose.mulPose(camera.orientation);
+            float h = 0.3F;
+            float u0 = sprite.getU0(), u1 = sprite.getU1(), v0 = sprite.getV0(), v1 = sprite.getV1();
+            out.submitCustomGeometry(pose, RenderTypes.entityTranslucent(sprite.atlasLocation()), (p, vc) -> {
+                float[][] corner = {{-h, -h, u0, v1}, {h, -h, u1, v1}, {h, h, u1, v0}, {-h, h, u0, v0}};
+                for (int side = 0; side < 2; side++) { // both ways round, so no face culling can hide it
+                    for (int k = 0; k < 4; k++) {
+                        float[] c = corner[side == 0 ? k : 3 - k];
+                        vc.addVertex(p, c[0], c[1], 0.0F).setColor(1.0F, 1.0F, 1.0F, 0.6F).setUv(c[2], c[3])
+                                .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT)
+                                .setNormal(p, 0.0F, 0.0F, side == 0 ? 1.0F : -1.0F);
+                    }
+                }
+            });
+        }
+        pose.popPose();
+    }
+
+    @Override
+    protected boolean shouldShowName(WorkGolem golem, double distance) {
+        return super.shouldShowName(golem, distance)
+                || (!golem.isCharged() && golem.cravingIndex() >= 0 && entityRenderDispatcher.crosshairPickEntity == golem);
     }
 
     /** Moves the whole golem as its clip asks (climbing a chest, hopping, hiding), in the clip's frame: y up, z negative forward. */

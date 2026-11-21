@@ -54,7 +54,7 @@ final class GolemModels {
                 .texOffs(14, 0).addBox(-4F, -4F, -3F, 8F, 4F, 6F, new CubeDeformation(0F)),
                 PartPose.offset(0F, -2F, 0F));
         PartDefinition p_head = p_body.addOrReplaceChild("head", CubeListBuilder.create()
-                .texOffs(0, 0).addBox(-4F, -5F, -5F, 8F, 5F, 10F, new CubeDeformation(0.015F))
+                .texOffs(0, 40).addBox(-4F, -5F, -5F, 8F, 5F, 10F, new CubeDeformation(0.015F))
                 .texOffs(42, 0).addBox(-1F, -2F, -6F, 2F, 3F, 2F, new CubeDeformation(0F)),
                 PartPose.offset(0F, -4F, 0F));
         PartDefinition p_cap = p_head.addOrReplaceChild("cap", CubeListBuilder.create()

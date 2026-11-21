@@ -97,6 +97,7 @@ public class ModGameTests {
         FUNCTIONS.register("miner_digs_and_delivers", () -> ModGameTests::minerDigsAndDelivers);
         FUNCTIONS.register("miner_dig_rules", () -> ModGameTests::minerDigRules);
         FUNCTIONS.register("miner_ignores_unreachable_rock", () -> ModGameTests::minerIgnoresUnreachableRock);
+        FUNCTIONS.register("golem_meets_chest_face_on_and_opens_it", () -> ModGameTests::golemMeetsChestFaceOn);
         FUNCTIONS.register("registry_consistency", () -> ModGameTests::registryConsistency);
     }
 
@@ -612,6 +613,33 @@ public class ModGameTests {
             for (BlockPos other : List.of(CHEST, COPPER_CHEST, new BlockPos(2, 1, 4))) {
                 helper.assertTrue(count(helper.getBlockEntity(other, ChestBlockEntity.class), Items.WHEAT) == 0, "no other chest gets any");
             }
+        });
+    }
+
+    /** A golem comes to the front of its chest, even from behind it, and the lid is up while it puts its stack away. */
+    private static void golemMeetsChestFaceOn(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get().defaultBlockState()
+                .setValue(net.minecraft.world.level.block.ChestBlock.FACING, net.minecraft.core.Direction.EAST));
+        helper.setBlock(CHEST, Blocks.AIR); // the front is clear
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(1, 1, 2)); // behind it
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        Container own = helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class);
+        boolean[] seen = new boolean[2];
+        String[] where = {""};
+        helper.succeedWhen(() -> {
+            BlockPos chestAbs = helper.absolutePos(COMPOSTER);
+            if (helper.getBlockState(COMPOSTER).getValue(com.scottcaldwell.industriousgolems.block.GolemChestBlock.OPEN)) {
+                seen[0] = true;
+                where[0] = where[0].isEmpty() || !seen[1] ? farmer.position() + " chest " + chestAbs + " " + helper.getLevel().getBlockState(chestAbs) : where[0];
+                net.minecraft.core.Direction f = helper.getLevel().getBlockState(chestAbs)
+                        .getValue(net.minecraft.world.level.block.ChestBlock.FACING);
+                double dx = farmer.getX() - (chestAbs.getX() + 0.5), dz = farmer.getZ() - (chestAbs.getZ() + 0.5);
+                seen[1] = dx * f.getStepX() + dz * f.getStepZ() > 1.0 && Math.abs(dx * f.getStepZ() - dz * f.getStepX()) < 0.2;
+            }
+            helper.assertTrue(count(own, Items.WHEAT) == 5, "the wheat goes in the chest");
+            helper.assertTrue(seen[0], "the lid was raised during the visit");
+            helper.assertTrue(seen[1], "the golem stood squarely in front of the chest while it was open: " + where[0]);
         });
     }
 
