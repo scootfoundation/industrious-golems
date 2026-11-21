@@ -19,6 +19,7 @@ import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
@@ -260,7 +261,7 @@ public class ModGameTests {
     /** Seeds are fetched from the regular chest and sown; what it carries to a chest goes to the copper chest. */
     private static void farmerChestPreference(GameTestHelper helper) {
         buildFarm(helper);
-        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST);
+        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST.weathering().unaffected());
         Container regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
         regular.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 10));
@@ -308,12 +309,12 @@ public class ModGameTests {
     private static void herderShearsSheep(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5)).setColor(DyeColor.WHITE); // spawned sheep are random colours
+        helper.spawn(EntityTypes.SHEEP, new BlockPos(5, 1, 5)).setColor(DyeColor.WHITE); // spawned sheep are random colours
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
             var sheep = alive(helper, Sheep.class);
             helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared");
-            helper.assertTrue(total(herder, chest, Items.WHITE_WOOL) > 0, "the herder should hold or have deposited wool" + describe(helper, herder, chest));
+            helper.assertTrue(total(herder, chest, Items.WOOL.white()) > 0, "the herder should hold or have deposited wool" + describe(helper, herder, chest));
         });
     }
 
@@ -321,7 +322,7 @@ public class ModGameTests {
     private static void herderMilksCow(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
+        helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.setCarried(new ItemStack(Items.BUCKET));
         helper.succeedWhen(() -> {
@@ -334,7 +335,7 @@ public class ModGameTests {
     private static void herderCullsCrowdedPen(GameTestHelper helper) {
         buildHerdFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        for (int i = 0; i < 5; i++) helper.spawn(EntityType.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
+        for (int i = 0; i < 5; i++) helper.spawn(EntityTypes.PIG, new BlockPos(4 + i % 4, 1, 4 + i / 2));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
             helper.assertTrue(alive(helper, Pig.class).size() == 3,
@@ -346,8 +347,8 @@ public class ModGameTests {
     /** Two cows in a 16-cell pen is below the density band: the herder feeds wheat and a calf is born. */
     private static void herderBreedsSparsePen(GameTestHelper helper) {
         buildHerdFarm(helper);
-        helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
-        helper.spawn(EntityType.COW, new BlockPos(6, 1, 6));
+        helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
+        helper.spawn(EntityTypes.COW, new BlockPos(6, 1, 6));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         herder.setCarried(new ItemStack(Items.WHEAT, 8));
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
@@ -631,7 +632,7 @@ public class ModGameTests {
     private static void golemUsesItsOwnChest(GameTestHelper helper) {
         buildFarm(helper);
         helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get());
-        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST);
+        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST.weathering().unaffected());
         helper.setBlock(new BlockPos(2, 1, 4), ModBlocks.MUSHROOM_CHEST.get());
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.setCarried(new ItemStack(Items.WHEAT, 5));
@@ -779,7 +780,7 @@ public class ModGameTests {
         buildHerdFarm(helper);
         Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         chest.setItem(0, new ItemStack(Items.BUCKET, 3));
-        helper.spawn(EntityType.COW, new BlockPos(5, 1, 5));
+        helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.assertTrue("bucket".equals(HerdWork.wants(helper.getLevel(), herder)), "a cow to milk and no bucket in hand: the herder wants one");
         helper.succeedWhen(() -> {
@@ -863,7 +864,7 @@ public class ModGameTests {
         }
         // a body block builds exactly one golem
         for (BlockState body : List.of(Blocks.HAY_BLOCK.defaultBlockState(), Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(),
-                Blocks.TERRACOTTA.defaultBlockState(), Blocks.RED_TERRACOTTA.defaultBlockState(), Blocks.SMOOTH_STONE.defaultBlockState())) {
+                Blocks.TERRACOTTA.defaultBlockState(), Blocks.DYED_TERRACOTTA.red().defaultBlockState(), Blocks.SMOOTH_STONE.defaultBlockState())) {
             long matches = ModProfessions.all().stream().filter(p -> p.bodyBlock().test(body)).count();
             helper.assertTrue(matches == 1, body.getBlock() + " should build exactly one golem, builds " + matches);
         }

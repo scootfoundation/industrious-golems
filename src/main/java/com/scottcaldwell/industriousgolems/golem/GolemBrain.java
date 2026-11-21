@@ -9,7 +9,7 @@ import com.scottcaldwell.industriousgolems.behavior.PickUp;
 import com.scottcaldwell.industriousgolems.behavior.StartTask;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.util.valueproviders.UniformInt;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.ai.ActivityData;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.behavior.AcquirePoi;
@@ -85,7 +85,7 @@ public final class GolemBrain {
         // the hay golem stands still when it has nothing to do; the others wander near their chest
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> idle = ImmutableList.builder();
         idle.add(Pair.of(5, new StartTask()));
-        idle.add(Pair.of(6, SetEntityLookTargetSometimes.create(EntityType.PLAYER, 6.0F, UniformInt.of(40, 80))));
+        idle.add(Pair.of(6, SetEntityLookTargetSometimes.create(EntityTypes.PLAYER, 6.0F, UniformInt.of(40, 80))));
         if (profession != ModProfessions.FARMER) {
             idle.add(Pair.of(7, new RunOne<>(ImmutableList.of(
                     Pair.of(StrollAroundPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 4), 3),

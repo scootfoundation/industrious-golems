@@ -5,6 +5,7 @@ import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockItemTags;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -38,9 +39,9 @@ public final class Planting {
         for (BlockPos pos : BlockPos.betweenClosed(chest.offset(-RADIUS - SPACING, -3, -RADIUS - SPACING),
                 chest.offset(RADIUS + SPACING, 8, RADIUS + SPACING))) {
             BlockState state = level.getBlockState(pos);
-            if (state.is(BlockTags.LOGS) || state.is(BlockTags.SAPLINGS)) {
+            if (state.is(BlockTags.LOGS) || state.is(BlockItemTags.SAPLINGS.block())) {
                 planted.add(pos.immutable());
-                if (state.is(BlockTags.SAPLINGS) || level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD)) trees++;
+                if (state.is(BlockItemTags.SAPLINGS.block()) || level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD)) trees++;
                 continue;
             }
             if (Math.abs(pos.getX() - chest.getX()) > RADIUS || Math.abs(pos.getZ() - chest.getZ()) > RADIUS || pos.getY() > chest.getY() + 3) continue;

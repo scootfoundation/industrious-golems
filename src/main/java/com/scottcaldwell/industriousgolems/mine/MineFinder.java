@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousgolems.mine;
 
 import com.scottcaldwell.industriousgolems.ModTags;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.FallingBlock;
@@ -83,7 +84,7 @@ public final class MineFinder {
         double bestDistance = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.betweenClosed(block.offset(-2, -3, -2), block.offset(2, 0, 2))) {
             if (!canStandAt(level, pos)) continue;
-            if (pos.getCenter().distanceTo(block.getCenter()) > REACH - 1.5) continue;
+            if (Vec3.atCenterOf(pos).distanceTo(Vec3.atCenterOf(block)) > REACH - 1.5) continue;
             double distance = pos.distSqr(from);
             if (distance < bestDistance) {
                 bestDistance = distance;
