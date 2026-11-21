@@ -38,7 +38,6 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private static final int STALL_TICKS = 160;
     private static final int IGNORE_TICKS = 6000;
     /** The tool the golem digs as if it held; it carries none. */
-    private static final ItemStack PICKAXE = new ItemStack(Items.IRON_PICKAXE);
 
     /** The block chosen by {@link #plan}, the first of the batch. */
     public record MinePlan(MineFinder.Target first) { }
@@ -197,7 +196,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     /** Breaks the block; what it drops is what an iron pickaxe would get from it. */
     private static void dig(ServerLevel level, WorkGolem golem, BlockPos pos, BlockState state) {
         BlockEntity entity = level.getBlockEntity(pos);
-        Block.dropResources(state, level, pos, entity, golem, PICKAXE);
+        Block.dropResources(state, level, pos, entity, golem, new ItemStack(Items.IRON_PICKAXE));
         level.destroyBlock(pos, false, golem);
     }
 

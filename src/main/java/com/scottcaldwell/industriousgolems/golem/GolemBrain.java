@@ -10,6 +10,7 @@ import com.scottcaldwell.industriousgolems.behavior.StartTask;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.ActivityData;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.behavior.AcquirePoi;
 import net.minecraft.world.entity.ai.behavior.AnimalPanic;
@@ -32,6 +33,7 @@ import net.minecraft.world.entity.ai.sensing.Sensor;
 import net.minecraft.world.entity.ai.sensing.SensorType;
 import net.minecraft.world.entity.schedule.Activity;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -65,11 +67,12 @@ public final class GolemBrain {
     private GolemBrain() { }
 
     public static Brain.Provider<WorkGolem> provider() {
-        return Brain.provider(MEMORY_TYPES, SENSOR_TYPES);
+        return Brain.provider(MEMORY_TYPES, SENSOR_TYPES, GolemBrain::activities);
     }
 
-    public static Brain<?> makeBrain(ModProfessions.Profession profession, Brain<WorkGolem> brain) {
-        brain.addActivity(Activity.CORE, 0, ImmutableList.of(
+    private static List<ActivityData<WorkGolem>> activities(WorkGolem golem) {
+        ModProfessions.Profession profession = golem.profession();
+        ActivityData<WorkGolem> core = ActivityData.<WorkGolem>create(Activity.CORE, 0, ImmutableList.of(
                 new Swim<>(0.8F),
                 new AnimalPanic<>(1.5F),
                 new LookAtTargetSink(45, 90),
@@ -91,10 +94,10 @@ public final class GolemBrain {
                     Pair.of(new DoNothing(30, 60), 2)))));
         }
         ImmutableList<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> loiter = idle.build();
-        brain.addActivity(Activity.IDLE, loiter);
+        ActivityData<WorkGolem> idleActivity = ActivityData.<WorkGolem>create(Activity.IDLE, loiter);
         // A golem that has run out of charge is dormant: it stands where it is and does nothing at all.
-        brain.addActivity(Activity.REST, ImmutableList.of(Pair.of(0, new DoNothing(20, 40))));
-        brain.addActivityWithConditions(Activity.WORK, loiter,
+        ActivityData<WorkGolem> rest = ActivityData.<WorkGolem>create(Activity.REST, ImmutableList.of(Pair.of(0, new DoNothing(20, 40))));
+        ActivityData<WorkGolem> work = ActivityData.<WorkGolem>create(Activity.WORK, loiter,
                 Set.of(Pair.of(MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_PRESENT)));
 
         // The exclusive task activity: only core behaviours and the task itself run while it is active.
@@ -102,12 +105,8 @@ public final class GolemBrain {
         tasks.add(Pair.of(0, new ContainerInteraction()));
         tasks.add(Pair.of(0, new PickUp()));
         tasks.add(Pair.of(0, profession.needs().work().runner().get()));
-        brain.addActivity(ModActivities.TASK.get(), tasks.build());
-
-        brain.setCoreActivities(Set.of(Activity.CORE));
-        brain.setDefaultActivity(Activity.IDLE);
-        brain.useDefaultActivity();
-        return brain;
+        ActivityData<WorkGolem> task = ActivityData.<WorkGolem>create(ModActivities.TASK.get(), tasks.build());
+        return List.of(core, idleActivity, rest, work, task);
     }
 
     /** Picks work or dormancy from the charge, unless a task is running (it hands back via {@link #resume}). */

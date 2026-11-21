@@ -1,6 +1,6 @@
 {
   "type": "minecraft:all_of",
   "definitions": [
-    { "type": "minecraft:time_of_day", "time": 3000 }
+    { "type": "minecraft:clock_time", "clock": "minecraft:overworld", "time": 3000 }
   ]
 }

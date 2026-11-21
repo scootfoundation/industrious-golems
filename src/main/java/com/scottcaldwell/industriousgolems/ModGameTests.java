@@ -36,7 +36,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CarvedPumpkinBlock;
 import net.minecraft.world.level.block.CropBlock;
-import net.minecraft.world.level.block.FarmBlock;
+import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -239,7 +239,7 @@ public class ModGameTests {
         buildFarm(helper);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         for (int x = 3; x <= 5; x++) {
-            helper.setBlock(new BlockPos(x, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+            helper.setBlock(new BlockPos(x, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
             helper.setBlock(new BlockPos(x, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         }
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 2, 3));
@@ -264,7 +264,7 @@ public class ModGameTests {
         Container regular = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
         regular.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 10));
-        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
 
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.setCarried(new ItemStack(Items.WHEAT, 5));
@@ -450,7 +450,7 @@ public class ModGameTests {
     /** A golem as a spawn egg makes it does nothing and shows what it craves; the right item wakes it and it works. */
     private static void golemDormantUntilOffered(GameTestHelper helper) {
         buildFarm(helper);
-        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
         helper.setBlock(new BlockPos(3, 2, 5), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(3, 2, 3));
         Item[] given = {null};
@@ -463,7 +463,7 @@ public class ModGameTests {
             var player = helper.makeMockServerPlayerInLevel();
             player.setPos(farmer.getX() + 5000, farmer.getY(), farmer.getZ());
             player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(given[0], 2));
-            player.interactOn(farmer, InteractionHand.MAIN_HAND);
+            player.interactOn(farmer, InteractionHand.MAIN_HAND, farmer.position());
             helper.assertTrue(farmer.isCharged() && farmer.chargeTicks() == Offerings.PER_OFFERING, "45 minutes of charge");
             helper.assertTrue(craved(farmer) != given[0], "it now craves something different");
         });
@@ -730,7 +730,7 @@ public class ModGameTests {
     /** Wheat in hand is not seed: bare farmland stays bare, and the wheat goes to the chest. */
     private static void farmerDoesNotSowNonSeeds(GameTestHelper helper) {
         buildFarm(helper);
-        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
         Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         WorkGolem farmer = spawnFarmer(helper, AT);
         farmer.setCarried(new ItemStack(Items.WHEAT, 5));

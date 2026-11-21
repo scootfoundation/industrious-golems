@@ -94,10 +94,13 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         boolean sapling = golem.carried().is(ItemTags.SAPLINGS);
         if (golem.isCarrying() && !sapling) return null;
         BlockPos stump = golem.replantPos();
-        if (sapling && stump != null && canPlantAt(level, stump, golem.carried())) return new FellPlan(List.of(), stump);
-        if (leftToCollect(level, golem)) return null; // the last tree's drops first
         TaskState state = golem.getData(ModAttachments.TASK);
         long now = level.getGameTime();
+        // (a stump it could not get to is left alone for a while, like any other place it gave up on)
+        if (sapling && stump != null && !state.ignoresBlock(stump, now) && canPlantAt(level, stump, golem.carried())) {
+            return new FellPlan(List.of(), stump);
+        }
+        if (leftToCollect(level, golem)) return null; // the last tree's drops first
         TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
         if (tree != null) return new FellPlan(tree.logs(), tree.base());
         if (!sapling) return null;
@@ -114,11 +117,11 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     public static String wants(ServerLevel level, WorkGolem golem) {
         BlockPos stump = golem.replantPos();
         if (golem.isCarrying()) return null;
-        if (stump != null && level.getBlockState(stump).isAir()) return "saplings";
-        BlockPos site = golem.jobSite(level);
-        if (site == null) return null;
         TaskState state = golem.getData(ModAttachments.TASK);
         long now = level.getGameTime();
+        if (stump != null && level.getBlockState(stump).isAir() && !state.ignoresBlock(stump, now)) return "saplings";
+        BlockPos site = golem.jobSite(level);
+        if (site == null) return null;
         if (TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now)) != null) return "saplings";
         return Planting.find(level, golem, site, pos -> state.ignoresBlock(pos, now)) != null ? "saplings" : null;
     }

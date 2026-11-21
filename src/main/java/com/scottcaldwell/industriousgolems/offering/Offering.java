@@ -16,18 +16,23 @@ import java.util.function.Predicate;
  * @param icon  shown in the menu and used for the name unless {@code name} is set
  * @param name  overrides the icon's name, for an entry that stands for a group of items
  */
-public record Offering(Predicate<ItemStack> match, ItemStack icon, @Nullable Component name) {
+public record Offering(Predicate<ItemStack> match, Item item, @Nullable Component name) {
 
     public static Offering of(Item item) {
-        return new Offering(stack -> stack.is(item), new ItemStack(item), null);
+        return new Offering(stack -> stack.is(item), item, null);
     }
 
     /** Any item of the tag, shown as one entry under the given translation key. */
     public static Offering anyOf(TagKey<Item> tag, Item icon, String translationKey) {
-        return new Offering(stack -> stack.is(tag), new ItemStack(icon), Component.translatable(translationKey));
+        return new Offering(stack -> stack.is(tag), icon, Component.translatable(translationKey));
+    }
+
+    /** Built on demand: item stacks cannot exist before the registries are bound, and the professions are declared before that. */
+    public ItemStack icon() {
+        return new ItemStack(item);
     }
 
     public Component displayName() {
-        return name != null ? name : icon.getHoverName();
+        return name != null ? name : icon().getHoverName();
     }
 }

@@ -59,7 +59,7 @@ public final class Offerings {
         golem.setChargeTicks(golem.chargeTicks() + PER_OFFERING);
         golem.setCravingIndex(next(golem));
         if (golem.level() instanceof ServerLevel level) {
-            level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, given),
+            level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, net.minecraft.world.item.ItemStackTemplate.fromNonEmptyStack(given)),
                     golem.getX(), golem.getEyeY() - 0.3, golem.getZ(), 10, 0.2, 0.2, 0.2, 0.05);
             if (wasDormant) {
                 Anim.Receive receive = Anim.receive(golem.profession().id());

@@ -68,7 +68,7 @@ public final class TreeFinder {
     }
 
     private static boolean isGround(BlockState state) {
-        return state.is(BlockTags.DIRT);
+        return state.is(BlockTags.SUBSTRATE_OVERWORLD);
     }
 
     /** The connected logs around {@code start}, or null when they do not make a fellable tree. */

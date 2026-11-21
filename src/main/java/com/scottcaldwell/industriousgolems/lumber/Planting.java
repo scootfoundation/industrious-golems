@@ -40,11 +40,11 @@ public final class Planting {
             BlockState state = level.getBlockState(pos);
             if (state.is(BlockTags.LOGS) || state.is(BlockTags.SAPLINGS)) {
                 planted.add(pos.immutable());
-                if (state.is(BlockTags.SAPLINGS) || level.getBlockState(pos.below()).is(BlockTags.DIRT)) trees++;
+                if (state.is(BlockTags.SAPLINGS) || level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD)) trees++;
                 continue;
             }
             if (Math.abs(pos.getX() - chest.getX()) > RADIUS || Math.abs(pos.getZ() - chest.getZ()) > RADIUS || pos.getY() > chest.getY() + 3) continue;
-            if (state.isAir() && level.getBlockState(pos.below()).is(BlockTags.DIRT) && !ignored.test(pos)
+            if (state.isAir() && level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD) && !ignored.test(pos)
                     && Blocks.OAK_SAPLING.defaultBlockState().canSurvive(level, pos)
                     && pos.distSqr(chest) >= 6.25) candidates.add(pos.immutable());
         }

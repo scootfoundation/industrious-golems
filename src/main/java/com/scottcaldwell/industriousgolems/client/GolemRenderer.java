@@ -3,10 +3,10 @@ package com.scottcaldwell.industriousgolems.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.scottcaldwell.industriousgolems.offering.Offering;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
@@ -95,7 +95,7 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         Offering offering = offerings.get(craving);
         ItemStack icon = offering.icon();
         itemModelResolver.updateForNonLiving(state.need, icon, ItemDisplayContext.GROUND, golem);
-        state.needSprite = state.need.pickParticleIcon(RandomSource.create(1L));
+        state.needSprite = pickIcon(state.need);
         if (entityRenderDispatcher.crosshairPickEntity == golem) {
             state.needName = offering.displayName();
             Vec3 at = state.nameTagAttachment;
@@ -116,7 +116,7 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         if (sprite == null) { // no flat picture of it: the real model, turning
             pose.mulPose(Axis.YP.rotationDegrees(state.ageInTicks * 3.0F));
             pose.scale(0.6F, 0.6F, 0.6F);
-            state.need.submit(pose, out, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor);
+            state.need.submit(pose, out, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor);
         } else {
             pose.mulPose(camera.orientation);
             float h = 0.3F;
@@ -127,13 +127,18 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
                     for (int k = 0; k < 4; k++) {
                         float[] c = corner[side == 0 ? k : 3 - k];
                         vc.addVertex(p, c[0], c[1], side == 0 ? 0.0F : -0.004F).setColor(1.0F, 1.0F, 1.0F, 0.6F).setUv(c[2], c[3])
-                                .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT)
+                                .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightCoordsUtil.FULL_BRIGHT)
                                 .setNormal(p, 0.0F, 0.0F, side == 0 ? 1.0F : -1.0F);
                     }
                 }
             });
         }
         pose.popPose();
+    }
+
+    private static TextureAtlasSprite pickIcon(net.minecraft.client.renderer.item.ItemStackRenderState item) {
+        var baked = item.pickParticleMaterial(RandomSource.create(1L));
+        return baked == null ? null : baked.sprite();
     }
 
     @Override

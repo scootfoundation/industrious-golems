@@ -1,6 +1,5 @@
 package com.scottcaldwell.industriousgolems.golem;
 
-import com.mojang.serialization.Dynamic;
 import com.scottcaldwell.industriousgolems.ModEntities;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
@@ -106,14 +105,11 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     // ---- brain ----------------------------------------------------------------------------------------------------
 
-    @Override
-    protected Brain.Provider<WorkGolem> brainProvider() {
-        return GolemBrain.provider();
-    }
+    private static final Brain.Provider<WorkGolem> BRAIN_PROVIDER = GolemBrain.provider();
 
     @Override
-    protected Brain<?> makeBrain(Dynamic<?> dynamic) {
-        return GolemBrain.makeBrain(profession(), brainProvider().makeBrain(dynamic));
+    protected Brain<WorkGolem> makeBrain(Brain.Packed packed) {
+        return BRAIN_PROVIDER.makeBrain(this, packed);
     }
 
     @Override

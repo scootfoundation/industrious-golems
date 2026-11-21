@@ -13,9 +13,14 @@ import java.util.function.Predicate;
  *
  * @param carry the most the golem takes from a chest in one go (a golem carries a single stack)
  */
-public record Need(String id, Predicate<ItemStack> match, ItemStack icon, int carry) {
+public record Need(String id, Predicate<ItemStack> match, Item item, int carry) {
 
     public static Need supply(String id, Predicate<ItemStack> match, Item icon, int carry) {
-        return new Need(id, match, new ItemStack(icon), carry);
+        return new Need(id, match, icon, carry);
+    }
+
+    /** Built on demand: item stacks cannot exist before the registries are bound, and the professions are declared before that. */
+    public ItemStack icon() {
+        return new ItemStack(item);
     }
 }
