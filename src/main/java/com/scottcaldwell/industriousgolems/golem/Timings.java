@@ -62,7 +62,7 @@ public final class Timings extends SimplePreparableReloadListener<Map<String, An
         if (prepared.isEmpty()) return; // keep what we had rather than leave the golems without timings
         chests = Map.copyOf(prepared);
         picks = Map.copyOf(loadingPicks);
-        IndustriousGolems.LOGGER.info("Loaded golem timings for {}", prepared.keySet());
+        IndustriousGolems.LOGGER.info("Loaded golem timings now for {}", prepared.keySet());
     }
 
     private static String str(JsonObject o, String key) {
