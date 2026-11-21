@@ -1,7 +1,7 @@
 {
   "type": "minecraft:function",
   "environment": "industriousgolems:work_hours",
-  "function": "industriousgolems:lumberjack_ignores_tall_tree",
+  "function": "industriousgolems:lumberjack_fells_tall_tree",
   "max_ticks": 4000,
   "setup_ticks": 1,
   "structure": "industriousgolems:arena"

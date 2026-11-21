@@ -1,17 +1,16 @@
 package com.scottcaldwell.industriousgolems.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.scottcaldwell.industriousgolems.client.anim.Pose;
 import net.minecraft.client.model.ArmedModel;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HeadedModel;
 import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 
 /**
- * The model shared by the three work golems (they differ in proportions only, built by {@link GolemModels}). Poses:
- * walking swings the legs and arms; holding a tool brings the right arm forward; a swing lifts the arm and strikes it
- * down; a golem short of a supply shakes its head, and a dormant one hangs it.
+ * The model shared by the work golems (they differ in proportions and parts only, built by {@link GolemModels}). It does
+ * no animating of its own: the pose comes from the golem's clip, see {@code client.anim}.
  */
 public class GolemModel extends EntityModel<GolemRenderState> implements ArmedModel<GolemRenderState>, HeadedModel {
 
@@ -21,13 +20,15 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
     private final ModelPart leftArm;
     private final ModelPart rightLeg;
     private final ModelPart leftLeg;
+    private final ModelPart hips;
+    private final ModelPart cap;
+    private final ModelPart rightFore;
+    private final ModelPart leftFore;
     private final float[] hand;
-    /** How far the legs swing, and how much the whole body bobs, per kind. */
-    private final float stride;
-    /** Arms hang slightly out from the body (the terracotta golem's wide hips would otherwise hide them). */
-    private final float armTilt;
+    /** Where an item held in front of the chest sits, in body pixels. */
+    private final float[] front;
 
-    public GolemModel(ModelPart root, float[] hand, float stride, float armTilt) {
+    public GolemModel(ModelPart root, float[] hand, float[] front) {
         super(root);
         this.body = root.getChild("body");
         this.head = body.getChild("head");
@@ -35,48 +36,42 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         this.leftArm = body.getChild("left_arm");
         this.rightLeg = root.getChild("right_leg");
         this.leftLeg = root.getChild("left_leg");
+        this.hips = root.hasChild("hips") ? root.getChild("hips") : null;
+        this.cap = head.hasChild("cap") ? head.getChild("cap") : null;
+        this.rightFore = rightArm.hasChild("right_forearm") ? rightArm.getChild("right_forearm") : null;
+        this.leftFore = leftArm.hasChild("left_forearm") ? leftArm.getChild("left_forearm") : null;
         this.hand = hand;
-        this.stride = stride;
-        this.armTilt = armTilt;
+        this.front = front;
+    }
+
+    private static void apply(ModelPart m, Pose.Part p) {
+        if (m == null) return;
+        m.resetPose();
+        m.xRot += p.rx;
+        m.yRot += p.ry;
+        m.zRot += p.rz;
+        m.x += p.x;
+        m.y += p.y;
+        m.z += p.z;
+        m.xScale = 1.0F + p.sx;
+        m.yScale = 1.0F + p.sy;
+        m.zScale = 1.0F + p.sz;
     }
 
     @Override
     public void setupAnim(GolemRenderState state) {
         super.setupAnim(state);
-        head.xRot = state.xRot * Mth.DEG_TO_RAD;
-        head.yRot = state.yRot * Mth.DEG_TO_RAD;
-        if (state.dormant) { // out of charge: head hanging, not following anything
-            head.xRot = 0.75F;
-            head.yRot = 0.0F;
-        } else if (state.unhappy > 0) { // shaking its head: it cannot work
-            head.zRot = 0.3F * Mth.sin(0.45F * state.ageInTicks);
-            head.xRot = 0.4F;
-        }
-
-        float swing = state.walkAnimationPos * 0.6662F;
-        float amount = Math.min(1.0F, state.walkAnimationSpeed * 2.0F);
-        rightLeg.xRot = Mth.cos(swing) * stride * amount;
-        leftLeg.xRot = Mth.cos(swing + Mth.PI) * stride * amount;
-
-        boolean holding = !state.rightHandItemState.isEmpty();
-        rightArm.xRot = Mth.cos(swing + Mth.PI) * 0.5F * amount;
-        leftArm.xRot = Mth.cos(swing) * 0.5F * amount;
-        rightArm.zRot = armTilt;
-        leftArm.zRot = -armTilt;
-        rightArm.yRot = 0.0F;
-        leftArm.yRot = 0.0F;
-        if (holding) rightArm.xRot = Math.min(rightArm.xRot, -0.9F);
-        if (!state.leftHandItemState.isEmpty()) leftArm.xRot = Math.min(leftArm.xRot, -0.9F); // holding out what it craves
-
-        if (state.attackTime > 0.0F) { // working: lift the arm and strike down (both arms when empty-handed)
-            float strike = Mth.sin(state.attackTime * Mth.PI);
-            rightArm.xRot = -0.75F - 1.3F * strike;
-            rightArm.yRot = 0.3F * Mth.sin(state.attackTime * Mth.PI * 2.0F);
-            if (!holding) {
-                leftArm.xRot = rightArm.xRot;
-                leftArm.yRot = -rightArm.yRot;
-            }
-        }
+        Pose p = state.pose;
+        apply(body, p.body);
+        apply(head, p.head);
+        apply(rightArm, p.rarm);
+        apply(leftArm, p.larm);
+        apply(rightLeg, p.rleg);
+        apply(leftLeg, p.lleg);
+        apply(hips, p.hips);
+        apply(cap, p.cap);
+        apply(rightFore, p.rfore);
+        apply(leftFore, p.lfore);
     }
 
     @Override
@@ -84,7 +79,15 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         root.translateAndRotate(poseStack);
         body.translateAndRotate(poseStack);
         boolean right = arm == HumanoidArm.RIGHT;
-        (right ? rightArm : leftArm).translateAndRotate(poseStack);
+        String hold = right ? state.hold : null;
+        if ("front".equals(hold) || "both".equals(hold) || "tuck".equals(hold)) {
+            poseStack.translate(front[0] / 16.0F, front[1] / 16.0F, front[2] / 16.0F);
+            return;
+        }
+        ModelPart a = right ? rightArm : leftArm;
+        a.translateAndRotate(poseStack);
+        ModelPart fore = right ? rightFore : leftFore;
+        if (fore != null) fore.translateAndRotate(poseStack);
         poseStack.translate((right ? hand[0] : -hand[0]) / 16.0F, hand[1] / 16.0F, hand[2] / 16.0F);
     }
 

@@ -2,7 +2,10 @@ package com.scottcaldwell.industriousgolems.behavior;
 
 import com.google.common.collect.ImmutableMap;
 import com.scottcaldwell.industriousgolems.ModAttachments;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.PositionTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -65,6 +68,7 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
     @Override
     protected final void stop(ServerLevel level, WorkGolem golem, long time) {
         end(level, golem, time);
+        golem.stopClip();
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         golem.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         plan = null;
@@ -82,6 +86,28 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
 
     protected static void lookAt(WorkGolem golem, PositionTracker target) {
         golem.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, target);
+    }
+
+    /**
+     * Walks to within {@code tolerance} of the spot, then settles exactly onto it, so a clip that assumes a precise distance from its
+     * target (the chest, a crop, a sapling) fits. Returns true once it is standing there.
+     */
+    protected static boolean standAt(WorkGolem golem, Vec3 spot, double tolerance) {
+        double dx = spot.x - golem.getX(), dz = spot.z - golem.getZ();
+        double d = Math.sqrt(dx * dx + dz * dz);
+        if (d <= tolerance) {
+            golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            golem.getNavigation().stop();
+            if (d > 0.03) { // a last shuffle onto the exact spot
+                double step = Math.min(0.1, d);
+                golem.setPos(golem.getX() + dx / d * step, golem.getY(), golem.getZ() + dz / d * step);
+                golem.setDeltaMovement(dx / d * step * 0.5, golem.getDeltaMovement().y, dz / d * step * 0.5);
+                return false;
+            }
+            return true;
+        }
+        walkTo(golem, new BlockPosTracker(BlockPos.containing(spot.x, golem.getY(), spot.z)), 0);
+        return false;
     }
 
     /** Starts walking to the target unless a walk is already under way. */

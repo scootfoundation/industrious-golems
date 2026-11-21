@@ -62,11 +62,11 @@ final class GolemModels {
                 .texOffs(80, 10).addBox(-6F, -7F, -4F, 12F, 3F, 8F, new CubeDeformation(0F)),
                 PartPose.offset(0F, -5F, 0F));
         PartDefinition p_rarm = p_body.addOrReplaceChild("right_arm", CubeListBuilder.create()
-                .texOffs(50, 0).addBox(-3F, -1F, -2F, 3F, 6F, 4F, new CubeDeformation(0F))
+                .texOffs(50, 0).addBox(-3F, -1F, -2F, 3F, 5F, 4F, new CubeDeformation(0F))
                 .texOffs(64, 0).addBox(-3.5F, 3F, -2.5F, 4F, 2F, 5F, new CubeDeformation(0F)),
                 PartPose.offset(-4F, -3F, 0F));
         PartDefinition p_larm = p_body.addOrReplaceChild("left_arm", CubeListBuilder.create()
-                .texOffs(50, 0).addBox(0F, -1F, -2F, 3F, 6F, 4F, new CubeDeformation(0F))
+                .texOffs(50, 0).addBox(0F, -1F, -2F, 3F, 5F, 4F, new CubeDeformation(0F))
                 .texOffs(64, 0).addBox(-0.5F, 3F, -2.5F, 4F, 2F, 5F, new CubeDeformation(0F)),
                 PartPose.offset(4F, -3F, 0F));
         PartDefinition p_rleg = root.addOrReplaceChild("right_leg", CubeListBuilder.create()
@@ -113,14 +113,16 @@ final class GolemModels {
     /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
     static final float[] TERRACOTTA_HAND = {-2F, 7F, 0F};
 
-    /** The stone golem: a boulder chest with a small head and fists like rocks. */
+    /** The stone golem: a boulder chest over separate hips, a small head, and arms that hinge at the elbow into rock fists. */
     static LayerDefinition stone() {
         MeshDefinition mesh = new MeshDefinition().transformed(p -> p.translated(0.0F, 24.0F, 0.0F));
         PartDefinition root = mesh.getRoot();
         PartDefinition p_body = root.addOrReplaceChild("body", CubeListBuilder.create()
-                .texOffs(0, 22).addBox(-6F, -3F, -4F, 12F, 3F, 8F, new CubeDeformation(0F))
                 .texOffs(56, 0).addBox(-12F, -13F, -6F, 24F, 10F, 12F, new CubeDeformation(0F)),
-                PartPose.offset(0F, -5F, 0F));
+                PartPose.offset(0F, -7.5F, 0F));
+        PartDefinition p_hips = root.addOrReplaceChild("hips", CubeListBuilder.create()
+                .texOffs(72, 54).addBox(-8F, -4F, -5F, 16F, 5F, 10F, new CubeDeformation(0F)),
+                PartPose.offset(0F, -7.5F, 0F));
         PartDefinition p_head = p_body.addOrReplaceChild("head", CubeListBuilder.create()
                 .texOffs(0, 0).addBox(-6F, -6F, -5F, 12F, 6F, 10F, new CubeDeformation(0F))
                 .texOffs(44, 0).addBox(-1.5F, -2F, -8F, 3F, 3F, 3F, new CubeDeformation(0F))
@@ -128,22 +130,26 @@ final class GolemModels {
                 .texOffs(42, 43).addBox(2F, -8F, 1F, 3F, 2F, 3F, new CubeDeformation(0F)),
                 PartPose.offset(0F, -13F, 0F));
         PartDefinition p_rarm = p_body.addOrReplaceChild("right_arm", CubeListBuilder.create()
-                .texOffs(0, 54).addBox(-7F, -1F, -3.5F, 7F, 10F, 7F, new CubeDeformation(0F))
-                .texOffs(28, 54).addBox(-9F, 8F, -5.5F, 11F, 8F, 11F, new CubeDeformation(0F)),
+                .texOffs(0, 54).addBox(-7F, -1F, -3.5F, 7F, 10F, 7F, new CubeDeformation(0F)),
                 PartPose.offset(-12F, -13F, 0F));
         PartDefinition p_larm = p_body.addOrReplaceChild("left_arm", CubeListBuilder.create()
-                .texOffs(0, 54).addBox(0F, -1F, -3.5F, 7F, 10F, 7F, new CubeDeformation(0F))
-                .texOffs(28, 54).addBox(-2F, 8F, -5.5F, 11F, 8F, 11F, new CubeDeformation(0F)),
+                .texOffs(0, 54).addBox(0F, -1F, -3.5F, 7F, 10F, 7F, new CubeDeformation(0F)),
                 PartPose.offset(12F, -13F, 0F));
+        PartDefinition p_rfore = p_rarm.addOrReplaceChild("right_forearm", CubeListBuilder.create()
+                .texOffs(28, 54).addBox(-5.5F, 0F, -5.5F, 11F, 8F, 11F, new CubeDeformation(0F)),
+                PartPose.offset(-3.5F, 8F, 0F));
+        PartDefinition p_lfore = p_larm.addOrReplaceChild("left_forearm", CubeListBuilder.create()
+                .texOffs(28, 54).addBox(-5.5F, 0F, -5.5F, 11F, 8F, 11F, new CubeDeformation(0F)),
+                PartPose.offset(3.5F, 8F, 0F));
         PartDefinition p_rleg = root.addOrReplaceChild("right_leg", CubeListBuilder.create()
-                .texOffs(0, 43).addBox(-3F, 0F, -3F, 6F, 5F, 6F, new CubeDeformation(0F)),
-                PartPose.offset(-3F, -5F, 0F));
+                .texOffs(0, 73).addBox(-3F, 0F, -3F, 6F, 7.5F, 6F, new CubeDeformation(0F)),
+                PartPose.offset(-3F, -7.5F, 0F));
         PartDefinition p_lleg = root.addOrReplaceChild("left_leg", CubeListBuilder.create()
-                .texOffs(0, 43).addBox(-3F, 0F, -3F, 6F, 5F, 6F, new CubeDeformation(0F)),
-                PartPose.offset(3F, -5F, 0F));
+                .texOffs(24, 73).addBox(-3F, 0F, -3F, 6F, 7.5F, 6F, new CubeDeformation(0F)),
+                PartPose.offset(3F, -7.5F, 0F));
         return LayerDefinition.create(mesh, 128, 128);
     }
 
     /** Where the held item sits, in the arm's own pixels, measured from where the item layer already puts it 10 pixels down the arm (mirrored for the left arm). */
-    static final float[] STONE_HAND = {-3.5F, 3F, 0F};
+    static final float[] STONE_HAND = {0F, -5F, 0F};
 }

@@ -56,6 +56,12 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     /** Charge left, in whole seconds (rounded up), for the client. */
     private static final EntityDataAccessor<Integer> CHARGE = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
 
+    /** The animation clip the golem's current task asked for (empty: none, the client picks walk / idle / waiting) and the game tick it began. */
+    private static final EntityDataAccessor<String> CLIP = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Long> CLIP_START = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.LONG);
+
+    /** While the game time is before this the golem stands still playing a one-off clip (being handed an offering); 0 when not. */
+    private long pausedUntil;
     private int chargeTicks;
     private int lastOffering = -1;
     /** Where the last tree stood, so the lumberjack can replant it; not saved. */
@@ -113,12 +119,20 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     @Override
     protected void customServerAiStep(ServerLevel level) {
         ProfilerFiller profiler = Profiler.get();
-        profiler.push("workGolemBrain");
-        getBrain().tick(level, this);
-        profiler.pop();
-        profiler.push("workGolemActivity");
-        GolemBrain.updateActivity(this);
-        profiler.pop();
+        if (pausedUntil != 0 && level.getGameTime() >= pausedUntil) {
+            pausedUntil = 0;
+            stopClip();
+        }
+        if (pausedUntil == 0) {
+            profiler.push("workGolemBrain");
+            getBrain().tick(level, this);
+            profiler.pop();
+            profiler.push("workGolemActivity");
+            GolemBrain.updateActivity(this);
+            profiler.pop();
+        } else {
+            getNavigation().stop();
+        }
         if (getUnhappyCounter() > 0) setUnhappyCounter(getUnhappyCounter() - 1);
         Offerings.tick(this);
         NeedsIndicator.tick(this);
@@ -133,6 +147,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         builder.define(UNHAPPY, 0);
         builder.define(CRAVING, -1);
         builder.define(CHARGE, 0);
+        builder.define(CLIP, "");
+        builder.define(CLIP_START, 0L);
     }
 
     /** The block this golem works from (its chest), when it has one in this level. */
@@ -141,6 +157,34 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
                 .filter(site -> site.dimension().equals(level.dimension()))
                 .map(GlobalPos::pos)
                 .orElse(null);
+    }
+
+    // ---- animation clips ------------------------------------------------------------------------------------------
+
+    /** Starts a clip (see {@link Anim}) now; the client plays it from its first moment. */
+    public void playClip(String id) {
+        entityData.set(CLIP, id);
+        entityData.set(CLIP_START, level().getGameTime());
+    }
+
+    /** Plays a clip that takes the golem's whole attention: it stands still until the clip is over, then goes back to what it was doing. */
+    public void playClipAndWait(String id, float seconds) {
+        playClip(id);
+        pausedUntil = level().getGameTime() + Math.round(seconds * 20);
+        getNavigation().stop();
+    }
+
+    /** Back to the default walk / idle / waiting animation. */
+    public void stopClip() {
+        if (!entityData.get(CLIP).isEmpty()) entityData.set(CLIP, "");
+    }
+
+    public String clip() {
+        return entityData.get(CLIP);
+    }
+
+    public long clipStart() {
+        return entityData.get(CLIP_START);
     }
 
     // ---- charge ---------------------------------------------------------------------------------------------------

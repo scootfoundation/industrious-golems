@@ -87,7 +87,7 @@ public class ModGameTests {
         FUNCTIONS.register("golem_uses_its_own_chest", () -> ModGameTests::golemUsesItsOwnChest);
         FUNCTIONS.register("golem_keeps_stack_when_chest_full", () -> ModGameTests::golemKeepsStackWhenChestFull);
         FUNCTIONS.register("farmer_does_not_sow_non_seeds", () -> ModGameTests::farmerDoesNotSowNonSeeds);
-        FUNCTIONS.register("lumberjack_ignores_tall_tree", () -> ModGameTests::lumberjackIgnoresTallTree);
+        FUNCTIONS.register("lumberjack_fells_tall_tree", () -> ModGameTests::lumberjackFellsTallTree);
         FUNCTIONS.register("lumberjack_fetches_saplings", () -> ModGameTests::lumberjackFetchesSaplings);
         FUNCTIONS.register("herder_fetches_one_bucket", () -> ModGameTests::herderFetchesOneBucket);
         FUNCTIONS.register("herder_accepts_any_sherd", () -> ModGameTests::herderAcceptsAnySherd);
@@ -369,6 +369,7 @@ public class ModGameTests {
             }
         }
         for (int y = 1; y <= 4; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG);
+        for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR); // the arena's low ceiling: room to stand on top of the crown
     }
 
     private static int logsAt(GameTestHelper helper, int x, int z) {
@@ -641,8 +642,8 @@ public class ModGameTests {
         });
     }
 
-    /** A trunk taller than a golem can reach from the ground is left standing. */
-    private static void lumberjackIgnoresTallTree(GameTestHelper helper) {
+    /** A trunk taller than a golem could reach from the ground is no problem: it works down from the top. */
+    private static void lumberjackFellsTallTree(GameTestHelper helper) {
         buildFarm(helper);
         helper.setBlock(new BlockPos(5, 0, 5), Blocks.GRASS_BLOCK);
         BlockState leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, false);
@@ -653,11 +654,10 @@ public class ModGameTests {
         helper.setBlock(new BlockPos(5, 7, 6), leaf);
         helper.setBlock(new BlockPos(5, 9, 5), leaf);
         spawnLumberjack(helper, new BlockPos(2, 1, 4));
-        helper.runAtTickTime(500, () -> {
+        helper.succeedWhen(() -> {
             int logs = 0;
             for (int y = 1; y <= 8; y++) if (helper.getBlockState(new BlockPos(5, y, 5)).is(Blocks.OAK_LOG)) logs++;
-            helper.assertTrue(logs == 8, "a tree too tall to reach is not felled, " + logs + " of 8 logs left");
-            helper.succeed();
+            helper.assertTrue(logs == 0, "the tall tree is felled from the top, " + logs + " of 8 logs left");
         });
     }
 

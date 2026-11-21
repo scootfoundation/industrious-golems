@@ -27,8 +27,8 @@ public final class TreeFinder {
     static final int MAX_LOGS = 64;
     /** Natural leaves needed beside the logs to count as a tree. */
     static final int MIN_LEAVES = 4;
-    /** Highest log above the lowest one that can be reached from the ground. */
-    static final int MAX_HEIGHT = 5;
+    /** Highest log above the lowest one; the lumberjack mines down from the top, so it need not reach it from the ground. */
+    static final int MAX_HEIGHT = 24;
     private static final int CANDIDATES = 12;
 
     private TreeFinder() { }
@@ -91,7 +91,7 @@ public final class TreeFinder {
             minY = Math.min(minY, log.getY());
             maxY = Math.max(maxY, log.getY());
         }
-        if (maxY - minY > MAX_HEIGHT) return null; // too tall to reach from the ground
+        if (maxY - minY > MAX_HEIGHT) return null;
 
         Set<BlockPos> leaves = new HashSet<>();
         boolean rooted = false;

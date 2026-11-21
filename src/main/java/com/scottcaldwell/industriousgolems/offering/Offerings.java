@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.offering;
 
+import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -61,6 +62,8 @@ public final class Offerings {
             level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, given),
                     golem.getX(), golem.getEyeY() - 0.3, golem.getZ(), 10, 0.2, 0.2, 0.2, 0.05);
             if (wasDormant) {
+                Anim.Receive receive = Anim.receive(golem.profession().id());
+                if (receive != null) golem.playClipAndWait(receive.clip(), receive.len());
                 level.sendParticles(ParticleTypes.HAPPY_VILLAGER, golem.getX(), golem.getY() + 1.0, golem.getZ(), 8, 0.3, 0.5, 0.3, 0.0);
                 golem.playSound(SoundEvents.RESPAWN_ANCHOR_CHARGE, 1.0F, 1.2F);
             } else {
