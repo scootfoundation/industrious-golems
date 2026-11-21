@@ -123,9 +123,12 @@ public class ModGameTests {
         }
         try {
             java.nio.file.Path docs = java.nio.file.Path.of("..", "..", "docs");
-            if (java.nio.file.Files.isDirectory(docs)) java.nio.file.Files.writeString(docs.resolve("state-machines.json"), com.scottcaldwell.industriousgolems.behavior.Graphs.json());
+            if (java.nio.file.Files.isDirectory(docs)) {
+                String template = java.nio.file.Files.readString(docs.resolve("state-machines.template.html"));
+                java.nio.file.Files.writeString(docs.resolve("state-machines.artifact.html"), com.scottcaldwell.industriousgolems.behavior.Graphs.page(template));
+            }
         } catch (java.io.IOException e) {
-            IndustriousGolems.LOGGER.warn("could not write the state machine description", e);
+            IndustriousGolems.LOGGER.warn("could not write the state machine page", e);
         }
         helper.succeed();
     }

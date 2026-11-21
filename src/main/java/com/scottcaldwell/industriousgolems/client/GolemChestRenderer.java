@@ -4,7 +4,12 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.scottcaldwell.industriousgolems.IndustriousGolems;
 import com.scottcaldwell.industriousgolems.block.GolemChestEntity;
-import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.model.geom.PartPose;
+import net.minecraft.client.model.geom.builders.CubeDeformation;
+import net.minecraft.client.model.geom.builders.CubeListBuilder;
+import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraft.client.model.geom.builders.MeshDefinition;
+import net.minecraft.client.model.geom.builders.PartDefinition;
 import net.minecraft.client.model.object.chest.ChestModel;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -38,7 +43,21 @@ public class GolemChestRenderer implements BlockEntityRenderer<GolemChestEntity,
 
     public GolemChestRenderer(BlockEntityRendererProvider.Context context) {
         this.materials = context.materials();
-        this.model = new ChestModel(context.bakeLayer(ModelLayers.CHEST));
+        this.model = new ChestModel(layer().bakeRoot());
+    }
+
+    /**
+     * The vanilla chest's boxes, except that the lid is a hair smaller, so that the pixel row where it overlaps the base sits
+     * inside the base's walls instead of sharing their plane (which flickers where the lid meets the body).
+     */
+    private static LayerDefinition layer() {
+        MeshDefinition mesh = new MeshDefinition();
+        PartDefinition root = mesh.getRoot();
+        CubeDeformation shrink = new CubeDeformation(-0.02F);
+        root.addOrReplaceChild("bottom", CubeListBuilder.create().texOffs(0, 19).addBox(1.0F, 0.0F, 1.0F, 14.0F, 10.0F, 14.0F), PartPose.ZERO);
+        root.addOrReplaceChild("lid", CubeListBuilder.create().texOffs(0, 0).addBox(1.0F, 0.0F, 0.0F, 14.0F, 5.0F, 14.0F, shrink), PartPose.offset(0.0F, 9.0F, 1.0F));
+        root.addOrReplaceChild("lock", CubeListBuilder.create().texOffs(0, 0).addBox(7.0F, -2.0F, 14.0F, 2.0F, 4.0F, 1.0F), PartPose.offset(0.0F, 9.0F, 1.0F));
+        return LayerDefinition.create(mesh, 64, 64);
     }
 
     @Override

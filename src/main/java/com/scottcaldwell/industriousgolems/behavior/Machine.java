@@ -20,7 +20,7 @@ public final class Machine {
     public static volatile boolean strict;
 
     /** One declared transition. */
-    public record Edge(String from, String to, String when) { }
+    public record Edge(String from, String to, String when, boolean hidden) { }
 
     /** The static description of a machine. */
     public static final class Graph<S extends Enum<S>> {
@@ -31,6 +31,7 @@ public final class Machine {
         private S start;
         private final Map<S, String> notes;
         private final List<Edge> edges = new ArrayList<>();
+        private final List<Edge> anyEdges = new ArrayList<>();
         private final Map<S, List<S>> next;
 
         public Graph(String id, String title, String summary, Class<S> type) {
@@ -56,9 +57,52 @@ public final class Machine {
 
         /** Declares a transition and what causes it. */
         public Graph<S> edge(S from, S to, String when) {
-            edges.add(new Edge(from.name(), to.name(), when));
+            return add(from, to, when, false);
+        }
+
+        /** A transition that is allowed but left off the diagram (a table row only), for bookkeeping hand-overs that would clutter it. */
+        public Graph<S> quiet(S from, S to, String when) {
+            return add(from, to, when, true);
+        }
+
+        /** The same transition from every state but those listed (and {@code to} itself): drawn once, from "any state". */
+        @SafeVarargs
+        public final Graph<S> anyTo(S to, String when, S... except) {
+            return anyFrom("any state", to, when, except);
+        }
+
+        /** As {@link #anyTo}, with the drawn source named (for example "any task"). */
+        @SafeVarargs
+        public final Graph<S> anyFrom(String source, S to, String when, S... except) {
+            List<S> skip = List.of(except);
+            for (S s : type.getEnumConstants()) if (s != to && !skip.contains(s)) add(s, to, when, true);
+            anyEdges.add(new Edge("*" + source, to.name(), when, false));
+            return this;
+        }
+
+        private Graph<S> add(S from, S to, String when, boolean hidden) {
+            edges.add(new Edge(from.name(), to.name(), when, hidden));
             next.computeIfAbsent(from, k -> new ArrayList<>()).add(to);
             return this;
+        }
+
+        public List<Edge> shownEdges() {
+            List<Edge> out = new ArrayList<>();
+            for (Edge e : edges) if (!e.hidden()) out.add(e);
+            out.addAll(anyEdges);
+            return out;
+        }
+
+        public String start() {
+            return start.name();
+        }
+
+        public List<S> states() {
+            return List.of(type.getEnumConstants());
+        }
+
+        public String note(S state) {
+            return notes.getOrDefault(state, "");
         }
 
         boolean allows(S from, S to) {
@@ -84,7 +128,7 @@ public final class Machine {
             }
             b.append("],\"edges\":[");
             first = true;
-            for (Edge e : edges) {
+            for (Edge e : shownEdges()) {
                 if (!first) b.append(',');
                 first = false;
                 b.append("{\"from\":").append(q(e.from())).append(",\"to\":").append(q(e.to())).append(",\"when\":").append(q(e.when())).append('}');

@@ -36,24 +36,21 @@ public enum GolemMode {
         g.edge(DORMANT, SEARCHING, "charged again, with a chest");
         g.edge(DORMANT, UNEMPLOYED, "charged again, no chest");
         g.edge(PANICKING, SEARCHING, "calmed down");
+        g.anyFrom("any task", SEARCHING, "task finished or given up", UNEMPLOYED, DORMANT, PANICKING, SEARCHING);
         g.edge(PANICKING, UNEMPLOYED, "calmed down, its chest is gone");
         g.edge(SEARCHING, WORKING, "the profession has work (dispatcher step 1)");
         g.edge(SEARCHING, DEPOSITING, "carrying something and no work step applied (step 2)");
         g.edge(SEARCHING, PICKING_UP, "a stack lies near the chest (step 3)");
         g.edge(SEARCHING, FETCHING_SUPPLY, "the work waits for a supply the chest holds (step 4)");
         for (GolemMode task : new GolemMode[]{DEPOSITING, PICKING_UP, FETCHING_SUPPLY, WORKING}) {
-            g.edge(task, SEARCHING, "task finished or given up");
-            g.edge(UNEMPLOYED, task, "a task starts from the stored chest position before the job-site memory is (re)acquired");
-            g.edge(task, UNEMPLOYED, "task ends and the job-site memory is gone");
+            g.quiet(UNEMPLOYED, task, "a task starts from the stored chest position before the job-site memory is (re)acquired");
+            g.quiet(task, UNEMPLOYED, "task ends and the job-site memory is gone");
             for (GolemMode other : new GolemMode[]{DEPOSITING, PICKING_UP, FETCHING_SUPPLY, WORKING}) {
-                if (other != task) g.edge(task, other, "the next task starts the moment this one ends");
+                if (other != task) g.quiet(task, other, "the next task starts the moment this one ends");
             }
         }
-        for (GolemMode s : new GolemMode[]{UNEMPLOYED, SEARCHING, DEPOSITING, PICKING_UP, FETCHING_SUPPLY, WORKING}) {
-            g.edge(s, PANICKING, "hurt");
-            g.edge(s, DORMANT, "charge runs out");
-        }
-        g.edge(PANICKING, DORMANT, "charge runs out");
+        g.anyTo(PANICKING, "hurt (any running task is dropped)", DORMANT);
+        g.anyTo(DORMANT, "charge runs out");
         return g;
     }
 

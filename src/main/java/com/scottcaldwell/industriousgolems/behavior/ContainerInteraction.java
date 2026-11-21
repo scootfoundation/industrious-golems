@@ -150,12 +150,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             .edge(State.TRANSFERRED, State.THROWN, "fetch, thrower kinds: the clip reaches the throw moment")
             .edge(State.TRANSFERRED, State.CLOSED, "clip reaches the lid-close moment")
             .edge(State.THROWN, State.CLOSED, "clip reaches the lid-close moment")
-            .edge(State.REACH, State.DONE, "interrupted, or the chest vanished before opening")
-            .edge(State.OPEN, State.DONE, "interrupted")
-            .edge(State.LET_GO, State.DONE, "interrupted")
-            .edge(State.TRANSFERRED, State.DONE, "clip ends")
-            .edge(State.THROWN, State.DONE, "clip ends")
-            .edge(State.CLOSED, State.DONE, "clip ends");
+            .anyTo(State.DONE, "the clip ends, or the visit is interrupted or the chest vanishes (the lid is shut and any stack handed back)", State.APPROACH, State.DONE);
 
     private final Machine.Run<State> machine = GRAPH.run();
 
