@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -124,7 +125,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
             float len = plan.kind() == Kind.REAP ? Anim.H_HARVEST_LEN : Anim.H_REPLANT_LEN;
             if (machine.is(State.WORKING) && timer >= Math.round(at * 20)) {
                 machine.to(State.FOLLOW_THROUGH);
-                golem.swing(InteractionHand.MAIN_HAND);
+                golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                 if (plan.kind() == Kind.REAP) level.destroyBlock(pos, true, golem); // drops like a player's break
                 else sow(level, golem, pos);
             }

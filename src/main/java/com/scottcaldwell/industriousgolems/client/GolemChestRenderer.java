@@ -81,8 +81,11 @@ public class GolemChestRenderer implements BlockEntityRenderer<GolemChestEntity,
         pose.mulPose(ChestRenderer.modelTransformation(state.facing));
         float open = 1.0F - state.open;
         open = 1.0F - open * open * open; // the lid eases out, as vanilla's does
-        collector.submitModel(model, open, pose, state.lightCoords, OverlayTexture.NO_OVERLAY, -1, state.golemSprite, sprites, 0,
-                state.breakProgress);
+        collector.submitModel(model, open, pose, state.lightCoords, OverlayTexture.NO_OVERLAY, -1, state.golemSprite, sprites, 0);
+        if (state.breakProgress != null) {
+            collector.order(1).submitCrumblingOverlay(model, open, pose, state.golemSprite.renderType(model.renderType()), state.lightCoords,
+                    OverlayTexture.NO_OVERLAY, -1, state.breakProgress);
+        }
         pose.popPose();
     }
 }

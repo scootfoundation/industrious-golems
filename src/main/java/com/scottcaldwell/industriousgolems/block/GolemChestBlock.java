@@ -1,6 +1,5 @@
 package com.scottcaldwell.industriousgolems.block;
 
-import com.mojang.serialization.MapCodec;
 import com.scottcaldwell.industriousgolems.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvents;
@@ -17,15 +16,8 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public class GolemChestBlock extends ChestBlock {
 
-    public static final MapCodec<GolemChestBlock> CODEC = simpleCodec(GolemChestBlock::new);
-
     public GolemChestBlock(BlockBehaviour.Properties properties) {
         super(() -> ModBlocks.GOLEM_CHEST.get(), SoundEvents.CHEST_OPEN, SoundEvents.CHEST_CLOSE, properties);
-    }
-
-    @Override
-    public MapCodec<? extends ChestBlock> codec() {
-        return CODEC;
     }
 
     @Override

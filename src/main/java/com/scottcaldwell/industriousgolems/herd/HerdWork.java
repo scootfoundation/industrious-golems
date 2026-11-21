@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
@@ -286,7 +287,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         if (spot == null) spot = chooseSpot(level, golem, animal, lay);
         if (spot == null) { // no room to stage it as the clip wants: do the job without the show
             holdStill(golem);
-            golem.swing(InteractionHand.MAIN_HAND);
+            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
             perform(level, golem, animal, time);
             done();
             return;
@@ -349,7 +350,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         };
         if (!acted && animal != null && timer >= Math.round(at * 20)) {
             machine.to(State.FOLLOW_THROUGH);
-            golem.swing(InteractionHand.MAIN_HAND);
+            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
             perform(level, golem, animal, time);
         }
         if (timer >= Math.round(len * 20)) done();

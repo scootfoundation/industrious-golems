@@ -14,6 +14,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.BlockItem;
@@ -209,7 +210,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 holdStill(golem);
                 timer++;
                 if (timer == Math.round(Anim.M_BREAK_AT * 20)) {
-                    golem.swing(InteractionHand.MAIN_HAND);
+                    golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                     BlockPos below = golem.blockPosition().below();
                     if (isTreeBlock(level, below)) level.destroyBlock(below, true, golem);
                 }
@@ -289,7 +290,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private void plant(ServerLevel level, WorkGolem golem, BlockPos pos) {
         ItemStack stack = golem.carried();
         if (!stack.is(ItemTags.SAPLINGS) || !canPlantAt(level, pos, stack)) return;
-        golem.swing(InteractionHand.MAIN_HAND);
+        golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         level.setBlockAndUpdate(pos, ((BlockItem) stack.getItem()).getBlock().defaultBlockState());
         level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
         stack.shrink(1);

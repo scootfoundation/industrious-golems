@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.entity.ContainerUser;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -225,7 +226,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (machine.is(State.OPEN) && t >= spec.putRelease()) { // the hand lets go of the stack
                 stowed = golem.carried().copy();
                 golem.setCarried(ItemStack.EMPTY);
-                golem.swing(InteractionHand.MAIN_HAND);
+                golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                 machine.to(State.LET_GO);
             }
             if (machine.is(State.LET_GO) && t >= spec.putDrop()) { // and it lands in the chest
@@ -264,7 +265,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         ItemStack stack = golem.carried();
         if (stack.isEmpty()) return;
         golem.setCarried(ItemStack.EMPTY);
-        golem.swing(InteractionHand.MAIN_HAND);
+        golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         Vec3 from = Face.local(golem.position().add(0, 1.0, 0), golem.getYRot(), 0.3, 0.8);
         Vec3 land = Face.local(golem.position(), golem.getYRot(), spec.landX(), spec.landZ());
         ItemEntity drop = new ItemEntity(level, from.x, from.y, from.z, stack);

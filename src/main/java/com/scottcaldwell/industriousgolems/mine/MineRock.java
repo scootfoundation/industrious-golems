@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -165,7 +166,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         float t = progress / 20.0F;
         if (t >= Anim.S_MINE_HIT) {
             BlockState state = level.getBlockState(block);
-            golem.swing(InteractionHand.MAIN_HAND);
+            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
             level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
             clearCrack(level, golem);
             dig(level, golem, block, state);

@@ -114,11 +114,11 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         pose.translate(0.0F, state.boundingBoxHeight + 0.5F + bob, 0.0F);
         TextureAtlasSprite sprite = state.needSprite;
         if (sprite == null) { // no flat picture of it: the real model, turning
-            pose.mulPose(Axis.YP.rotationDegrees(state.ageInTicks * 3.0F));
+            pose.rotateDegrees(Axis.YP, state.ageInTicks * 3.0F);
             pose.scale(0.6F, 0.6F, 0.6F);
             state.need.submit(pose, out, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor);
         } else {
-            pose.mulPose(camera.orientation);
+            pose.rotate(camera.orientation);
             float h = 0.3F;
             float u0 = sprite.getU0(), u1 = sprite.getU1(), v0 = sprite.getV0(), v1 = sprite.getV1();
             out.submitCustomGeometry(pose, RenderTypes.entityTranslucent(sprite.atlasLocation()), (p, vc) -> {
@@ -156,7 +156,7 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
             return;
         }
         poseStack.translate(-p.offX / 16.0F, -p.offY / 16.0F, p.offZ / 16.0F);
-        if (p.offRy != 0.0F) poseStack.mulPose(Axis.YP.rotation(-p.offRy));
+        if (p.offRy != 0.0F) poseStack.rotate(Axis.YP, -p.offRy);
         if (p.scale != 1.0F) {
             poseStack.translate(0.0F, 1.501F, 0.0F);
             poseStack.scale(p.scale, p.scale, p.scale);
