@@ -45,7 +45,7 @@ public final class ModProfessions {
     /** The hay chest is the farmer's job site; the composter (PoiTypes.FARMER) still counts as one. */
     public static final Profession FARMER = define("farmer",
             holder -> holder.is(PoiTypes.FARMER) || holder.is(ModBlocks.HAY_CHEST_POI.getKey()),
-            0.2,
+            0.45,
             SoundEvents.VILLAGER_WORK_FARMER,
             new ProfessionNeeds(List.of(
                     Need.supply("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), Items.WHEAT_SEEDS, 64)

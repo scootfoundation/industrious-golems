@@ -59,6 +59,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     /** Rock to dig, when the golem has a free hand and may break blocks; null otherwise. */
     public static Object plan(ServerLevel level, WorkGolem golem) {
         if (golem.isCarrying() || !EventHooks.canEntityGrief(level, golem)) return null;
+        if (com.scottcaldwell.industriousgolems.behavior.PickUp.plan(level, golem) != null) return null; // carry off what is lying about first
         MineFinder.Target target = findTarget(level, golem);
         return target == null ? null : new MinePlan(target);
     }

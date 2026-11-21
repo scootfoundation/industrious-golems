@@ -98,6 +98,7 @@ public class ModGameTests {
         FUNCTIONS.register("miner_dig_rules", () -> ModGameTests::minerDigRules);
         FUNCTIONS.register("miner_ignores_unreachable_rock", () -> ModGameTests::minerIgnoresUnreachableRock);
         FUNCTIONS.register("golem_meets_chest_face_on_and_opens_it", () -> ModGameTests::golemMeetsChestFaceOn);
+        FUNCTIONS.register("lumberjack_plants_spaced_saplings", () -> ModGameTests::lumberjackPlantsSpacedSaplings);
         FUNCTIONS.register("registry_consistency", () -> ModGameTests::registryConsistency);
     }
 
@@ -640,6 +641,30 @@ public class ModGameTests {
             helper.assertTrue(count(own, Items.WHEAT) == 5, "the wheat goes in the chest");
             helper.assertTrue(seen[0], "the lid was raised during the visit");
             helper.assertTrue(seen[1], "the golem stood squarely in front of the chest while it was open: " + where[0]);
+        });
+    }
+
+    /** With no tree to fell, the lumberjack fetches saplings from its chest and plants them on open ground, well apart from each other. */
+    private static void lumberjackPlantsSpacedSaplings(GameTestHelper helper) {
+        buildFarm(helper);
+        for (int x = 0; x <= 7; x++) {
+            for (int z = 0; z <= 7; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
+                for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR);
+            }
+        }
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 6));
+        helper.succeedWhen(() -> {
+            List<BlockPos> planted = new java.util.ArrayList<>();
+            for (int x = 0; x <= 7; x++) for (int z = 0; z <= 7; z++) {
+                if (helper.getBlockState(new BlockPos(x, 1, z)).is(Blocks.OAK_SAPLING)) planted.add(new BlockPos(x, 1, z));
+            }
+            helper.assertTrue(planted.size() >= 2, "it plants saplings on its own, got " + planted.size());
+            for (BlockPos a : planted) for (BlockPos b : planted) {
+                if (a != b) helper.assertTrue(Math.abs(a.getX() - b.getX()) > 3 || Math.abs(a.getZ() - b.getZ()) > 3, "saplings are spaced apart: " + a + " " + b);
+            }
         });
     }
 

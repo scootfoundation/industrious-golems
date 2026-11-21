@@ -1,6 +1,9 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
+import com.scottcaldwell.industriousgolems.ModAttachments;
+import com.scottcaldwell.industriousgolems.behavior.PickUp;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
+import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import com.scottcaldwell.industriousgolems.golem.Anim;
@@ -32,7 +35,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     /** How near the golem gets to the foot of the tree before it sneezes. */
     private static final double SNEEZE_DIST = 3.5;
     /** Ticks spent trying to get to the foot of the tree or the planting spot before giving up. */
-    private static final int STALL_TICKS = 300;
+    private static final int STALL_TICKS = 600;
     /** How far from the sapling's centre the golem stands to plant it (9 pixels). */
     private static final double PLANT_DIST = 9.0 / 16.0;
 
@@ -66,8 +69,19 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         if (golem.isCarrying() && !sapling) return null;
         BlockPos stump = golem.replantPos();
         if (sapling && stump != null && canPlantAt(level, stump, golem.carried())) return new FellPlan(List.of(), stump);
-        TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition());
-        return tree == null ? null : new FellPlan(tree.logs(), tree.base());
+        if (leftToCollect(level, golem)) return null; // the last tree's drops first
+        TaskState state = golem.getData(ModAttachments.TASK);
+        long now = level.getGameTime();
+        TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
+        if (tree != null) return new FellPlan(tree.logs(), tree.base());
+        if (!sapling) return null;
+        BlockPos spot = Planting.find(level, golem, site, pos -> state.ignoresBlock(pos, now)); // no tree to fell: grow one
+        return spot == null ? null : new FellPlan(List.of(), spot);
+    }
+
+    /** Whether something the work dropped is still lying about, to be carried to the chest before more work is started. */
+    private static boolean leftToCollect(ServerLevel level, WorkGolem golem) {
+        return !golem.isCarrying() && PickUp.plan(level, golem) != null;
     }
 
     /** A sapling from the chest would replant the last tree's stump; a tree still to fell wants one too. */
@@ -77,7 +91,10 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         if (stump != null && level.getBlockState(stump).isAir()) return "saplings";
         BlockPos site = golem.jobSite(level);
         if (site == null) return null;
-        return TreeFinder.find(level, site, golem.blockPosition()) == null ? null : "saplings";
+        TaskState state = golem.getData(ModAttachments.TASK);
+        long now = level.getGameTime();
+        if (TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now)) != null) return "saplings";
+        return Planting.find(level, golem, site, pos -> state.ignoresBlock(pos, now)) != null ? "saplings" : null;
     }
 
     private static boolean canPlantAt(ServerLevel level, BlockPos pos, ItemStack sapling) {
@@ -135,7 +152,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(base)));
                 double dx = golem.getX() - (base.getX() + 0.5), dz = golem.getZ() - (base.getZ() + 0.5);
                 if (Math.sqrt(dx * dx + dz * dz) > SNEEZE_DIST) {
-                    if (++stalled > STALL_TICKS) { finish(); return; }
+                    if (++stalled > STALL_TICKS) { giveUp(golem, time); return; }
                     walkTo(golem, new BlockPosTracker(base), 2);
                     return;
                 }
@@ -182,7 +199,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 if (plantSpot == null) { finish(); return; }
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(plan.replant())));
                 if (!standAt(golem, plantSpot, 0.9)) {
-                    if (++stalled > STALL_TICKS) finish();
+                    if (++stalled > STALL_TICKS) giveUp(golem, time);
                     return;
                 }
                 holdStill(golem);
@@ -199,6 +216,12 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             }
             case DONE -> { }
         }
+    }
+
+    /** It cannot get there: leave this tree or spot alone for a while rather than trying it again at once. */
+    private void giveUp(WorkGolem golem, long time) {
+        golem.getData(ModAttachments.TASK).ignoreBlock(plan.replant(), time + 3000);
+        finish();
     }
 
     private void startBreak(WorkGolem golem) {

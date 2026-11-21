@@ -79,14 +79,18 @@ public final class GolemBrain {
                 ValidateNearbyPoi.create(profession.jobSite(), MemoryModuleType.JOB_SITE),
                 AcquirePoi.create(profession.jobSite(), MemoryModuleType.JOB_SITE, false, Optional.empty())));
 
-        ImmutableList<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> loiter = ImmutableList.of(
-                Pair.of(5, new StartTask()),
-                Pair.of(6, SetEntityLookTargetSometimes.create(EntityType.PLAYER, 6.0F, UniformInt.of(40, 80))),
-                Pair.of(7, new RunOne<>(ImmutableList.of(
-                        Pair.of(StrollAroundPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 4), 3),
-                        Pair.of(StrollToPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 1, 10), 5),
-                        Pair.of(RandomStroll.stroll(STROLL_SPEED, 3, 2), 1),
-                        Pair.of(new DoNothing(30, 60), 2)))));
+        // the hay golem stands still when it has nothing to do; the others wander near their chest
+        ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> idle = ImmutableList.builder();
+        idle.add(Pair.of(5, new StartTask()));
+        idle.add(Pair.of(6, SetEntityLookTargetSometimes.create(EntityType.PLAYER, 6.0F, UniformInt.of(40, 80))));
+        if (profession != ModProfessions.FARMER) {
+            idle.add(Pair.of(7, new RunOne<>(ImmutableList.of(
+                    Pair.of(StrollAroundPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 4), 3),
+                    Pair.of(StrollToPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 1, 10), 5),
+                    Pair.of(RandomStroll.stroll(STROLL_SPEED, 3, 2), 1),
+                    Pair.of(new DoNothing(30, 60), 2)))));
+        }
+        ImmutableList<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> loiter = idle.build();
         brain.addActivity(Activity.IDLE, loiter);
         // A golem that has run out of charge is dormant: it stands where it is and does nothing at all.
         brain.addActivity(Activity.REST, ImmutableList.of(Pair.of(0, new DoNothing(20, 40))));

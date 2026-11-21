@@ -169,6 +169,16 @@ public final class HayAnims {
                 e(1.5, p("hy", 0, "hz", -0.1), 0.05));
     }
 
+    /**
+     * How far ahead of its steady ground speed the lurching body is at walk time t, in pixels: the ground only moves during each lurch, so
+     * the picture is held back between them and thrown forward with the legs, however smoothly the real golem moves.
+     */
+    public static double lurch(double t) {
+        double cycle = 2 * STEP_S / 1.7, tc = ((t % 1.7) + 1.7) % 1.7, ahead = 0;
+        for (double st : STEP_T) ahead += STEP_S * (1 - Math.pow(1 - Math.min(1, Math.max(0, (tc - st) / STEP_D)), 3));
+        return ahead - cycle * tc;
+    }
+
     private static void walkLift(Pose P, double t, double[] v) {
         for (double st : STEP_T) {
             double k = (t - st) / STEP_D;

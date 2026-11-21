@@ -123,10 +123,10 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
             float u0 = sprite.getU0(), u1 = sprite.getU1(), v0 = sprite.getV0(), v1 = sprite.getV1();
             out.submitCustomGeometry(pose, RenderTypes.entityTranslucent(sprite.atlasLocation()), (p, vc) -> {
                 float[][] corner = {{-h, -h, u0, v1}, {h, -h, u1, v1}, {h, h, u1, v0}, {-h, h, u0, v0}};
-                for (int side = 0; side < 2; side++) { // both ways round, so no face culling can hide it
+                for (int side = 0; side < 2; side++) { // both ways round, so no face culling can hide it (the far side a hair behind, so the two never fight)
                     for (int k = 0; k < 4; k++) {
                         float[] c = corner[side == 0 ? k : 3 - k];
-                        vc.addVertex(p, c[0], c[1], 0.0F).setColor(1.0F, 1.0F, 1.0F, 0.6F).setUv(c[2], c[3])
+                        vc.addVertex(p, c[0], c[1], side == 0 ? 0.0F : -0.004F).setColor(1.0F, 1.0F, 1.0F, 0.6F).setUv(c[2], c[3])
                                 .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT)
                                 .setNormal(p, 0.0F, 0.0F, side == 0 ? 1.0F : -1.0F);
                     }

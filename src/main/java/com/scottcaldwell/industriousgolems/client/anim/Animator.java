@@ -46,6 +46,7 @@ public final class Animator {
         c.state = state;
         c.len = clip.len;
         clip.eval(pose, t, c);
+        if (kit == HAY && clipId == null && moving && clip.move > 0) pose.offZ -= (float) HayAnims.lurch(t); // the ground only moves during each lurch
         if (clip.segs.isEmpty() && clip.loop) t = clip.len > 0 ? t % clip.len : t;
         String hold = clip.holdAt(t);
         // the cap lags the head and body, then settles (the mushroom's quirk)
