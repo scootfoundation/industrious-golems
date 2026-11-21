@@ -158,7 +158,10 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         switch (phase) {
             case APPROACH -> {
                 lookAtChest(golem);
-                if (spot == null) spot = Stand.cardinal(level, chestPos, golem.position(), spec.dist());
+                if (spot == null) {
+                    spot = Stand.cardinal(level, chestPos, golem, spec.dist());
+                    if (spot == null) spot = golem.position(); // no room to stage it as the clip wants: do it where it can
+                }
                 if (!standAt(golem, spot, 1.0)) {
                     if (++stalled > 400) phase = Phase.DONE;
                     return;

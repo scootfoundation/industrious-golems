@@ -12,6 +12,8 @@ public final class Animator {
 
     public static final Kit TERRACOTTA = new Kit(TerracottaAnims.CLIPS, "clomp", "clomp-carry", "idle-wait", "await-offering", true, 0.36);
 
+    public static final Kit STONE = new Kit(StoneAnims.CLIPS, "knuckle", "lumber", "idle-wait", "await-offering", true, 0);
+
     /**
      * @param clipId   the clip the server asked for, or null for the default (walk / idle / waiting)
      * @param clipTime seconds since that clip began

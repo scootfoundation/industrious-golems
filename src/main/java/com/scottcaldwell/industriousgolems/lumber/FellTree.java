@@ -97,6 +97,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         stalled = 0;
         phase = remaining.isEmpty() ? Phase.STEP_BACK : Phase.WALK;
         timer = 0;
+        golem.setPickupSuspended(true); // the drops are left lying until the felling is done, then picked up in turn
     }
 
     @Override
@@ -246,6 +247,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         if (base != null && golem.getY() > base.getY() + 1.5) {
             golem.teleportTo(base.getX() + 0.5, base.getY(), base.getZ() + 0.5);
         }
+        golem.setPickupSuspended(false);
         remaining.clear();
         top = null;
         plantSpot = null;

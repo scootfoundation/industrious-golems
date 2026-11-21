@@ -95,7 +95,7 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
     protected static boolean standAt(WorkGolem golem, Vec3 spot, double tolerance) {
         double dx = spot.x - golem.getX(), dz = spot.z - golem.getZ();
         double d = Math.sqrt(dx * dx + dz * dz);
-        if (d <= tolerance) {
+        if (d <= Math.max(tolerance, 1.25)) { // (within the block the walk would end in, the last bit is a shuffle)
             golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             golem.getNavigation().stop();
             if (d > 0.03) { // a last shuffle onto the exact spot

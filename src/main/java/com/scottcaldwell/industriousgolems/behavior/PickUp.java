@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousgolems.behavior;
 
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
+import com.scottcaldwell.industriousgolems.golem.Stand;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import net.minecraft.world.phys.Vec3;
@@ -81,6 +82,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             Vec3 away = golem.position().subtract(item.position()).multiply(1, 0, 1);
             if (away.lengthSqr() < 1.0E-4) away = new Vec3(0, 0, 1);
             spot = item.position().add(away.normalize().scale(spec.dist()));
+            if (!Stand.reachable(level, golem, spot)) spot = item.position(); // no room to stand back from it
         }
         if (walking > 0 && golem.distanceToSqr(item) > 12 * 12) { finish(); return; }
         if (!standAt(golem, spot, 0.9)) {

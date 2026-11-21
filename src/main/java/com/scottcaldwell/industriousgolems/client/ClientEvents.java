@@ -47,6 +47,6 @@ public final class ClientEvents {
         event.registerEntityRenderer(ModEntities.HERDER_GOLEM.get(), context -> new GolemRenderer(context, TERRACOTTA,
                 texture("terracotta_golem"), Animator.TERRACOTTA, part -> new GolemModel(part, GolemModels.TERRACOTTA_HAND, new float[]{0F, -8.1F, -6F}), 0.6F));
         event.registerEntityRenderer(ModEntities.MINER_GOLEM.get(), context -> new GolemRenderer(context, STONE,
-                texture("stone_golem"), BasicAnims.kit(true, 0.0), part -> new GolemModel(part, GolemModels.STONE_HAND, new float[]{0F, -5.85F, -9.5F}), 0.6F));
+                texture("stone_golem"), Animator.STONE, part -> new GolemModel(part, GolemModels.STONE_HAND, new float[]{0F, -5.85F, -9.5F}), 0.6F));
     }
 }

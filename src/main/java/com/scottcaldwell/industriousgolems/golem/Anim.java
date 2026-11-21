@@ -58,6 +58,10 @@ public final class Anim {
                         String fetch, float fetchLen, float fetchOpen, float fetchTake, float fetchThrow, float fetchClose,
                         double dist, double landX, double landZ) { }
 
+    // ---- stone golem (miner) ----
+    public static final String S_MINE = "mine-block";
+    public static final float S_MINE_LEN = 7.0F, S_MINE_HIT = 3.55F, S_RECEIVE_LEN = 7.0F;
+
     // ---- terracotta golem (herder) ----
     public static final String T_RECEIVE = "receive-offering";
     public static final float T_RECEIVE_LEN = 6.0F, T_CULL_LEN = 6.2F, T_CULL_HIT = 1.6F, T_FEED_LEN = 9.0F, T_FEED_BITE = 4.4F, T_SHEAR_LEN = 10.2F, T_SHEAR_AT = 4.6F;
@@ -77,6 +81,7 @@ public final class Anim {
         return switch (profession) {
             case "farmer" -> new Pick(H_PICK_UP, 4.2F, 1.75F + 0.2F, 9.0 / 16.0);
             case "herder" -> new Pick(null, 1.0F, 0.5F, 0.6);
+            case "miner" -> new Pick("pick-up-ore", 5.2F, 2.9F, 1.09);
             case "lumberjack" -> new Pick(M_PICK_UP, M_PICK_LEN, M_PICK_GRAB, 8.5 / 16.0);
             default -> new Pick(M_PICK_UP, M_PICK_LEN, M_PICK_GRAB, 8.5 / 16.0);
         };
@@ -84,6 +89,8 @@ public final class Anim {
 
     public static Chest chest(String profession) {
         return switch (profession) {
+            case "miner" -> new Chest("stow-ore", 4.9F, 1.6F, 2.0F, 2.3F, 3.0F,
+                    "fetch-ore", 4.6F, 1.5F, 3.0F, -1.0F, 3.1F, 17.5 / 16.0, 0, 0);
             case "herder" -> new Chest("stow-item", 19.0F, 3.4F, 6.5F + 2.7F + 0.33F, 6.5F + 2.7F + 0.53F, 12.5F + 3.7F,
                     "fetch-item", 19.5F, 3.4F, 6.5F + 2.8F + 0.33F, 6.5F + 4.5F + 0.33F, 13.0F + 3.7F, 15.5 / 16.0, 17.0 / 16.0, 11.0 / 16.0);
             case "farmer" -> new Chest("stow-item", 13.2F, 3.3F, 5.0F + 2.2F, 5.0F + 2.4F, 9.2F + 2.55F + 0.2F,
@@ -103,6 +110,7 @@ public final class Anim {
             case "lumberjack" -> new Receive(M_RECEIVE, M_RECEIVE_LEN);
             case "farmer" -> new Receive(H_RECEIVE, H_RECEIVE_LEN);
             case "herder" -> new Receive(T_RECEIVE, T_RECEIVE_LEN);
+            case "miner" -> new Receive("receive-offering", S_RECEIVE_LEN);
             default -> null;
         };
     }

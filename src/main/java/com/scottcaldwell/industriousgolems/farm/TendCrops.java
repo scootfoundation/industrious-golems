@@ -97,6 +97,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         stalled = 0;
         spot = null;
         acted = false;
+        golem.setPickupSuspended(true); // what a crop drops is picked up afterwards, as its own job
     }
 
     @Override
@@ -121,7 +122,10 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(pos)));
         // stand where the clip expects the plant to be: 12 pixels ahead
-        if (spot == null) spot = Stand.cardinal(level, pos, golem.position(), Anim.H_CROP_DIST);
+        if (spot == null) {
+            spot = Stand.cardinal(level, pos, golem, Anim.H_CROP_DIST);
+            if (spot == null) spot = Vec3.atCenterOf(pos).subtract(0, 0.5, 0); // nowhere to stand back: work from the plot itself
+        }
         if (!standAt(golem, spot, 0.9)) {
             if (++stalled > STALL_TICKS) finish();
             return;
@@ -154,6 +158,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
+        golem.setPickupSuspended(false);
         phase = Phase.WALK;
     }
 }

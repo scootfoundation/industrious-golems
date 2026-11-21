@@ -175,6 +175,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         acted = false;
         frozen = null;
         yaw = 0;
+        golem.setPickupSuspended(true);
     }
 
     @Override
@@ -229,9 +230,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             float y = i * 45.0F;
             Vec3 off = Face.local(Vec3.ZERO, y, lay[0], lay[1]);
             Vec3 at = new Vec3(animal.getX() - off.x, golem.getY(), animal.getZ() - off.z);
-            BlockPos below = BlockPos.containing(at).below();
-            if (!Stand.free(level, at) || level.getBlockState(below).getCollisionShape(level, below).isEmpty()) continue;
             double d = at.distanceToSqr(golem.position());
+            if (d >= bestDist || !Stand.reachable(level, golem, at)) continue; // behind a fence, say: no use standing there
             if (d < bestDist) {
                 bestDist = d;
                 best = at;
@@ -369,5 +369,6 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     protected void end(ServerLevel level, WorkGolem golem, long time) {
         phase = Phase.DONE;
         frozen = null;
+        golem.setPickupSuspended(false);
     }
 }

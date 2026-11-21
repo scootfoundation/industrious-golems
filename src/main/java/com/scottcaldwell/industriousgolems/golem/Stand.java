@@ -13,20 +13,28 @@ public final class Stand {
      * A spot {@code dist} blocks from the centre of {@code target} along an axis, on the side {@code from} is nearest to (a side with
      * room to stand is preferred). Its height is the target's.
      */
-    public static Vec3 cardinal(ServerLevel level, BlockPos target, Vec3 from, double dist) {
+    public static Vec3 cardinal(ServerLevel level, BlockPos target, WorkGolem golem, double dist) {
         Vec3 centre = Vec3.atCenterOf(target);
-        Vec3 rel = from.subtract(centre);
+        Vec3 rel = golem.position().subtract(centre);
         Vec3 best = null;
         double bestScore = -1e9;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             Vec3 at = new Vec3(centre.x + d.getStepX() * dist, target.getY(), centre.z + d.getStepZ() * dist);
-            double score = rel.x * d.getStepX() + rel.z * d.getStepZ() - (free(level, at) ? 0 : 100);
-            if (score > bestScore) {
-                bestScore = score;
-                best = at;
-            }
+            double score = rel.x * d.getStepX() + rel.z * d.getStepZ();
+            if (score <= bestScore || !reachable(level, golem, at)) continue;
+            bestScore = score;
+            best = at;
         }
         return best;
+    }
+
+    /** Whether the golem can stand at the point and get there from where it is. */
+    public static boolean reachable(ServerLevel level, WorkGolem golem, Vec3 at) {
+        BlockPos feet = BlockPos.containing(at);
+        BlockPos below = feet.below();
+        if (!free(level, at) || level.getBlockState(below).getCollisionShape(level, below).isEmpty()) return false;
+        var path = golem.getNavigation().createPath(feet, 0);
+        return path != null && path.canReach();
     }
 
     /** Whether a golem can stand with its feet at this point: the blocks it would fill have no collision. */

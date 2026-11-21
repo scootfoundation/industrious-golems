@@ -80,6 +80,12 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         body.translateAndRotate(poseStack);
         boolean right = arm == HumanoidArm.RIGHT;
         String hold = right ? state.hold : null;
+        if ("tuck".equals(hold) && rightFore != null) { // curled in the crook of the right arm
+            rightArm.translateAndRotate(poseStack);
+            rightFore.translateAndRotate(poseStack);
+            poseStack.translate(7.0F / 16.0F, -1.0F / 16.0F, -6.0F / 16.0F);
+            return;
+        }
         if ("front".equals(hold) || "both".equals(hold) || "tuck".equals(hold)) {
             poseStack.translate(front[0] / 16.0F, front[1] / 16.0F, front[2] / 16.0F);
             return;

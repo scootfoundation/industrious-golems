@@ -3,6 +3,8 @@ package com.scottcaldwell.industriousgolems.mine;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
+import com.scottcaldwell.industriousgolems.golem.Anim;
+import com.scottcaldwell.industriousgolems.golem.Face;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -34,7 +36,6 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     /** Ticks spent trying to get within reach of one block before giving up on it. */
     private static final int STALL_TICKS = 160;
     private static final int IGNORE_TICKS = 6000;
-    private static final int SWING_EVERY = 8;
     /** The tool the golem digs as if it held; it carries none. */
     private static final ItemStack PICKAXE = new ItemStack(Items.IRON_PICKAXE);
 
@@ -46,6 +47,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private int mined;
     private int stalled;
     private int progress;
+    private boolean smashing;
+    private boolean dug;
 
     public MineRock() {
         super(MinePlan.class, 2400);
@@ -82,6 +85,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         mined = 0;
         stalled = 0;
         progress = 0;
+        smashing = false;
+        dug = false;
         golem.setPickupSuspended(true);
     }
 
@@ -97,9 +102,15 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
             return;
         }
         BlockPos block = target.block();
-        if (!MineFinder.isMineable(level, block)) { // already gone, or no longer safe to cut
+        if (!smashing && !MineFinder.isMineable(level, block)) { // already gone, or no longer safe to cut
             clearCrack(level, golem);
             target = null;
+            return;
+        }
+        if (smashing && dug) { // the block is gone; the golem is still settling from the blow
+            holdStill(golem);
+            progress++;
+            if (progress / 20.0F >= Anim.S_MINE_LEN) { smashing = false; dug = false; target = null; progress = 0; }
             return;
         }
 
@@ -118,22 +129,31 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         holdStill(golem);
         stalled = 0;
         BlockState state = level.getBlockState(block);
-        int total = digTicks(level, block, state);
-        if (progress % SWING_EVERY == 0) {
-            golem.swing(InteractionHand.MAIN_HAND);
-            SoundEvent hit = state.getSoundType().getHitSound();
-            level.playSound(null, block, hit, SoundSource.BLOCKS, 0.6F, 0.8F);
+        if (!smashing) { // in reach: square up to the block and bring a fist down on it
+            Face.toward(golem, Vec3.atCenterOf(block));
+            golem.playClip(Anim.S_MINE);
+            smashing = true;
+            dug = false;
+            progress = 0;
         }
         progress++;
-        if (progress < total) {
-            level.destroyBlockProgress(golem.getId(), block, progress * 10 / total);
-            return;
+        float t = progress / 20.0F;
+        if (!dug && t >= Anim.S_MINE_HIT) {
+            golem.swing(InteractionHand.MAIN_HAND);
+            level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
+            clearCrack(level, golem);
+            dig(level, golem, block, state);
+            mined++;
+            dug = true;
+        } else if (!dug && progress % 6 == 0) {
+            level.destroyBlockProgress(golem.getId(), block, Math.min(9, Math.round(t / Anim.S_MINE_HIT * 10.0F)));
         }
-        clearCrack(level, golem);
-        dig(level, golem, block, state);
-        mined++;
-        target = null;
-        progress = 0;
+        if (t >= Anim.S_MINE_LEN) { // the swing has settled: on to the next block
+            smashing = false;
+            dug = false;
+            target = null;
+            progress = 0;
+        }
     }
 
     /** The next block to dig, unless the batch is done or the golem has run out of rock. */
@@ -143,11 +163,6 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         stalled = 0;
         progress = 0;
         return target != null;
-    }
-
-    /** Bare-handed work is slow: a stone block takes about a second and a half, ore and deepslate about twice that. */
-    private static int digTicks(ServerLevel level, BlockPos pos, BlockState state) {
-        return 8 + Math.round(state.getDestroySpeed(level, pos) * 12.0F);
     }
 
     private static boolean inReach(ServerLevel level, WorkGolem golem, BlockPos block) {
