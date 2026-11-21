@@ -671,7 +671,8 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling is planted at the stump");
             helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "the logs are in the chest, got " + count(chest, Items.OAK_LOG));
-            helper.assertTrue(count(chest, Items.OAK_SAPLING) == 2, "the two spare saplings are back in the chest, got " + count(chest, Items.OAK_SAPLING));
+            // the leaves that wither once the trunk is gone may drop a sapling or two as well, and they are gathered up too
+            helper.assertTrue(count(chest, Items.OAK_SAPLING) >= 2, "the two spare saplings are back in the chest, got " + count(chest, Items.OAK_SAPLING));
         });
     }
 

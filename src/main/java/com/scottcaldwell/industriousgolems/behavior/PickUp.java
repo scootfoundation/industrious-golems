@@ -92,7 +92,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         }
         Face.toward(golem, item.position());
         holdStill(golem);
-        golem.playClip(spec.clip());
+        if (spec.clip() != null) golem.playClip(spec.clip());
         timer = 0;
     }
 }

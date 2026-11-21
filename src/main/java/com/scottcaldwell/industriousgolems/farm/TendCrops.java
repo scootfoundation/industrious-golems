@@ -1,6 +1,9 @@
 package com.scottcaldwell.industriousgolems.farm;
 
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
+import com.scottcaldwell.industriousgolems.golem.Anim;
+import com.scottcaldwell.industriousgolems.golem.Face;
+import com.scottcaldwell.industriousgolems.golem.Stand;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
@@ -22,21 +25,18 @@ import java.util.Comparator;
 import java.util.Optional;
 
 /**
- * Works the pre-tilled soil around the job site one plant at a time. The golem stands on the plot it is working: it
- * walks onto a ripe crop and breaks it, which drops its yield as it would for a player, or onto bare farmland to sow
- * the seeds it carries. It carries a single stack, so it reaps with a free hand (the drops are picked up, stack by
+ * Works the pre-tilled soil around the job site one plant at a time. The golem steps up to the plot it is working: it
+ * breaks a ripe crop, which drops its yield as it would for a player, or sows the seeds it carries on bare farmland. It carries a single stack, so it reaps with a free hand (the drops are picked up, stack by
  * stack, and taken to the chest elsewhere) and sows whatever seeds it is holding. Runs in the exclusive task activity.
+ * It stands a little way off the plant, facing it, as the hay golem's animations are written for.
  */
 public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     private static final int RADIUS = 10;
     private static final int HEIGHT = 2;
-    private static final int LOOK_TICKS = 20;
-    /** Long enough for the drops to be picked up before the next job. */
-    private static final int PAUSE_TICKS = 16;
     private static final int STALL_TICKS = 400;
 
-    private enum Phase { WALK, LOOK, PAUSE }
+    private enum Phase { WALK, PLAY }
 
     public enum Kind { REAP, SOW }
 
@@ -46,6 +46,8 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     private Phase phase = Phase.WALK;
     private int timer;
     private int stalled;
+    private Vec3 spot;
+    private boolean acted;
 
     public TendCrops() {
         super(CropPlan.class, 1200);
@@ -93,44 +95,42 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         phase = Phase.WALK;
         stalled = 0;
-    }
-
-    /** Whether the golem stands on the plot: its middle is within the block's footprint. */
-    private static boolean onPlot(WorkGolem golem, BlockPos pos) {
-        return Math.abs(golem.getX() - (pos.getX() + 0.5)) < 0.55 && Math.abs(golem.getZ() - (pos.getZ() + 0.5)) < 0.55
-                && Math.abs(golem.getY() - pos.getY()) < 1.2;
+        spot = null;
+        acted = false;
     }
 
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         BlockPos pos = plan.pos();
-        if (phase == Phase.PAUSE) {
+        if (phase == Phase.PLAY) {
             holdStill(golem);
-            if (--timer <= 0) finish();
+            Face.toward(golem, Vec3.atCenterOf(pos));
+            timer++;
+            float at = plan.kind() == Kind.REAP ? Anim.H_HARVEST_AT : Anim.H_REPLANT_AT;
+            float len = plan.kind() == Kind.REAP ? Anim.H_HARVEST_LEN : Anim.H_REPLANT_LEN;
+            if (!acted && timer >= Math.round(at * 20)) {
+                acted = true;
+                golem.swing(InteractionHand.MAIN_HAND);
+                if (plan.kind() == Kind.REAP) level.destroyBlock(pos, true, golem); // drops like a player's break
+                else sow(level, golem, pos);
+            }
+            if (timer >= Math.round(len * 20)) finish();
             return;
         }
         if (!stillWorthIt(level, golem)) { finish(); return; }
 
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(pos)));
-        if (!onPlot(golem, pos)) {
-            phase = Phase.WALK;
-            if (++stalled > STALL_TICKS) { finish(); return; }
-            walkTo(golem, new BlockPosTracker(pos), 0);
+        // stand where the clip expects the plant to be: 12 pixels ahead
+        if (spot == null) spot = Stand.cardinal(level, pos, golem.position(), Anim.H_CROP_DIST);
+        if (!standAt(golem, spot, 0.9)) {
+            if (++stalled > STALL_TICKS) finish();
             return;
         }
-
+        Face.toward(golem, Vec3.atCenterOf(pos));
         holdStill(golem);
-        stalled = 0;
-        if (phase == Phase.WALK) { // arrived: look at the plot a moment before working it
-            phase = Phase.LOOK;
-            timer = LOOK_TICKS;
-        }
-        if (--timer > 0) return;
-        golem.swing(InteractionHand.MAIN_HAND);
-        if (plan.kind() == Kind.REAP) level.destroyBlock(pos, true, golem); // drops like a player's break
-        else sow(level, golem, pos);
-        phase = Phase.PAUSE;
-        timer = PAUSE_TICKS;
+        golem.playClip(plan.kind() == Kind.REAP ? Anim.H_HARVEST : Anim.H_REPLANT);
+        phase = Phase.PLAY;
+        timer = 0;
     }
 
     private boolean stillWorthIt(ServerLevel level, WorkGolem golem) {

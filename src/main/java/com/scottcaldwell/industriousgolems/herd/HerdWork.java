@@ -14,7 +14,12 @@ import net.minecraft.world.entity.ai.behavior.EntityTracker;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.animal.sheep.Sheep;
+import com.scottcaldwell.industriousgolems.golem.Anim;
+import com.scottcaldwell.industriousgolems.golem.Face;
+import com.scottcaldwell.industriousgolems.golem.Stand;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -41,14 +46,16 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     static final long MILK_COOLDOWN = 6000;
     private static final double REACH_SQR = 4.0 * 4.0;
     private static final int APPROACH_TICKS = 400;
-    private static final int LOOK_TICKS = 15;
-    private static final int PAUSE_TICKS = 25;
 
-    private enum Phase { APPROACH, LOOK, PAUSE, DONE }
+    private enum Phase { APPROACH, PLAY, DONE }
 
     private Phase phase = Phase.DONE;
     private long deadline;
     private int timer;
+    private Vec3 spot;
+    private boolean acted;
+    private Animal frozen;
+    private float yaw;
 
     public HerdWork() {
         super(HerdPlan.class, 600);
@@ -164,6 +171,10 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         phase = Phase.APPROACH;
         deadline = time + APPROACH_TICKS;
+        spot = null;
+        acted = false;
+        frozen = null;
+        yaw = 0;
     }
 
     @Override
@@ -171,13 +182,106 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         return phase != Phase.DONE && super.allowedNow(level, golem);
     }
 
+    /** The clip this job plays, or null (milking has none). */
+    private String clipFor(Animal animal) {
+        String kind = animal instanceof Sheep ? "sheep" : animal instanceof Cow ? "cow" : "pig";
+        return switch (plan.action()) {
+            case CULL -> "cull-" + kind;
+            case BREED -> "feed-" + kind;
+            case SHEAR -> "shear";
+            case MILK -> null;
+        };
+    }
+
+    private static int kindIndex(Animal animal) {
+        return animal instanceof Sheep ? 0 : animal instanceof Cow ? 1 : 2;
+    }
+
+    /** Where the animal stands relative to the golem for this job: blocks to its right and ahead, and which way it faces (right, ahead components). */
+    private double[] layout(Animal animal) {
+        int k = kindIndex(animal);
+        switch (plan.action()) {
+            case CULL -> {
+                double back = Anim.T_ANIMALS[k][0], y = 0.78 * back, th = Math.acos(Math.min(1, (21 - y) / 17.0));
+                double r = 4 + 17 * Math.sin(th) + 2 * Math.cos(th) + 1.5;
+                return new double[]{r * Math.cos(Anim.T_CULL_PHI) / 16.0, r * Math.sin(Anim.T_CULL_PHI) / 16.0, Math.sin(Anim.T_CULL_PHI), -Math.cos(Anim.T_CULL_PHI)};
+            }
+            case BREED -> {
+                return new double[]{(Anim.T_FEED_NX + 12.0) / 16.0, 0, -1, 0};
+            }
+            case SHEAR -> {
+                return new double[]{Anim.T_SHEAR_X / 16.0, 0, 0, 1};
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Where the golem should stand, and (through {@link #yaw}) which way it faces, so that the animal, set where the clip wants it, is
+     * exactly where the clip's arms go. The facing is one of eight, the spot must have room and ground, and the nearest wins.
+     */
+    private Vec3 chooseSpot(ServerLevel level, WorkGolem golem, Animal animal, double[] lay) {
+        Vec3 best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (int i = 0; i < 8; i++) {
+            float y = i * 45.0F;
+            Vec3 off = Face.local(Vec3.ZERO, y, lay[0], lay[1]);
+            Vec3 at = new Vec3(animal.getX() - off.x, golem.getY(), animal.getZ() - off.z);
+            BlockPos below = BlockPos.containing(at).below();
+            if (!Stand.free(level, at) || level.getBlockState(below).getCollisionShape(level, below).isEmpty()) continue;
+            double d = at.distanceToSqr(golem.position());
+            if (d < bestDist) {
+                bestDist = d;
+                best = at;
+                yaw = y;
+            }
+        }
+        return best;
+    }
+
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         Entity target = level.getEntity(plan.targetId());
-        if (phase == Phase.PAUSE) {
+        if (phase == Phase.PLAY) {
             holdStill(golem);
-            if (target != null) lookAt(golem, new EntityTracker(target, true));
-            if (--timer <= 0) finish();
+            timer++;
+            if (!(target instanceof Animal animal) || !animal.isAlive()) { if (!acted) { finish(); return; } }
+            if (target instanceof Animal animal && animal.isAlive() && frozen != null) {
+                golem.setYRot(yaw);
+                golem.setYBodyRot(yaw);
+                golem.setYHeadRot(yaw);
+                double[] lay = layout(animal);
+                if (lay != null) {
+                    Vec3 at = Face.local(golem.position(), yaw, lay[0], lay[1]);
+                    animal.setPos(at.x, golem.getY(), at.z);
+                    animal.setDeltaMovement(Vec3.ZERO);
+                    Vec3 face = Face.local(Vec3.ZERO, yaw, lay[2], lay[3]);
+                    float ay = (float) (Mth.atan2(-face.x, face.z) * Mth.RAD_TO_DEG);
+                    animal.setYRot(ay);
+                    animal.setYBodyRot(ay);
+                    animal.setYHeadRot(ay);
+                }
+            }
+            float at = switch (plan.action()) {
+                case CULL -> Anim.T_CULL_HIT + 0.05F;
+                case BREED -> Anim.T_FEED_BITE + 0.2F;
+                case SHEAR -> Anim.T_SHEAR_AT;
+                case MILK -> 0.8F;
+            };
+            float len = switch (plan.action()) {
+                case CULL -> Anim.T_CULL_LEN;
+                case BREED -> Anim.T_FEED_LEN;
+                case SHEAR -> Anim.T_SHEAR_LEN;
+                case MILK -> 1.6F;
+            };
+            if (!acted && timer >= Math.round(at * 20) && target instanceof Animal animal) {
+                acted = true;
+                golem.swing(InteractionHand.MAIN_HAND);
+                perform(level, golem, animal, time);
+            }
+            if (timer >= Math.round(len * 20)) finish();
             return;
         }
         if (!(target instanceof Animal animal) || !animal.isAlive()) { finish(); return; }
@@ -185,23 +289,44 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         lookAt(golem, new EntityTracker(animal, true));
         if (golem.distanceToSqr(animal) > REACH_SQR) {
             if (time > deadline) { finish(); return; }
-            if (phase == Phase.LOOK) phase = Phase.APPROACH; // it moved out of reach: follow it
+            spot = null;
             walkTo(golem, new EntityTracker(animal, false), 3);
             return;
         }
-        holdStill(golem);
-        if (phase == Phase.APPROACH) { // arrived: look at the animal before doing anything to it
-            phase = Phase.LOOK;
-            timer = LOOK_TICKS;
+        // in reach: settle on a spot so that the animal, set where the clip wants it, is exactly where the arms go
+        double[] lay = layout(animal);
+        if (lay == null) { // milking: just stand at the cow
+            holdStill(golem);
+            Face.toward(golem, animal.position());
+            if (clipFor(animal) != null) golem.playClip(clipFor(animal));
+            phase = Phase.PLAY;
+            timer = 0;
+            frozen = animal;
+            yaw = golem.getYRot();
+            return;
         }
-        if (--timer > 0) return;
-        golem.swing(InteractionHand.MAIN_HAND);
-        if (perform(level, golem, animal, time)) {
-            phase = Phase.PAUSE;
-            timer = PAUSE_TICKS;
-        } else {
+        if (spot == null) spot = chooseSpot(level, golem, animal, lay);
+        if (spot == null) { // no room to stage it as the clip wants: do the job without the show
+            holdStill(golem);
+            golem.swing(InteractionHand.MAIN_HAND);
+            perform(level, golem, animal, time);
             finish();
+            return;
         }
+        if (!standAt(golem, spot, 1.0)) {
+            if (time > deadline) finish();
+            return;
+        }
+        Face.toward(golem, animal.position().multiply(1, 0, 1).add(0, golem.getY(), 0));
+        golem.setYRot(yaw);
+        golem.setYBodyRot(yaw);
+        golem.setYHeadRot(yaw);
+        holdStill(golem);
+        animal.getNavigation().stop();
+        if (clipFor(animal) != null) golem.playClip(clipFor(animal));
+        phase = Phase.PLAY;
+        timer = 0;
+        frozen = animal;
     }
 
     private boolean perform(ServerLevel level, WorkGolem golem, Animal animal, long time) {
@@ -243,5 +368,6 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
         phase = Phase.DONE;
+        frozen = null;
     }
 }

@@ -8,6 +8,10 @@ public final class Animator {
 
     public static final Kit MUSHROOM = new Kit(MushroomAnims.CLIPS, Anim.M_WALK, Anim.M_WALK_ITEM, Anim.M_NAP, Anim.M_AWAIT, false, 0);
 
+    public static final Kit HAY = new Kit(HayAnims.CLIPS, "shamble", "shamble-carry", "idle-wait", "await-offering", false, 0);
+
+    public static final Kit TERRACOTTA = new Kit(TerracottaAnims.CLIPS, "clomp", "clomp-carry", "idle-wait", "await-offering", true, 0.36);
+
     /**
      * @param clipId   the clip the server asked for, or null for the default (walk / idle / waiting)
      * @param clipTime seconds since that clip began

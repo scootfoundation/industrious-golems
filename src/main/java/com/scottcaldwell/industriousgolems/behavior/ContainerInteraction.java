@@ -3,6 +3,7 @@ package com.scottcaldwell.industriousgolems.behavior;
 import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
+import com.scottcaldwell.industriousgolems.golem.Stand;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.item.ItemEntity;
 import com.scottcaldwell.industriousgolems.needs.Need;
@@ -151,30 +152,13 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         golem.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(Vec3.atCenterOf(chestPos)));
     }
 
-    /** A free spot on the side of the chest the golem is nearest to, at the distance its clips are written for. */
-    private Vec3 chooseSpot(ServerLevel level, WorkGolem golem) {
-        Vec3 centre = Vec3.atCenterOf(chestPos);
-        Vec3 from = golem.position().subtract(centre);
-        Vec3 best = null;
-        double bestScore = -1e9;
-        for (Direction d : Direction.Plane.HORIZONTAL) {
-            Vec3 at = new Vec3(centre.x + d.getStepX() * spec.dist(), chestPos.getY(), centre.z + d.getStepZ() * spec.dist());
-            BlockPos feet = BlockPos.containing(at);
-            boolean free = level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
-                    && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty();
-            double score = from.x * d.getStepX() + from.z * d.getStepZ() - (free ? 0 : 100);
-            if (score > bestScore) { bestScore = score; best = at; }
-        }
-        return best;
-    }
-
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         if (chestPos == null) return;
         switch (phase) {
             case APPROACH -> {
                 lookAtChest(golem);
-                if (spot == null) spot = chooseSpot(level, golem);
+                if (spot == null) spot = Stand.cardinal(level, chestPos, golem.position(), spec.dist());
                 if (!standAt(golem, spot, 1.0)) {
                     if (++stalled > 400) phase = Phase.DONE;
                     return;

@@ -58,8 +58,25 @@ public final class Anim {
                         String fetch, float fetchLen, float fetchOpen, float fetchTake, float fetchThrow, float fetchClose,
                         double dist, double landX, double landZ) { }
 
+    // ---- terracotta golem (herder) ----
+    public static final String T_RECEIVE = "receive-offering";
+    public static final float T_RECEIVE_LEN = 6.0F, T_CULL_LEN = 6.2F, T_CULL_HIT = 1.6F, T_FEED_LEN = 9.0F, T_FEED_BITE = 4.4F, T_SHEAR_LEN = 10.2F, T_SHEAR_AT = 4.6F;
+    /** Where the animals stand for each job, in the golem's frame (blocks), as the clips are written for. */
+    public static final double T_CULL_PHI = 1.35;
+    public static final double T_FEED_NX = 16.0, T_SHEAR_X = 17.5;
+    /** Heights of an animal's back and nose in pixels, as the clips see them: sheep, cow, pig. */
+    public static final double[][] T_ANIMALS = {{18, 13}, {20, 15}, {11, 8}};
+
+    // ---- hay golem (farmer) ----
+    public static final String H_HARVEST = "harvest", H_REPLANT = "replant", H_PICK_UP = "pick-up", H_RECEIVE = "receive-offering";
+    public static final float H_HARVEST_LEN = 4.4F, H_HARVEST_AT = 2.55F + 0.2F, H_REPLANT_LEN = 5.8F, H_REPLANT_AT = 2.7F + 0.2F, H_RECEIVE_LEN = 5.0F;
+    /** The crop block's centre is 12 pixels ahead of the golem. */
+    public static final double H_CROP_DIST = 12.0 / 16.0;
+
     public static Pick pick(String profession) {
         return switch (profession) {
+            case "farmer" -> new Pick(H_PICK_UP, 4.2F, 1.75F + 0.2F, 9.0 / 16.0);
+            case "herder" -> new Pick(null, 1.0F, 0.5F, 0.6);
             case "lumberjack" -> new Pick(M_PICK_UP, M_PICK_LEN, M_PICK_GRAB, 8.5 / 16.0);
             default -> new Pick(M_PICK_UP, M_PICK_LEN, M_PICK_GRAB, 8.5 / 16.0);
         };
@@ -67,6 +84,10 @@ public final class Anim {
 
     public static Chest chest(String profession) {
         return switch (profession) {
+            case "herder" -> new Chest("stow-item", 19.0F, 3.4F, 6.5F + 2.7F + 0.33F, 6.5F + 2.7F + 0.53F, 12.5F + 3.7F,
+                    "fetch-item", 19.5F, 3.4F, 6.5F + 2.8F + 0.33F, 6.5F + 4.5F + 0.33F, 13.0F + 3.7F, 15.5 / 16.0, 17.0 / 16.0, 11.0 / 16.0);
+            case "farmer" -> new Chest("stow-item", 13.2F, 3.3F, 5.0F + 2.2F, 5.0F + 2.4F, 9.2F + 2.55F + 0.2F,
+                    "fetch-item", 15.0F, 3.3F, 5.0F + 3.1F, 5.0F + 4.25F, 11.0F + 2.55F + 0.2F, 24.0 / 16.0, 17.0 / 16.0, 13.0 / 16.0);
             case "lumberjack" -> new Chest(M_PUT_IN, M_PUT_LEN, M_PUT_OPEN, 1.8F + 0.95F, M_PUT_DROP, M_PUT_CLOSE,
                     M_FETCH, M_FETCH_LEN, M_FETCH_OPEN, 1.8F + 4.1F + 2.5F, M_FETCH_TAKE, M_FETCH_CLOSE, M_CHEST_DIST, 15.0 / 16.0, 7.0 / 16.0);
             default -> new Chest(M_PUT_IN, M_PUT_LEN, M_PUT_OPEN, 1.8F + 0.95F, M_PUT_DROP, M_PUT_CLOSE,
@@ -80,6 +101,8 @@ public final class Anim {
     public static Receive receive(String profession) {
         return switch (profession) {
             case "lumberjack" -> new Receive(M_RECEIVE, M_RECEIVE_LEN);
+            case "farmer" -> new Receive(H_RECEIVE, H_RECEIVE_LEN);
+            case "herder" -> new Receive(T_RECEIVE, T_RECEIVE_LEN);
             default -> null;
         };
     }

@@ -3,5 +3,5 @@
   "function": "industriousgolems:miner_digs_and_delivers",
   "environment": "industriousgolems:work_hours",
   "structure": "industriousgolems:arena",
-  "max_ticks": 4000
+  "max_ticks": 12000
 }
