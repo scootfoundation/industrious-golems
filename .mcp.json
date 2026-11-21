@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "minecraft": {
+      "command": "node",
+      "args": [
+        "D:/Projects/minecraft-mcp-server/dist/main.js",
+        "--host", "localhost",
+        "--port", "25565",
+        "--username", "ClaudeBot"
+      ]
+    }
+  }
+}
