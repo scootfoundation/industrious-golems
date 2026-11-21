@@ -1,0 +1,10 @@
+{
+  "chest": {
+    "put": "stow-ore", "put_len": 4.9, "put_open": 1.6, "put_release": 2.0, "put_drop": 2.3, "put_close": 3.0,
+    "fetch": "fetch-ore", "fetch_len": 4.6, "fetch_open": 1.5, "fetch_take": 3.0, "fetch_throw": -1.0, "fetch_close": 3.1,
+    "dist": 1.09375, "land_x": 0.0, "land_z": 0.0
+  },
+  "pick": {
+    "clip": "pick-up-ore", "len": 5.2, "grab": 2.9, "dist": 1.09
+  }
+}

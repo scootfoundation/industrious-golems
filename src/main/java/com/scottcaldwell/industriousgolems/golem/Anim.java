@@ -77,29 +77,13 @@ public final class Anim {
     /** The crop block's centre is 12 pixels ahead of the golem. */
     public static final double H_CROP_DIST = 12.0 / 16.0;
 
+    /** Read from {@code data/industriousgolems/golem_timings/<profession>.json} (see {@link Timings}). */
     public static Pick pick(String profession) {
-        return switch (profession) {
-            case "farmer" -> new Pick(H_PICK_UP, 4.2F, 1.75F + 0.2F, 9.0 / 16.0);
-            case "herder" -> new Pick(null, 1.0F, 0.5F, 0.6);
-            case "miner" -> new Pick("pick-up-ore", 5.2F, 2.9F, 1.09);
-            case "lumberjack" -> new Pick(M_PICK_UP, M_PICK_LEN, M_PICK_GRAB, 8.5 / 16.0);
-            default -> new Pick(M_PICK_UP, M_PICK_LEN, M_PICK_GRAB, 8.5 / 16.0);
-        };
+        return Timings.pick(profession);
     }
 
     public static Chest chest(String profession) {
-        return switch (profession) {
-            case "miner" -> new Chest("stow-ore", 4.9F, 1.6F, 2.0F, 2.3F, 3.0F,
-                    "fetch-ore", 4.6F, 1.5F, 3.0F, -1.0F, 3.1F, 17.5 / 16.0, 0, 0);
-            case "herder" -> new Chest("stow-item", 19.0F, 3.4F, 6.5F + 2.7F + 0.33F, 6.5F + 2.7F + 0.53F, 12.5F + 3.7F,
-                    "fetch-item", 19.5F, 3.4F, 6.5F + 2.8F + 0.33F, 6.5F + 4.5F + 0.33F, 13.0F + 3.7F, 15.5 / 16.0, 17.0 / 16.0, 11.0 / 16.0);
-            case "farmer" -> new Chest("stow-item", 13.2F, 3.3F, 5.0F + 2.2F, 5.0F + 2.4F, 9.2F + 2.55F + 0.2F,
-                    "fetch-item", 15.0F, 3.3F, 5.0F + 3.1F, 5.0F + 4.25F, 11.0F + 2.55F + 0.2F, 24.0 / 16.0, 17.0 / 16.0, 13.0 / 16.0);
-            case "lumberjack" -> new Chest(M_PUT_IN, M_PUT_LEN, M_PUT_OPEN, 1.8F + 0.95F, M_PUT_DROP, M_PUT_CLOSE,
-                    M_FETCH, M_FETCH_LEN, M_FETCH_OPEN, 1.8F + 4.1F + 2.5F, M_FETCH_TAKE, M_FETCH_CLOSE, M_CHEST_DIST, 15.0 / 16.0, 7.0 / 16.0);
-            default -> new Chest(M_PUT_IN, M_PUT_LEN, M_PUT_OPEN, 1.8F + 0.95F, M_PUT_DROP, M_PUT_CLOSE,
-                    M_FETCH, M_FETCH_LEN, M_FETCH_OPEN, 1.8F + 4.1F + 2.5F, M_FETCH_TAKE, M_FETCH_CLOSE, M_CHEST_DIST, 15.0 / 16.0, 7.0 / 16.0);
-        };
+        return Timings.chest(profession);
     }
 
     /** The clip played while the golem is handed an offering after running down, and how long it takes; null when there is none. */

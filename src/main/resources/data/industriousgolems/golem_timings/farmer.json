@@ -1,0 +1,10 @@
+{
+  "chest": {
+    "put": "stow-item", "put_len": 13.2, "put_open": 3.3, "put_release": 7.2, "put_drop": 7.4, "put_close": 11.95,
+    "fetch": "fetch-item", "fetch_len": 15.0, "fetch_open": 3.3, "fetch_take": 8.1, "fetch_throw": 9.25, "fetch_close": 13.75,
+    "dist": 1.5, "land_x": 1.0625, "land_z": 0.8125
+  },
+  "pick": {
+    "clip": "pick-up", "len": 4.2, "grab": 1.95, "dist": 0.5625
+  }
+}

@@ -6,13 +6,13 @@ import com.scottcaldwell.industriousgolems.golem.Anim;
 public final class Animator {
     private Animator() { }
 
-    public static final Kit MUSHROOM = new Kit(MushroomAnims.CLIPS, Anim.M_WALK, Anim.M_WALK_ITEM, Anim.M_NAP, Anim.M_AWAIT, false, 0);
+    public static final Kit MUSHROOM = new Kit("mushroom", MushroomAnims.CLIPS, Anim.M_WALK, Anim.M_WALK_ITEM, Anim.M_NAP, Anim.M_AWAIT, false, 0);
 
-    public static final Kit HAY = new Kit(HayAnims.CLIPS, "shamble", "shamble-carry", "idle-wait", "await-offering", false, 0);
+    public static final Kit HAY = new Kit("hay", HayAnims.CLIPS, "shamble", "shamble-carry", "idle-wait", "await-offering", false, 0);
 
-    public static final Kit TERRACOTTA = new Kit(TerracottaAnims.CLIPS, "clomp", "clomp-carry", "idle-wait", "await-offering", true, 0.36);
+    public static final Kit TERRACOTTA = new Kit("terracotta", TerracottaAnims.CLIPS, "clomp", "clomp-carry", "idle-wait", "await-offering", true, 0.36);
 
-    public static final Kit STONE = new Kit(StoneAnims.CLIPS, "knuckle", "lumber", "idle-wait", "await-offering", true, 0);
+    public static final Kit STONE = new Kit("stone", StoneAnims.CLIPS, "knuckle", "lumber", "idle-wait", "await-offering", true, 0);
 
     /**
      * @param clipId   the clip the server asked for, or null for the default (walk / idle / waiting)
@@ -34,7 +34,8 @@ public final class Animator {
                 t = clip.move > 0 ? walkDist / clip.move : ageSeconds;
             } else {
                 // a golem with charge is between jobs (searching): it looks around; a dormant one keeps its slumped idle
-                clip = dormant ? kit.get(kit.idle()) : BasicAnims.LOOK_AROUND;
+                clip = dormant ? null : kit.get("look-around");
+                if (clip == null) clip = kit.get(kit.idle());
                 t = ageSeconds;
             }
         }

@@ -9,6 +9,7 @@ import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
 @EventBusSubscriber(modid = IndustriousGolems.MODID, value = Dist.CLIENT)
@@ -27,6 +28,12 @@ public final class ClientEvents {
 
     private static Identifier texture(String name) {
         return Identifier.fromNamespaceAndPath(IndustriousGolems.MODID, "textures/entity/" + name + ".png");
+    }
+
+    /** Animation clips kept as resource files reload with the resource packs (F3+T). */
+    @SubscribeEvent
+    public static void registerReloadListeners(AddClientReloadListenersEvent event) {
+        event.addListener(Identifier.fromNamespaceAndPath(IndustriousGolems.MODID, "animations"), new com.scottcaldwell.industriousgolems.client.anim.ClipData());
     }
 
     @SubscribeEvent

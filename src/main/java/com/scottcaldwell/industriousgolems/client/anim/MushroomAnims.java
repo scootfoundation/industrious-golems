@@ -373,14 +373,7 @@ public final class MushroomAnims {
         Clip.Ctx thrown = opt();
         thrown.thrown = true;
         // putting in needs no climb: it opens the lid, lobs the item in and swats the lid shut from the floor
-        Clip swat = new Clip("swat-lid", 1.2F, false, 0, (P, t, c) -> {
-            P.offZ = (float) LOB_Z;
-            double a = kf(t, k(0, 0), k(0.3, -2.1, 'o'), k(0.5, -1.2, 'i'), k(0.7, -1.2), k(1.1, 0));
-            P.arms(a, 0.2 * win(t, 0.05, 0.3, 0.5, 0.7));
-            P.body.rx += 0.18 * win(t, 0.3, 0.5, 0.6, 1.0);
-            P.body.y += 0.8 * win(t, 0.1, 0.3, 0.45, 0.6);
-            P.head.rx += 0.2 * win(t, 0.3, 0.5, 0.7, 1.0);
-        });
+        Clip swat = ClipData.ref("mushroom", "swat-lid", 1.2F); // animations/mushroom/swat-lid.json
         Clip put = Clip.seq(Anim.M_PUT_IN, Clip.seg(openLid, 0, stand), Clip.seg(putIn, 1.8F, null), Clip.seg(swat, 3.9F, null));
         CLIPS.put(Anim.M_PUT_IN, put);
         Clip fetch = Clip.seq(Anim.M_FETCH, Clip.seg(openLid, 0, null), Clip.seg(clamber, 1.8F, null), Clip.seg(rummage, 5.9F, null), Clip.seg(leap, 10.7F, thrown));
