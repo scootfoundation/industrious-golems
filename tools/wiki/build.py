@@ -246,7 +246,7 @@ def layout(title, body, root, active, description, splash=None):
 </head>
 <body>
 <header class="title">
-  <a class="logo" href="%(root)sindex.html"><img src="%(root)sassets/img/logo.svg" alt="Industrious Golems"></a>
+  <a class="logo" href="%(root)sindex.html">Industrious Golems</a>
 </header>
 <main class="gui">
 %(body)s
@@ -387,8 +387,6 @@ def main():
         items.update([g["body"], g["job_vanilla"]] + g["recipe"] + g["produces"] + [i for i, _ in g["consumes"]] + [i for i, _ in g["offerings"]])
     build_images(vanilla, items)
     build_extras(vanilla)
-    import logo_mc as logo
-    logo.make_full(SITE / "assets/img/logo.svg")
     fav = Image.open(r.MOD_ASSETS / "textures/item/hay_golem_spawn_egg.png").convert("RGBA")
     fav.save(SITE / "assets/img/favicon.png")
     (SITE / "golems").mkdir(exist_ok=True)

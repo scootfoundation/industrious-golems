@@ -31,8 +31,7 @@ code { background: #b4b4b4; padding: 0 0.3em; }
 
 /* ---- title screen */
 .title { text-align: center; padding: 1.6rem 16px 0.4rem; }
-.logo { display: inline-block; width: min(640px, 100%); filter: drop-shadow(0 6px 0 #00000066); }
-.logo img { display: block; width: 100%; height: auto; }
+.logo { display: inline-block; color: #fff; text-decoration: none !important; font: 700 clamp(28px, 6vw, 52px)/1.1 var(--pixel); text-shadow: 3px 3px 0 #3f3f3f; }
 
 /* ---- the button */
 .mcbtn {
