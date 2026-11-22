@@ -4,12 +4,13 @@ Pure SVG. make(path) writes it; tweak PITCH/CAM_X/DIST below, letter shapes in L
 import math
 import random
 
-PITCH = 50.0       # camera elevation, degrees
-CAM_X = 0.25       # camera position along the text (fraction of the width); letters lean away from it
+PITCH = 58.0       # camera elevation, degrees
+CAM_X = 0.12       # camera position along the text (fraction of the width); letters lean away from it
 DIST = 2.4         # camera distance in text widths
-SLANT = 0.30       # letters lean right: x shift per unit of height
+SLANT = 0.4       # letters lean right: x shift per unit of height
+XS = 1.0         # letters are squeezed a little in x
 GAP = 0.9          # between letters
-DEPTH = 7.0        # slab thickness in letter units
+DEPTH = 6.5        # slab thickness in letter units
 
 
 def bar(x0, y0, x1, y1, c=0.7):
@@ -109,25 +110,24 @@ def make(path, only_top=False):
     s1, W = word_strokes(top)
     words = [("INDUSTRIOUS", (232, 152, 62), (255, 236, 140), (86, 48, 22)),
              ("GOLEMS", (140, 200, 96), (232, 250, 176), (52, 86, 30))]
-    sc2 = W / word_strokes(words[0][0])[1]
+    w1 = word_strokes(words[0][0])[1]
+    w2 = word_strokes(words[1][0])[1]
+    sc2 = W / (w1 + 5.0 + w2)
     cam = Cam(W, 5.0)
-    lines = []   # (strokes[(poly in x,z)], colour spec, kind)
-    z = 0.0
+    lines = []
     lines.append(dict(strokes=s1, z0=0.0, s=1.0, dx=0.0, kind="stone"))
-    z2 = 10.0 + 4.6
+    z2 = 10.0 + 4.5
     if not only_top:
-        ws, ww = word_strokes(words[0][0])
-        lines.append(dict(strokes=ws, z0=z2, s=sc2, dx=0.0, kind=0))
-        ws2, ww2 = word_strokes(words[1][0])
-        lines.append(dict(strokes=ws2, z0=z2 + 10 * sc2 + 1.4, s=sc2, dx=(W - ww2 * sc2) / 2, kind=1))
+        lines.append(dict(strokes=word_strokes(words[0][0])[0], z0=z2, s=sc2, dx=0.0, kind=0, sy=1.7))
+        lines.append(dict(strokes=word_strokes(words[1][0])[0], z0=z2, s=sc2, dx=(w1 + 5.0) * sc2, kind=1, sy=1.7))
     order = (lines[1:] + lines[:1])          # far-to-near drawing is reversed: the first line is drawn last, on top
     allpts, built = [], []
     for ln in order:
         s, z0, dx = ln["s"], ln["z0"], ln["dx"]
         tops, sides = [], []
         for st in ln["strokes"]:
-            t3 = [cam(dx + (px + SLANT * (10 - py)) * s, 0.0, z0 + py * s) for px, py in st]
-            b3 = [cam(dx + (px + SLANT * (10 - py)) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 0.55), z0 + py * s) for px, py in st]
+            t3 = [cam(dx + (px * XS + SLANT * (10 - py)) * s, 0.0, z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
+            b3 = [cam(dx + (px * XS + SLANT * (10 - py) - 0.22 * DEPTH) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 0.55), z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
             tops.append(t3)
             sides.append(hull(t3 + b3))
             allpts += t3 + b3
@@ -138,15 +138,15 @@ def make(path, only_top=False):
     vb = (min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad)
     defs, body = [], []
     defs.append('<filter id="rough" x="-3%%" y="-6%%" width="106%%" height="112%%"><feTurbulence type="fractalNoise" baseFrequency="%.3f" numOctaves="2" seed="4" result="n"/>'
-                '<feDisplacementMap in="SourceGraphic" in2="n" scale="%.2f" xChannelSelector="R" yChannelSelector="G"/></filter>' % (0.9 / unit / 10, 0.34 * unit))
+                '<feDisplacementMap in="SourceGraphic" in2="n" scale="%.2f" xChannelSelector="R" yChannelSelector="G"/></filter>' % (0.9 / unit / 10, 0.2 * unit))
     for i, ln in enumerate(order):
         ty = [p[1] for t in ln["tops"] for p in t]
         sy = [p[1] for t in ln["sides"] for p in t]
         y0, ylit, y1 = min(ty), max(ty), max(sy)
         f = (ylit - y0) / (y1 - y0)
         if ln["kind"] == "stone":
-            topf = ("t%d" % i, [(0, "#dedad3"), (1, "#b8b3ac")])
-            lit, dark = "#8c8c8c", "#0a0a0a"
+            topf = ("t%d" % i, [(0, "#d4d0c9"), (1, "#c2bdb6")])
+            lit, dark = "#5e5e5e", "#050505"
         else:
             a, b, c = words[ln["kind"]][1:]
             topf = ("t%d" % i, [(0, lerpc(b, b, 0)), (1, lerpc(a, a, 0))])
@@ -154,12 +154,14 @@ def make(path, only_top=False):
         defs.append('<linearGradient id="t%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">%s</linearGradient>' % (
             i, y0, ylit, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in topf[1])))
         defs.append('<linearGradient id="s%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">'
-                    '<stop offset="0" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="1" stop-color="%s"/></linearGradient>' % (
-                        i, y0, y1, dark, max(0, f - 0.01), dark, f, lit, dark))
+                    '<stop offset="0" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/></linearGradient>' % (
+                        i, y0, y1, dark, max(0, f - 0.01), dark, f, lit, min(1, f + (1 - f) * 0.7), dark))
         sw = 1.5 * unit
         g = ['<g filter="url(#rough)">']
         g.append('<g fill="#000" stroke="#000" stroke-width="%.2f" stroke-linejoin="round">%s</g>' % (sw, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
         g.append('<g fill="url(#s%d)" stroke="url(#s%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
+        if ln["kind"] == "stone":
+            g.append('<g fill="#86827d" transform="translate(0 %.2f)">%s</g>' % (0.3 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
         g.append('<g fill="url(#t%d)" stroke="url(#t%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
         g.append("</g>")
         body.append("".join(g))
@@ -187,7 +189,7 @@ def make(path, only_top=False):
                     x, y = nx, ny
                     pts.append((x, y))
                 if len(pts) > 1:
-                    d = "M" + " L".join("%.2f %.2f" % cam(px + SLANT * (10 - py), 0, py) for px, py in pts)
+                    d = "M" + " L".join("%.2f %.2f" % cam(px * XS + SLANT * (10 - py), 0, py) for px, py in pts)
                     cr.append('<path d="%s" stroke="#3b3733" stroke-width="%.2f"/>' % (d, 0.2 * unit * 1.6))
                     cr.append('<path d="%s" transform="translate(%.2f %.2f)" stroke="#f4f1ec" stroke-width="%.2f"/>' % (d, 0.12 * unit, 0.18 * unit, 0.12 * unit * 1.6))
             body.append('<g fill="none" stroke-linecap="round" stroke-linejoin="round">%s</g>' % "".join(cr))
