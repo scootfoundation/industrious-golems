@@ -1,5 +1,7 @@
-"""Draws the wiki logo (site/assets/img/logo.svg): chunky block lettering in the style of the game's title screen,
-a stone-grey "MINECRAFT" over a grassy "INDUSTRIOUS GOLEMS". Pure SVG, generated so the lettering can be tweaked in one place."""
+"""Draws the wiki logo (site/assets/img/logo.svg): chunky slanted block lettering with a deep extrusion and a black outline, in the style
+of the game's title screen: a cracked-stone "MINECRAFT" over "INDUSTRIOUS GOLEMS", the second line tucked under the first's extrusion.
+Pure SVG, generated so the lettering can be tweaked in one place."""
+import math
 import random
 
 # 8 rows tall; 6 columns wide unless noted (M is 8). '#' is a block.
@@ -7,7 +9,7 @@ GLYPHS = {
     "I": ["######", "######", "..##..", "..##..", "..##..", "..##..", "######", "######"],
     "T": ["######", "######", "..##..", "..##..", "..##..", "..##..", "..##..", "..##.."],
     "E": ["######", "######", "##....", "####..", "####..", "##....", "######", "######"],
-    "C": [".####.", "######", "##..##", "##....", "##....", "##..##", "######", ".####."],
+    "C": [".#####", "######", "##....", "##....", "##....", "##....", "######", ".#####"],
     "N": ["##..##", "###.##", "######", "######", "##.###", "##..##", "##..##", "##..##"],
     "M": ["##....##", "###..###", "########", "########", "##.##.##", "##....##", "##....##", "##....##"],
     "R": ["#####.", "######", "##..##", "##..##", "#####.", "####..", "##.###", "##..##"],
@@ -20,24 +22,28 @@ GLYPHS = {
     "G": [".#####", "######", "##....", "##.###", "##.###", "##..##", "######", ".####."],
     "L": ["##....", "##....", "##....", "##....", "##....", "##....", "######", "######"],
 }
-GAP = 1      # blank columns between letters
-SPACE = 3    # columns for a word space
+GAP = 1          # blank columns between letters: the lettering is tight, as in the game's logo
+SPACE = 4        # columns for a word space
+SLANT = 8.0      # degrees the whole lettering leans
+ASPECT = 1.15    # block width / height
 
 
-def cells(text):
-    """The set of (col, row) blocks of a line of text, and its width in columns."""
-    out, x = set(), 0
-    for ch in text:
-        if ch == " ":
-            x += SPACE
-            continue
-        g = GLYPHS[ch]
-        for r, row in enumerate(g):
-            for c, v in enumerate(row):
-                if v == "#":
-                    out.add((x + c, r))
-        x += len(g[0]) + GAP
-    return out, x - GAP
+def layout(text):
+    """[(word, {(col, row)}, start_col)] and the line's width in columns."""
+    words, x = [], 0
+    for w in text.split(" "):
+        blocks, start = set(), x
+        for ch in w:
+            g = GLYPHS[ch]
+            for r, row in enumerate(g):
+                for c, v in enumerate(row):
+                    if v == "#":
+                        blocks.add((x + c, r))
+            x += len(g[0]) + GAP
+        x -= GAP
+        words.append((w, blocks, start))
+        x += SPACE
+    return words, x - SPACE
 
 
 def runs(blocks):
@@ -46,89 +52,152 @@ def runs(blocks):
     for r in sorted({b[1] for b in blocks}):
         cols = sorted(c for c, rr in blocks if rr == r)
         start = prev = cols[0]
-        for c in cols[1:] + [None]:
-            if c is None or c != prev + 1:
+        for c in cols[1:]:
+            if c != prev + 1:
                 out.append((start, r, prev - start + 1))
-                if c is not None:
-                    start = c
-            if c is not None:
-                prev = c
+                start = c
+            prev = c
+        out.append((start, r, prev - start + 1))
     return out
 
 
-def line(text, ox, oy, u, face, side, rng, depth=(0.55, 0.6)):
-    """SVG for one line: black outline, extruded side, front face with bevel and stone speckle. `u` is the block size."""
-    blocks, _ = cells(text)
-    dx, dy = depth[0] * u, depth[1] * u
-    steps = 4
-    o = 0.22 * u  # outline thickness
-    parts = []
-    # 1. black silhouette (front plus everything swept to the extruded back)
-    sil = []
-    for (c, r, n) in runs(blocks):
-        for s in range(steps + 1):
-            t = s / steps
-            sil.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (ox + c * u + dx * t - o, oy + r * u + dy * t - o, n * u + 2 * o, u + 2 * o))
-    parts.append('<g fill="#000">%s</g>' % "".join(sil))
-    # 2. the extruded side
-    ext = []
-    for (c, r, n) in runs(blocks):
-        for s in range(1, steps + 1):
-            t = s / steps
-            ext.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (ox + c * u + dx * t, oy + r * u + dy * t, n * u + 0.4, u + 0.4))
-    parts.append('<g fill="%s">%s</g>' % (side, "".join(ext)))
-    # 3. the front face
-    face_rects, hi, lo, spk = [], [], [], []
-    for (c, r) in sorted(blocks):
-        x, y = ox + c * u, oy + r * u
-        b = max(u * 0.14, 1)
-        if (c, r - 1) not in blocks:
-            hi.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y, u + 0.4, b))
-        if (c - 1, r) not in blocks:
-            hi.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y, b, u + 0.4))
-        if (c, r + 1) not in blocks:
-            lo.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y + u - b, u + 0.4, b))
-        if (c + 1, r) not in blocks:
-            lo.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x + u - b, y, b, u + 0.4))
-        # stone speckle: a couple of small darker/lighter pixels per block
-        for _ in range(2):
-            if rng.random() < 0.7:
-                px = x + rng.randrange(1, 6) * u / 8
-                py = y + rng.randrange(1, 6) * u / 8
-                col = "#00000022" if rng.random() < 0.6 else "#ffffff26"
-                spk.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>' % (px, py, u / 4, u / 4, col))
-    face_rects = ['<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (ox + c * u, oy + r * u, n * u + 0.4, u + 0.4) for (c, r, n) in runs(blocks)]
-    parts.append('<g fill="url(#%s)">%s</g>' % (face, "".join(face_rects)))
-    parts.append('<g fill="#ffffff55">%s</g>' % "".join(hi))
-    parts.append('<g fill="#00000040">%s</g>' % "".join(lo))
-    parts.append("".join(spk))
-    return "".join(parts)
+def hull(points):
+    pts = sorted(set(points))
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, up = [], []
+    for p in pts:
+        while len(lo) >= 2 and cross(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(up) >= 2 and cross(up[-2], up[-1], p) <= 0:
+            up.pop()
+        up.append(p)
+    return lo[:-1] + up[:-1]
+
+
+def poly(points):
+    return '<polygon points="%s"/>' % " ".join("%.1f,%.1f" % p for p in points)
+
+
+class Line:
+    """One line of lettering at a position: blocks of height bh (width bh * ASPECT), extruded by `depth` block heights."""
+
+    def __init__(self, text, ox, oy, bh, depth, style, aspect=ASPECT):
+        self.words, self.cols = layout(text)
+        self.ox, self.oy, self.bh, self.bw = ox, oy, bh, bh * aspect
+        self.dx, self.dy = depth[0] * bh, depth[1] * bh
+        self.style = style
+        self.all = set().union(*[w[1] for w in self.words])
+
+    def rect(self, c, r, n=1):
+        return (self.ox + c * self.bw, self.oy + r * self.bh, n * self.bw, self.bh)
+
+    def sweep(self, c, r, n, grow=0.0):
+        x, y, w, h = self.rect(c, r, n)
+        x, y, w, h = x - grow, y - grow, w + 2 * grow, h + 2 * grow
+        pts = [(x, y), (x + w, y), (x, y + h), (x + w, y + h),
+               (x + self.dx, y + self.dy), (x + w + self.dx, y + self.dy), (x + self.dx, y + h + self.dy), (x + w + self.dx, y + h + self.dy)]
+        return hull(pts)
+
+    def outline(self):
+        o = 0.28 * self.bh
+        shapes = "".join(poly(self.sweep(c, r, n, o)) for (c, r, n) in runs(self.all))
+        return '<g fill="#000">%s</g>' % shapes
+
+    def side(self):
+        out = []
+        for name, blocks, start in self.words:
+            out.append('<g fill="url(#%s)">%s</g>' % (self.style[name]["side"], "".join(poly(self.sweep(c, r, n)) for (c, r, n) in runs(blocks))))
+        return "".join(out)
+
+    def face(self):
+        out = []
+        for name, blocks, start in self.words:
+            rects = "".join('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y, w + 0.8, h + 0.8)
+                            for (x, y, w, h) in (self.rect(c, r, n) for (c, r, n) in runs(blocks)))
+            out.append('<g fill="url(#%s)">%s</g>' % (self.style[name]["face"], rects))
+        hi, lo = [], []
+        t = self.bh * 0.13
+        for (c, r) in sorted(self.all):
+            x, y, w, h = self.rect(c, r)
+            if (c, r - 1) not in self.all:
+                hi.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y, w + 0.8, t))
+            if (c, r + 1) not in self.all:
+                lo.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y + h - t, w + 0.8, t))
+        out.append('<g fill="#ffffff60">%s</g><g fill="#00000038">%s</g>' % ("".join(hi), "".join(lo)))
+        return "".join(out)
+
+    def cracks(self, rng, count):
+        """Thin cracks that wander inside the lettering (stone only)."""
+        out = []
+        cells = sorted(self.all)
+        for _ in range(count):
+            c, r = rng.choice(cells)
+            x = self.ox + (c + rng.random()) * self.bw
+            y = self.oy + (r + rng.random()) * self.bh
+            pts = [(x, y)]
+            ang = rng.random() * math.tau
+            for _ in range(rng.randrange(2, 5)):
+                ang += rng.uniform(-1.1, 1.1)
+                length = rng.uniform(0.5, 1.1) * self.bh
+                nx, ny = x + math.cos(ang) * length, y + math.sin(ang) * length
+                cc, rr = int((nx - self.ox) // self.bw), int((ny - self.oy) // self.bh)
+                if (cc, rr) not in self.all:
+                    break
+                x, y = nx, ny
+                pts.append((x, y))
+            if len(pts) > 1:
+                d = "M" + " L".join("%.1f %.1f" % p for p in pts)
+                out.append('<path d="%s" stroke="#00000070" stroke-width="%.1f"/>' % (d, 0.09 * self.bh))
+                out.append('<path d="%s" transform="translate(%.1f %.1f)" stroke="#ffffff70" stroke-width="%.1f"/>' % (d, 0.07 * self.bh, 0.09 * self.bh, 0.06 * self.bh))
+        return '<g fill="none" stroke-linecap="round" stroke-linejoin="round">%s</g>' % "".join(out)
 
 
 def make(path):
-    rng = random.Random(7)
+    rng = random.Random(11)
+    u = 12.0                                    # block height of the top line
     top, bottom = "MINECRAFT", "INDUSTRIOUS GOLEMS"
-    _, w1 = cells(top)
-    _, w2 = cells(bottom)
-    u1 = 10.0
-    width = w1 * u1
-    u2 = width / w2           # the second line is as wide as the first, so its blocks are smaller
-    pad = 12
-    h1, h2 = 8 * u1, 8 * u2
-    gap = 14
-    H = pad + h1 + gap + h2 + pad + 8
-    W = width + 2 * pad + 8
-    svg = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %.0f %.0f" shape-rendering="crispEdges" role="img" aria-label="Minecraft: Industrious Golems">' % (W, H),
-           '<title>Industrious Golems</title>',
-           '<defs>'
-           '<linearGradient id="stone" gradientUnits="userSpaceOnUse" x1="0" y1="%.1f" x2="0" y2="%.1f"><stop offset="0" stop-color="#d4d4d4"/><stop offset="0.55" stop-color="#b3b3b3"/><stop offset="1" stop-color="#8e8e8e"/></linearGradient>'
-           '<linearGradient id="grass" gradientUnits="userSpaceOnUse" x1="0" y1="%.1f" x2="0" y2="%.1f"><stop offset="0" stop-color="#b6e86e"/><stop offset="0.5" stop-color="#7cc03e"/><stop offset="1" stop-color="#4c8a26"/></linearGradient>'
-           '</defs>' % (pad, pad + h1, pad + h1 + gap + u1 * 0.6, pad + h1 + gap + u1 * 0.6 + h2)]
-    svg.append(line(top, pad, pad, u1, "stone", "#4d4d4d", rng))
-    svg.append(line(bottom, pad, pad + h1 + gap + u1 * 0.6, u2, "grass", "#2b5516", rng, depth=(0.55, 0.6)))
-    svg.append("</svg>")
+    _, c1 = layout(top)
+    _, c2 = layout(bottom)
+    w1 = c1 * u * ASPECT
+    asp2 = 0.78                                 # the second line has narrower, taller blocks so it stays readable
+    u2 = w1 / (c2 * asp2)                       # and is as wide as the first
+    depth1, depth2 = (-1.0, 3.4), (-0.9, 2.8)
+    pad = 20
+    shear = math.tan(math.radians(SLANT))
+    y_top = pad
+    line1 = Line(top, pad + 1.0 * u, y_top, u, depth1, {"MINECRAFT": {"face": "stone", "side": "stoneSide"}})
+    y2 = y_top + 8 * u + 3.1 * u                # the second line starts inside the first's extrusion
+    line2 = Line(bottom, pad + 1.0 * u, y2, u2, depth2, {"INDUSTRIOUS": {"face": "amber", "side": "amberSide"}, "GOLEMS": {"face": "grass", "side": "grassSide"}}, aspect=asp2)
+    H = y2 + 8 * u2 + line2.dy + pad
+    W = w1 + 2 * pad + 2 * u + shear * H
+    face1 = (y_top, y_top + 8 * u)
+    ext1 = (y_top + 8 * u, y_top + 8 * u + line1.dy)
+    face2 = (y2, y2 + 8 * u2)
+    ext2 = (y2 + 8 * u2, y2 + 8 * u2 + line2.dy)
+
+    def grad(i, y0, y1, stops):
+        return '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="%.1f" x2="0" y2="%.1f">%s</linearGradient>' % (
+            i, y0, y1, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in stops))
+    defs = "".join([
+        grad("stone", *face1, [(0, "#d3cec7"), (0.6, "#b9b4ad"), (1, "#a29d96")]),
+        grad("stoneSide", face1[1] - u, ext1[1] + u, [(0, "#1c1c1c"), (0.45, "#3a3a3a"), (1, "#565656")]),
+        grad("amber", *face2, [(0, "#d8883a"), (0.45, "#f0b04a"), (1, "#ffe27a")]),
+        grad("amberSide", face2[1] - u2, ext2[1] + u2, [(0, "#3a1d12"), (1, "#6a4020")]),
+        grad("grass", *face2, [(0, "#9fd36a"), (0.5, "#c7ec86"), (1, "#e6f7a8")]),
+        grad("grassSide", face2[1] - u2, ext2[1] + u2, [(0, "#233a14"), (1, "#4c6a28")]),
+    ])
+    # the second line is drawn first so the first line's extrusion lies over its top, as in the game's logo
+    body = (line2.outline() + line2.side() + line2.face()
+            + line1.outline() + line1.side() + line1.face() + line1.cracks(rng, 34))
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %.0f %.0f" role="img" aria-label="Industrious Golems">'
+           '<title>Industrious Golems</title><defs>%s</defs>'
+           '<g transform="translate(%.1f 0) skewX(%.1f)">%s</g></svg>') % (W, H, defs, shear * H, -SLANT, body)
     with open(path, "w", encoding="utf-8") as f:
-        f.write("".join(svg))
+        f.write(svg)
 
 
 if __name__ == "__main__":
