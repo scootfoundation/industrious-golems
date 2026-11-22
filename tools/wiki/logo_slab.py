@@ -7,13 +7,13 @@ import random
 PITCH = 58.0       # camera elevation, degrees
 CAM_X = 0.12       # camera position along the text (fraction of the width); letters lean away from it
 DIST = 2.4         # camera distance in text widths
-SLANT = 0.4       # letters lean right: x shift per unit of height
+SLANT = 0.28      # letters lean right: x shift per unit of height
 XS = 1.0         # letters are squeezed a little in x
 GAP = 0.9          # between letters
-DEPTH = 6.5        # slab thickness in letter units
+DEPTH = 12.0        # slab thickness in letter units
 
 
-def bar(x0, y0, x1, y1, c=0.7):
+def bar(x0, y0, x1, y1, c=0.38):
     c = min(c, (x1 - x0) / 2.2, (y1 - y0) / 2.2)
     return [(x0 + c, y0), (x1 - c, y0), (x1, y0 + c), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1), (x0, y1 - c), (x0, y0 + c)]
 
@@ -24,21 +24,21 @@ def par(*p):
 
 # letter: (width, [convex strokes])
 LETTERS = {
-    "I": (5.0, [bar(0, 0, 5, 3), bar(1.0, 0, 4.0, 10), bar(0, 7, 5, 10)]),
-    "T": (8.5, [bar(0, 0, 8.5, 3.2), bar(2.6, 0, 5.9, 10)]),
-    "E": (8.0, [bar(0, 0, 3.2, 10), bar(0, 0, 8, 3), bar(0, 3.5, 6.4, 6.6), bar(0, 7, 8, 10)]),
-    "F": (8.0, [bar(0, 0, 3.2, 10), bar(0, 0, 8, 3), bar(0, 3.5, 6.4, 6.6)]),
-    "L": (8.0, [bar(0, 0, 3.2, 10), bar(0, 7, 8, 10)]),
-    "C": (8.5, [bar(0, 0.6, 3.2, 9.4), bar(0.6, 0, 8.5, 3), bar(0.6, 7, 8.5, 10), bar(5.8, 2, 8.5, 4.4), bar(5.8, 5.6, 8.5, 8)]),
-    "A": (8.5, [bar(0, 0.8, 3.1, 10), bar(5.4, 0.8, 8.5, 10), bar(0.9, 0, 7.6, 3.1), bar(0, 5, 8.5, 7.2)]),
-    "R": (8.5, [bar(0, 0, 3.2, 10), bar(0, 0, 7.8, 3), bar(5.4, 0.6, 8.4, 5.8), bar(0, 4, 7.6, 6.8), par((3.3, 6.2), (6.3, 6.2), (8.5, 10), (5.4, 10))]),
-    "N": (9.0, [bar(0, 0, 3.1, 10), bar(5.9, 0, 9, 10), par((2.0, 0), (5.2, 0), (7.0, 10), (3.8, 10))]),
-    "M": (11.5, [bar(0, 0, 3.1, 10), bar(8.4, 0, 11.5, 10), par((2.0, 0), (5.0, 0), (6.9, 6.4), (4.5, 6.4)), par((9.5, 0), (6.5, 0), (4.6, 6.4), (7.0, 6.4)), bar(4.4, 5.2, 7.1, 8.4)]),
-    "D": (8.5, [bar(0, 0, 3.2, 10), bar(0, 0, 6.6, 3), bar(0, 7, 6.6, 10), bar(5.4, 1.4, 8.5, 8.6)]),
-    "U": (8.5, [bar(0, 0, 3.2, 9.4), bar(5.3, 0, 8.5, 9.4), bar(0.6, 7, 7.9, 10)]),
-    "S": (8.5, [bar(0.6, 0, 8.5, 3), bar(0, 0.6, 3.1, 5.8), bar(0.4, 3.8, 8.1, 6.4), bar(5.4, 4.2, 8.5, 9.4), bar(0, 7, 7.9, 10)]),
-    "O": (8.5, [bar(0, 0.6, 3.2, 9.4), bar(5.3, 0.6, 8.5, 9.4), bar(0.6, 0, 7.9, 3), bar(0.6, 7, 7.9, 10)]),
-    "G": (8.5, [bar(0, 0.6, 3.2, 9.4), bar(0.6, 0, 8.5, 3), bar(0.6, 7, 7.9, 10), bar(5.3, 4.6, 8.5, 9.4), bar(4.2, 4.6, 8.5, 6.8)]),
+    "I": (5.0, [bar(0, 0, 5, 3.4), bar(1.0, 0, 4.0, 10), bar(0, 7, 5, 10)]),
+    "T": (8.5, [bar(0, 0, 8.5, 3.4), bar(2.6, 0, 5.9, 10)]),
+    "E": (8.0, [bar(0, 0, 3.4, 10), bar(0, 0, 8, 3.4), bar(0, 3.3, 6.4, 6.6), bar(0, 7, 8, 10)]),
+    "F": (8.0, [bar(0, 0, 3.4, 10), bar(0, 0, 8, 3.4), bar(0, 3.3, 6.4, 6.6)]),
+    "L": (8.0, [bar(0, 0, 3.4, 10), bar(0, 7, 8, 10)]),
+    "C": (8.5, [bar(0, 0.6, 3.4, 9.4), bar(0.6, 0, 8.5, 3.4), bar(0.6, 7, 8.5, 10), bar(5.8, 2, 8.5, 4.4), bar(5.8, 5.6, 8.5, 8)]),
+    "A": (8.5, [bar(0, 0.8, 3.3, 10), bar(5.4, 0.8, 8.5, 10), bar(0.9, 0, 7.6, 3.5), bar(0, 5, 8.5, 7.2)]),
+    "R": (8.5, [bar(0, 0, 3.4, 10), bar(0, 0, 7.8, 3.4), bar(5.4, 0.6, 8.4, 5.8), bar(0, 4, 7.6, 6.8), par((3.3, 6.2), (6.3, 6.2), (8.5, 10), (5.4, 10))]),
+    "N": (9.0, [bar(0, 0, 3.3, 10), bar(5.9, 0, 9, 10), par((2.0, 0), (5.2, 0), (7.0, 10), (3.8, 10))]),
+    "M": (11.5, [bar(0, 0, 3.3, 10), bar(8.4, 0, 11.5, 10), par((2.0, 0), (5.0, 0), (6.9, 6.4), (4.5, 6.4)), par((9.5, 0), (6.5, 0), (4.6, 6.4), (7.0, 6.4)), bar(4.4, 5.2, 7.1, 8.4)]),
+    "D": (8.5, [bar(0, 0, 3.4, 10), bar(0, 0, 6.6, 3.4), bar(0, 7, 6.6, 10), bar(5.4, 1.4, 8.5, 8.6)]),
+    "U": (8.5, [bar(0, 0, 3.4, 9.4), bar(5.3, 0, 8.5, 9.4), bar(0.6, 7, 7.9, 10)]),
+    "S": (8.5, [bar(0.6, 0, 8.5, 3.4), bar(0, 0.6, 3.3, 5.8), bar(0.4, 3.8, 8.1, 6.4), bar(5.4, 4.2, 8.5, 9.4), bar(0, 7, 7.9, 10)]),
+    "O": (8.5, [bar(0, 0.6, 3.4, 9.4), bar(5.3, 0.6, 8.5, 9.4), bar(0.6, 0, 7.9, 3.4), bar(0.6, 7, 7.9, 10)]),
+    "G": (8.5, [bar(0, 0.6, 3.4, 9.4), bar(0.6, 0, 8.5, 3.4), bar(0.6, 7, 7.9, 10), bar(5.3, 4.6, 8.5, 9.4), bar(4.2, 4.6, 8.5, 6.8)]),
 }
 
 
@@ -108,18 +108,18 @@ def make(path, only_top=False):
     rng = random.Random(7)
     top = "MINECRAFT"
     s1, W = word_strokes(top)
-    words = [("INDUSTRIOUS", (232, 152, 62), (255, 236, 140), (86, 48, 22)),
-             ("GOLEMS", (140, 200, 96), (232, 250, 176), (52, 86, 30))]
+    words = [("INDUSTRIOUS", (214, 112, 30), (255, 226, 112), (86, 48, 22)),
+             ("GOLEMS", (96, 160, 60), (214, 240, 140), (52, 86, 30))]
     w1 = word_strokes(words[0][0])[1]
     w2 = word_strokes(words[1][0])[1]
     sc2 = W / (w1 + 5.0 + w2)
-    cam = Cam(W, 5.0)
+    cam = Cam(W, 6.0)
     lines = []
-    lines.append(dict(strokes=s1, z0=0.0, s=1.0, dx=0.0, kind="stone"))
-    z2 = 10.0 + 4.5
+    lines.append(dict(strokes=s1, z0=0.0, s=1.0, dx=0.0, kind="stone", sy=1.25))
+    z2 = 12.5 + 7.5
     if not only_top:
-        lines.append(dict(strokes=word_strokes(words[0][0])[0], z0=z2, s=sc2, dx=0.0, kind=0, sy=1.7))
-        lines.append(dict(strokes=word_strokes(words[1][0])[0], z0=z2, s=sc2, dx=(w1 + 5.0) * sc2, kind=1, sy=1.7))
+        lines.append(dict(strokes=word_strokes(words[0][0])[0], z0=z2, s=sc2, dx=0.0, kind=0, sy=1.5))
+        lines.append(dict(strokes=word_strokes(words[1][0])[0], z0=z2, s=sc2, dx=(w1 + 5.0) * sc2, kind=1, sy=1.5))
     order = (lines[1:] + lines[:1])          # far-to-near drawing is reversed: the first line is drawn last, on top
     allpts, built = [], []
     for ln in order:
@@ -127,7 +127,7 @@ def make(path, only_top=False):
         tops, sides = [], []
         for st in ln["strokes"]:
             t3 = [cam(dx + (px * XS + SLANT * (10 - py)) * s, 0.0, z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
-            b3 = [cam(dx + (px * XS + SLANT * (10 - py) - 0.22 * DEPTH) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 0.55), z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
+            b3 = [cam(dx + (px * XS + SLANT * (10 - py) - 0.22 * DEPTH) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 0.8), z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
             tops.append(t3)
             sides.append(hull(t3 + b3))
             allpts += t3 + b3
@@ -138,7 +138,7 @@ def make(path, only_top=False):
     vb = (min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad)
     defs, body = [], []
     defs.append('<filter id="rough" x="-3%%" y="-6%%" width="106%%" height="112%%"><feTurbulence type="fractalNoise" baseFrequency="%.3f" numOctaves="2" seed="4" result="n"/>'
-                '<feDisplacementMap in="SourceGraphic" in2="n" scale="%.2f" xChannelSelector="R" yChannelSelector="G"/></filter>' % (0.9 / unit / 10, 0.2 * unit))
+                '<feDisplacementMap in="SourceGraphic" in2="n" scale="%.2f" xChannelSelector="R" yChannelSelector="G"/></filter>' % (0.9 / unit / 10, 0.07 * unit))
     for i, ln in enumerate(order):
         ty = [p[1] for t in ln["tops"] for p in t]
         sy = [p[1] for t in ln["sides"] for p in t]
@@ -146,29 +146,30 @@ def make(path, only_top=False):
         f = (ylit - y0) / (y1 - y0)
         if ln["kind"] == "stone":
             topf = ("t%d" % i, [(0, "#d4d0c9"), (1, "#c2bdb6")])
-            lit, dark = "#5e5e5e", "#050505"
+            lit, dark = "#707070", "#060606"
         else:
             a, b, c = words[ln["kind"]][1:]
-            topf = ("t%d" % i, [(0, lerpc(b, b, 0)), (1, lerpc(a, a, 0))])
+            topf = ("t%d" % i, [(0, lerpc(a, a, 0)), (1, lerpc(b, b, 0))])
             lit, dark = lerpc(c, c, 0), "#0a0806"
         defs.append('<linearGradient id="t%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">%s</linearGradient>' % (
             i, y0, ylit, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in topf[1])))
         defs.append('<linearGradient id="s%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">'
                     '<stop offset="0" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/></linearGradient>' % (
-                        i, y0, y1, dark, max(0, f - 0.01), dark, f, lit, min(1, f + (1 - f) * 0.7), dark))
+                        i, y0, y1, dark, max(0, f - 0.01), dark, f, lit, 0.97, dark))
         sw = 1.5 * unit
         g = ['<g filter="url(#rough)">']
         g.append('<g fill="#000" stroke="#000" stroke-width="%.2f" stroke-linejoin="round">%s</g>' % (sw, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
-        g.append('<g fill="url(#s%d)" stroke="url(#s%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
+        g.append('<g fill="url(#s%d)" stroke="none">%s</g>' % (i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
         if ln["kind"] == "stone":
-            g.append('<g fill="#86827d" transform="translate(0 %.2f)">%s</g>' % (0.3 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
+            g.append('<g fill="#f4f1ec" transform="translate(0 %.2f)">%s</g>' % (-0.5 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
+            g.append('<g fill="#86827d" transform="translate(0 %.2f)">%s</g>' % (0.45 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
         g.append('<g fill="url(#t%d)" stroke="url(#t%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
         g.append("</g>")
         body.append("".join(g))
         if ln["kind"] == "stone":
             cr = []
             strokes = ln["strokes"]
-            for _ in range(46):
+            for _ in range(20):
                 st = rng.choice(strokes)
                 xsb = [p[0] for p in st]
                 ysb = [p[1] for p in st]
@@ -189,7 +190,7 @@ def make(path, only_top=False):
                     x, y = nx, ny
                     pts.append((x, y))
                 if len(pts) > 1:
-                    d = "M" + " L".join("%.2f %.2f" % cam(px * XS + SLANT * (10 - py), 0, py) for px, py in pts)
+                    d = "M" + " L".join("%.2f %.2f" % cam(px * XS + SLANT * (10 - py), 0, py * ln.get("sy", 1.0)) for px, py in pts)
                     cr.append('<path d="%s" stroke="#3b3733" stroke-width="%.2f"/>' % (d, 0.2 * unit * 1.6))
                     cr.append('<path d="%s" transform="translate(%.2f %.2f)" stroke="#f4f1ec" stroke-width="%.2f"/>' % (d, 0.12 * unit, 0.18 * unit, 0.12 * unit * 1.6))
             body.append('<g fill="none" stroke-linecap="round" stroke-linejoin="round">%s</g>' % "".join(cr))
