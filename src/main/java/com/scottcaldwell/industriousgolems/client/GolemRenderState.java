@@ -16,6 +16,8 @@ public class GolemRenderState extends ArmedEntityRenderState {
     public final Pose pose = new Pose();
     /** How the carried item is held right now: "front", "hand", "both", "tuck", or null (in the hand). */
     public String hold;
+    /** What the carried item is, see {@code ItemKind} (null: nothing). */
+    public String itemKind;
     public float headYaw;
     /** What a dormant golem is asking for, floating above its head: the item to draw (null when it asks for nothing) and its flat sprite, if it has one. */
     public final ItemStackRenderState need = new ItemStackRenderState();

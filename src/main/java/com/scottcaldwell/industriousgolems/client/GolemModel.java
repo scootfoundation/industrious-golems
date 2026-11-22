@@ -97,11 +97,13 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         }
         if ("front".equals(hold) || "both".equals(hold) || "tuck".equals(hold)) {
             poseStack.translate(front[0] / 16.0F, front[1] / 16.0F, front[2] / 16.0F);
+            faceForward(state, poseStack);
             return;
         }
         if (between && hold == null) { // cradled between both hands: halfway between where each would hold it
             Vector3f r = handPoint(rightArm, rightFore, hand[0]), l = handPoint(leftArm, leftFore, -hand[0]);
             poseStack.translate((r.x + l.x) / 2, (r.y + l.y) / 2, (r.z + l.z) / 2);
+            faceForward(state, poseStack);
             return;
         }
         ModelPart a = right ? rightArm : leftArm;
@@ -109,6 +111,18 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         ModelPart fore = right ? rightFore : leftFore;
         if (fore != null) fore.translateAndRotate(poseStack);
         poseStack.translate((right ? hand[0] : -hand[0]) / 16.0F, hand[1] / 16.0F, hand[2] / 16.0F);
+    }
+
+    /**
+     * A flat item (sapling, stick) is drawn by the item layer with its face to the side, sticking out from the body; turn it a quarter so it
+     * lies flat against the chest. It turns about the spot the layer lands it on, so it stays where it is (see {@code HeldItem}).
+     */
+    private static void faceForward(GolemRenderState state, PoseStack poseStack) {
+        if (!"sapling".equals(state.itemKind) && !"stick".equals(state.itemKind)) return;
+        float[] l = com.scottcaldwell.industriousgolems.client.anim.HeldItem.LAYER;
+        poseStack.translate(l[0] / 16.0F, l[1] / 16.0F, l[2] / 16.0F);
+        poseStack.rotateDegrees(com.mojang.math.Axis.YP, 90.0F);
+        poseStack.translate(-l[0] / 16.0F, -l[1] / 16.0F, -l[2] / 16.0F);
     }
 
     /** Where a hand is, in the body's space, with the item's offset down the arm. */

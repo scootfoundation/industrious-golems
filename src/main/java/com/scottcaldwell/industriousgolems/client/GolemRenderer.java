@@ -68,6 +68,7 @@ public class GolemRenderer extends MobRenderer<WorkGolem, GolemRenderState, Gole
         state.unhappy = golem.getUnhappyCounter();
         state.dormant = !golem.isCharged();
         String item = ItemKind.of(golem.carried());
+        state.itemKind = item;
         // the craving is drawn floating above the head, not in the off hand where the server keeps a copy of it
         (state.mainArm == HumanoidArm.RIGHT ? state.leftHandItemState : state.rightHandItemState).clear();
         extractNeed(golem, state);

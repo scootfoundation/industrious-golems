@@ -120,6 +120,7 @@ public class ModGameTests {
         strictly("lumberjack_leaves_dark_oak_saplings", ModGameTests::lumberjackLeavesDarkOakSaplings);
         strictly("lumberjack_tops_up_stack", ModGameTests::lumberjackTopsUpStack);
         strictly("mushroom_golem_takes_no_fall_damage", ModGameTests::mushroomTakesNoFallDamage);
+        strictly("golem_chest_recounts_openers", ModGameTests::golemChestRecountsOpeners);
         strictly("registry_consistency", ModGameTests::registryConsistency);
         strictly("state_graphs", ModGameTests::stateGraphs);
         strictly("golem_leaves_chest_top_before_animating", ModGameTests::golemLeavesChestTopBeforeAnimating);
@@ -830,6 +831,24 @@ public class ModGameTests {
         helper.spawnItem(Items.OAK_LOG, new net.minecraft.world.phys.Vec3(3.5, 1.5, 6.5));
         helper.runAtTickTime(60, () -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 4 || count(chest, Items.OAK_LOG) >= 1, "the lying log is dealt with before the tree is touched");
+            helper.succeed();
+        });
+    }
+
+    /** A chest whose open count gets out of step (a close with no open, an open nobody holds) is put right again, so the lid cannot stay inverted. */
+    private static void golemChestRecountsOpeners(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(CHEST, ModBlocks.MUSHROOM_CHEST.get());
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        BlockPos pos = helper.absolutePos(CHEST);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        helper.runAtTickTime(5, () -> chest.stopOpen(jack)); // a close that was never opened: the count goes to -1
+        helper.runAtTickTime(30, () -> {
+            helper.assertTrue(ChestBlockEntity.getOpenCount(helper.getLevel(), pos) == 0, "the count is back to zero after a stray close, got " + ChestBlockEntity.getOpenCount(helper.getLevel(), pos));
+            chest.startOpen(jack); // an open nobody holds (the golem has no chest open): a leak
+        });
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(ChestBlockEntity.getOpenCount(helper.getLevel(), pos) == 0, "and after a leaked open, got " + ChestBlockEntity.getOpenCount(helper.getLevel(), pos));
             helper.succeed();
         });
     }
