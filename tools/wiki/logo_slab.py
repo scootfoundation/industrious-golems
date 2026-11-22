@@ -1,0 +1,201 @@
+"""Wiki logo, hand-built: every letter is a few fat convex strokes (chamfered bars, slanted legs) in a 10-unit-tall letter space,
+extruded as a slab and seen in mild perspective from above: lit stone top, dark front, thick black outline, rough chipped edges.
+Pure SVG. make(path) writes it; tweak PITCH/CAM_X/DIST below, letter shapes in LETTERS."""
+import math
+import random
+
+PITCH = 50.0       # camera elevation, degrees
+CAM_X = 0.25       # camera position along the text (fraction of the width); letters lean away from it
+DIST = 2.4         # camera distance in text widths
+SLANT = 0.30       # letters lean right: x shift per unit of height
+GAP = 0.9          # between letters
+DEPTH = 7.0        # slab thickness in letter units
+
+
+def bar(x0, y0, x1, y1, c=0.7):
+    c = min(c, (x1 - x0) / 2.2, (y1 - y0) / 2.2)
+    return [(x0 + c, y0), (x1 - c, y0), (x1, y0 + c), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1), (x0, y1 - c), (x0, y0 + c)]
+
+
+def par(*p):
+    return list(p)
+
+
+# letter: (width, [convex strokes])
+LETTERS = {
+    "I": (5.0, [bar(0, 0, 5, 3), bar(1.0, 0, 4.0, 10), bar(0, 7, 5, 10)]),
+    "T": (8.5, [bar(0, 0, 8.5, 3.2), bar(2.6, 0, 5.9, 10)]),
+    "E": (8.0, [bar(0, 0, 3.2, 10), bar(0, 0, 8, 3), bar(0, 3.5, 6.4, 6.6), bar(0, 7, 8, 10)]),
+    "F": (8.0, [bar(0, 0, 3.2, 10), bar(0, 0, 8, 3), bar(0, 3.5, 6.4, 6.6)]),
+    "L": (8.0, [bar(0, 0, 3.2, 10), bar(0, 7, 8, 10)]),
+    "C": (8.5, [bar(0, 0.6, 3.2, 9.4), bar(0.6, 0, 8.5, 3), bar(0.6, 7, 8.5, 10), bar(5.8, 2, 8.5, 4.4), bar(5.8, 5.6, 8.5, 8)]),
+    "A": (8.5, [bar(0, 0.8, 3.1, 10), bar(5.4, 0.8, 8.5, 10), bar(0.9, 0, 7.6, 3.1), bar(0, 5, 8.5, 7.2)]),
+    "R": (8.5, [bar(0, 0, 3.2, 10), bar(0, 0, 7.8, 3), bar(5.4, 0.6, 8.4, 5.8), bar(0, 4, 7.6, 6.8), par((3.3, 6.2), (6.3, 6.2), (8.5, 10), (5.4, 10))]),
+    "N": (9.0, [bar(0, 0, 3.1, 10), bar(5.9, 0, 9, 10), par((2.0, 0), (5.2, 0), (7.0, 10), (3.8, 10))]),
+    "M": (11.5, [bar(0, 0, 3.1, 10), bar(8.4, 0, 11.5, 10), par((2.0, 0), (5.0, 0), (6.9, 6.4), (4.5, 6.4)), par((9.5, 0), (6.5, 0), (4.6, 6.4), (7.0, 6.4)), bar(4.4, 5.2, 7.1, 8.4)]),
+    "D": (8.5, [bar(0, 0, 3.2, 10), bar(0, 0, 6.6, 3), bar(0, 7, 6.6, 10), bar(5.4, 1.4, 8.5, 8.6)]),
+    "U": (8.5, [bar(0, 0, 3.2, 9.4), bar(5.3, 0, 8.5, 9.4), bar(0.6, 7, 7.9, 10)]),
+    "S": (8.5, [bar(0.6, 0, 8.5, 3), bar(0, 0.6, 3.1, 5.8), bar(0.4, 3.8, 8.1, 6.4), bar(5.4, 4.2, 8.5, 9.4), bar(0, 7, 7.9, 10)]),
+    "O": (8.5, [bar(0, 0.6, 3.2, 9.4), bar(5.3, 0.6, 8.5, 9.4), bar(0.6, 0, 7.9, 3), bar(0.6, 7, 7.9, 10)]),
+    "G": (8.5, [bar(0, 0.6, 3.2, 9.4), bar(0.6, 0, 8.5, 3), bar(0.6, 7, 7.9, 10), bar(5.3, 4.6, 8.5, 9.4), bar(4.2, 4.6, 8.5, 6.8)]),
+}
+
+
+def word_strokes(word, scale=1.0):
+    """[(stroke points)], width in letter units (unscaled)."""
+    out, x = [], 0.0
+    for ch in word:
+        w, strokes = LETTERS[ch]
+        for s in strokes:
+            out.append([(x + px, py) for px, py in s])
+        x += w + GAP
+    return out, x - GAP
+
+
+def hull(points):
+    pts = sorted(set((round(a, 3), round(b, 3)) for a, b in points))
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, up = [], []
+    for p in pts:
+        while len(lo) >= 2 and cross(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(up) >= 2 and cross(up[-2], up[-1], p) <= 0:
+            up.pop()
+        up.append(p)
+    return lo[:-1] + up[:-1]
+
+
+class Cam:
+    def __init__(self, width, zc):
+        e = math.radians(PITCH)
+        self.se, self.ce = math.sin(e), math.cos(e)
+        self.cx, self.cz, self.d = CAM_X * width, zc, DIST * width
+
+    def __call__(self, x, y, z):
+        x, z = x - self.cx, z - self.cz
+        depth = self.d - self.se * y - self.ce * z
+        k = self.d / depth
+        return (x * k, -(y * self.ce - z * self.se) * k)
+
+
+def pstr(pts):
+    return " ".join("%.2f,%.2f" % p for p in pts)
+
+
+def inside(poly, p):
+    s = None
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        v = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+        if v != 0:
+            if s is None:
+                s = v > 0
+            elif s != (v > 0):
+                return False
+    return True
+
+
+def lerpc(a, b, t):
+    return "#%02x%02x%02x" % tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def make(path, only_top=False):
+    rng = random.Random(7)
+    top = "MINECRAFT"
+    s1, W = word_strokes(top)
+    words = [("INDUSTRIOUS", (232, 152, 62), (255, 236, 140), (86, 48, 22)),
+             ("GOLEMS", (140, 200, 96), (232, 250, 176), (52, 86, 30))]
+    sc2 = W / word_strokes(words[0][0])[1]
+    cam = Cam(W, 5.0)
+    lines = []   # (strokes[(poly in x,z)], colour spec, kind)
+    z = 0.0
+    lines.append(dict(strokes=s1, z0=0.0, s=1.0, dx=0.0, kind="stone"))
+    z2 = 10.0 + 4.6
+    if not only_top:
+        ws, ww = word_strokes(words[0][0])
+        lines.append(dict(strokes=ws, z0=z2, s=sc2, dx=0.0, kind=0))
+        ws2, ww2 = word_strokes(words[1][0])
+        lines.append(dict(strokes=ws2, z0=z2 + 10 * sc2 + 1.4, s=sc2, dx=(W - ww2 * sc2) / 2, kind=1))
+    order = (lines[1:] + lines[:1])          # far-to-near drawing is reversed: the first line is drawn last, on top
+    allpts, built = [], []
+    for ln in order:
+        s, z0, dx = ln["s"], ln["z0"], ln["dx"]
+        tops, sides = [], []
+        for st in ln["strokes"]:
+            t3 = [cam(dx + (px + SLANT * (10 - py)) * s, 0.0, z0 + py * s) for px, py in st]
+            b3 = [cam(dx + (px + SLANT * (10 - py)) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 0.55), z0 + py * s) for px, py in st]
+            tops.append(t3)
+            sides.append(hull(t3 + b3))
+            allpts += t3 + b3
+        ln["tops"], ln["sides"] = tops, sides
+    xs, ys = [p[0] for p in allpts], [p[1] for p in allpts]
+    unit = (max(xs) - min(xs)) / W
+    pad = 1.4 * unit
+    vb = (min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad)
+    defs, body = [], []
+    defs.append('<filter id="rough" x="-3%%" y="-6%%" width="106%%" height="112%%"><feTurbulence type="fractalNoise" baseFrequency="%.3f" numOctaves="2" seed="4" result="n"/>'
+                '<feDisplacementMap in="SourceGraphic" in2="n" scale="%.2f" xChannelSelector="R" yChannelSelector="G"/></filter>' % (0.9 / unit / 10, 0.34 * unit))
+    for i, ln in enumerate(order):
+        ty = [p[1] for t in ln["tops"] for p in t]
+        sy = [p[1] for t in ln["sides"] for p in t]
+        y0, ylit, y1 = min(ty), max(ty), max(sy)
+        f = (ylit - y0) / (y1 - y0)
+        if ln["kind"] == "stone":
+            topf = ("t%d" % i, [(0, "#dedad3"), (1, "#b8b3ac")])
+            lit, dark = "#8c8c8c", "#0a0a0a"
+        else:
+            a, b, c = words[ln["kind"]][1:]
+            topf = ("t%d" % i, [(0, lerpc(b, b, 0)), (1, lerpc(a, a, 0))])
+            lit, dark = lerpc(c, c, 0), "#0a0806"
+        defs.append('<linearGradient id="t%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">%s</linearGradient>' % (
+            i, y0, ylit, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in topf[1])))
+        defs.append('<linearGradient id="s%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">'
+                    '<stop offset="0" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="1" stop-color="%s"/></linearGradient>' % (
+                        i, y0, y1, dark, max(0, f - 0.01), dark, f, lit, dark))
+        sw = 1.5 * unit
+        g = ['<g filter="url(#rough)">']
+        g.append('<g fill="#000" stroke="#000" stroke-width="%.2f" stroke-linejoin="round">%s</g>' % (sw, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
+        g.append('<g fill="url(#s%d)" stroke="url(#s%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
+        g.append('<g fill="url(#t%d)" stroke="url(#t%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
+        g.append("</g>")
+        body.append("".join(g))
+        if ln["kind"] == "stone":
+            cr = []
+            strokes = ln["strokes"]
+            for _ in range(46):
+                st = rng.choice(strokes)
+                xsb = [p[0] for p in st]
+                ysb = [p[1] for p in st]
+                for _try in range(20):
+                    x, y = rng.uniform(min(xsb), max(xsb)), rng.uniform(min(ysb), max(ysb))
+                    if inside(st, (x, y)):
+                        break
+                else:
+                    continue
+                pts = [(x, y)]
+                ang = rng.random() * math.tau
+                for _ in range(rng.randrange(2, 5)):
+                    ang += rng.uniform(-1.2, 1.2)
+                    L = rng.uniform(0.5, 1.5)
+                    nx, ny = x + math.cos(ang) * L, y + math.sin(ang) * L
+                    if not inside(st, (nx, ny)):
+                        break
+                    x, y = nx, ny
+                    pts.append((x, y))
+                if len(pts) > 1:
+                    d = "M" + " L".join("%.2f %.2f" % cam(px + SLANT * (10 - py), 0, py) for px, py in pts)
+                    cr.append('<path d="%s" stroke="#3b3733" stroke-width="%.2f"/>' % (d, 0.2 * unit * 1.6))
+                    cr.append('<path d="%s" transform="translate(%.2f %.2f)" stroke="#f4f1ec" stroke-width="%.2f"/>' % (d, 0.12 * unit, 0.18 * unit, 0.12 * unit * 1.6))
+            body.append('<g fill="none" stroke-linecap="round" stroke-linejoin="round">%s</g>' % "".join(cr))
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%.1f %.1f %.1f %.1f" role="img" aria-label="Industrious Golems">'
+           '<title>Industrious Golems</title><defs>%s</defs>%s</svg>') % (vb + ("".join(defs), "".join(body)))
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(svg)
+
+
+if __name__ == "__main__":
+    make("logo.svg")

@@ -384,7 +384,7 @@ def main():
         items.update([g["body"], g["job_vanilla"]] + g["recipe"] + g["produces"] + [i for i, _ in g["consumes"]] + [i for i, _ in g["offerings"]])
     build_images(vanilla, items)
     build_extras(vanilla)
-    import logo3d as logo
+    import logo_slab as logo
     logo.make(SITE / "assets/img/logo.svg")
     fav = Image.open(r.MOD_ASSETS / "textures/item/hay_golem_spawn_egg.png").convert("RGBA")
     fav.save(SITE / "assets/img/favicon.png")
