@@ -892,6 +892,10 @@ public class ModGameTests {
                 helper.assertTrue("front".equals(hold), item + (moving ? " walking" : " standing") + " is held '" + hold + "'");
             }
         }
+        // and it is drawn at the belly, not underground: the body pivot is 2 px above the ground (y is down), the item layer adds its own step
+        float[] at = com.scottcaldwell.industriousgolems.client.anim.HeldItem.landing(com.scottcaldwell.industriousgolems.client.anim.HeldItem.MUSHROOM_FRONT);
+        helper.assertTrue(at[1] <= 0F && at[1] >= -6F, "the item sits at body height, got " + at[1] + " px from the pivot");
+        helper.assertTrue(at[2] < -3F && at[2] > -10F, "and just in front of the body, got " + at[2]);
         helper.succeed();
     }
 

@@ -51,7 +51,7 @@ public final class ClientEvents {
         event.registerEntityRenderer(ModEntities.FARMER_GOLEM.get(), context -> new GolemRenderer(context, HAY,
                 texture("hay_golem"), Animator.HAY, part -> new GolemModel(part, GolemModels.HAY_HAND, new float[]{0F, -3.15F, -5.5F}), 0.4F));
         event.registerEntityRenderer(ModEntities.LUMBERJACK_GOLEM.get(), context -> new GolemRenderer(context, MUSHROOM,
-                texture("mushroom_golem"), Animator.MUSHROOM, part -> new GolemModel(part, GolemModels.MUSHROOM_HAND, new float[]{0F, -2F, -6F}, true), 0.5F));
+                texture("mushroom_golem"), Animator.MUSHROOM, part -> new GolemModel(part, GolemModels.MUSHROOM_HAND, com.scottcaldwell.industriousgolems.client.anim.HeldItem.MUSHROOM_FRONT, true), 0.5F));
         event.registerEntityRenderer(ModEntities.HERDER_GOLEM.get(), context -> new GolemRenderer(context, TERRACOTTA,
                 texture("terracotta_golem"), Animator.TERRACOTTA, part -> new GolemModel(part, GolemModels.TERRACOTTA_HAND, new float[]{0F, -8.1F, -6F}), 0.6F));
         event.registerEntityRenderer(ModEntities.MINER_GOLEM.get(), context -> new GolemRenderer(context, STONE,
