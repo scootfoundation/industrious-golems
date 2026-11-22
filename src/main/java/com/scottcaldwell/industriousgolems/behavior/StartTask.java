@@ -3,6 +3,8 @@ package com.scottcaldwell.industriousgolems.behavior;
 import com.google.common.collect.ImmutableMap;
 import com.scottcaldwell.industriousgolems.ModActivities;
 import com.scottcaldwell.industriousgolems.ModAttachments;
+import com.scottcaldwell.industriousgolems.ModProfessions;
+import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.Behavior;
@@ -30,7 +32,8 @@ public class StartTask extends Behavior<WorkGolem> {
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, WorkGolem golem) {
         TaskState state = golem.getData(ModAttachments.TASK);
-        if (state.plan != null || !Tasks.mayWork(golem)) return false;
+        if (!Tasks.mayWork(golem)) { standUp(golem); return false; }
+        if (state.plan != null) return false;
         long now = level.getGameTime();
         if (!state.planDue(now)) return false;
 
@@ -40,9 +43,20 @@ public class StartTask extends Behavior<WorkGolem> {
         if (plan == null) plan = ContainerInteraction.planSupply(level, golem);
         if (plan == null && ProfessionNeeds.of(golem).work().after() != null) plan = ProfessionNeeds.of(golem).work().after().plan(level, golem);
         state.plan = plan;
+        // a lumberjack with a stack in hand and nowhere to put it (the chest is full) sits down with it, rather than standing about looking busy
+        if (plan == null && golem.isCarrying() && golem.profession() == ModProfessions.LUMBERJACK) {
+            if (!Anim.M_SIT_FULL.equals(golem.clip())) {
+                golem.getNavigation().stop();
+                golem.playClip(Anim.M_SIT_FULL);
+            }
+        } else standUp(golem);
         // nothing to do: look again later, the searches are not free
         state.planAt(now + (plan == null && !golem.isCarrying() ? IDLE_INTERVAL : BUSY_INTERVAL)); // a full hand is never left idle for long
         return plan != null;
+    }
+
+    private static void standUp(WorkGolem golem) {
+        if (Anim.M_SIT_FULL.equals(golem.clip())) golem.stopClip();
     }
 
     @Override

@@ -80,7 +80,7 @@ public final class ModProfessions {
             0.5,
             SoundEvents.VILLAGER_WORK_FLETCHER,
             new ProfessionNeeds(List.of(
-                    Need.supply("saplings", LumberWork::plantable, Items.OAK_SAPLING, 64)
+                    Need.supply("saplings", LumberWork::plantable, Items.OAK_SAPLING, 8) // (a few at a time: it only ever plants a handful, and whatever is left is carried back)
             ), s -> s.is(ModTags.LUMBERJACK_OUTPUT) || (s.is(ItemTags.SAPLINGS) && !LumberWork.plantable(s)),
                     // (saplings it cannot grow are only put away)
                     new ProfessionNeeds.Work(LumberWork::plan, FellTree::new, LumberWork::wants,

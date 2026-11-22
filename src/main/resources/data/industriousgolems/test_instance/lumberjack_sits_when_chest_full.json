@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_sits_when_chest_full",
+  "max_ticks": 600,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

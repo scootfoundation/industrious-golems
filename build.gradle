@@ -45,6 +45,7 @@ runs {
 
     gameTestServer {
         systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        systemProperty 'industriousgolems.tinyGrove', 'true' // the test arena is 8x8: see lumber/Planting.java
     }
 
     clientData {

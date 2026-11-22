@@ -104,6 +104,7 @@ public class ModGameTests {
         strictly("lumberjack_collects_before_felling", ModGameTests::lumberjackCollectsBeforeFelling);
         strictly("lumberjack_never_conjures_saplings", ModGameTests::lumberjackNeverConjuresSaplings);
         strictly("lumberjack_plants_through_grass", ModGameTests::lumberjackPlantsThroughGrass);
+        strictly("lumberjack_sits_when_chest_full", ModGameTests::lumberjackSitsWhenChestFull);
         strictly("lumberjack_interrupted_in_tree", ModGameTests::lumberjackInterruptedInTree);
         strictly("lumberjack_ignores_stripped_logs", ModGameTests::lumberjackIgnoresStrippedLogs);
         strictly("lumberjack_leaves_dark_oak_saplings", ModGameTests::lumberjackLeavesDarkOakSaplings);
@@ -837,6 +838,19 @@ public class ModGameTests {
                 for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR);
             }
         }
+    }
+
+    /** With a stack in hand and a full chest the lumberjack sits down with it (and keeps it); it stands up again once there is room. */
+    private static void lumberjackSitsWhenChestFull(GameTestHelper helper) {
+        buildFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        for (int i = 0; i < chest.getContainerSize(); i++) chest.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+        WorkGolem jack = spawnLumberjack(helper, AT);
+        jack.setCarried(new ItemStack(Items.OAK_LOG, 3));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(com.scottcaldwell.industriousgolems.golem.Anim.M_SIT_FULL.equals(jack.clip()), "it sits down, clip is '" + jack.clip() + "'");
+            helper.assertTrue(jack.carried().is(Items.OAK_LOG) && jack.carried().getCount() == 3, "and keeps the stack");
+        });
     }
 
     /** Short grass covering the ground is no obstacle: the sapling replaces it. */

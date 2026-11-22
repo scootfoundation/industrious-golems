@@ -16,16 +16,28 @@ import java.util.function.Predicate;
 
 /**
  * Where the lumberjack plants a tree when it has a sapling and the last stump is not the place: open ground (bare, or covered by grass
- * or flowers) near its chest, with room overhead to grow, and well away from every other tree and sapling, so the grove it keeps stays
- * spread out. It stops planting once there are enough trees about.
+ * or flowers) near its chest but outside a clear zone around it, with room overhead to grow, and well away from every other tree and
+ * sapling, so the grove it keeps stays spread out. It stops planting once there are enough trees about.
  */
 public final class Planting {
     private Planting() { }
 
     /** How far from the chest, sideways, it plants. */
-    public static final int RADIUS = 10;
-    /** No other tree or sapling within this many blocks of a new one, either way sideways. */
-    private static final int SPACING = 3;
+    public static final int RADIUS = TINY() ? 10 : 14;
+    /** No other tree or sapling within this many blocks of a new one, either way sideways: a grown oak spreads about two blocks each way, so these never touch. */
+    private static final int SPACING = TINY() ? 3 : 5;
+    /** Nothing is planted within this many blocks of the chest (a square around it), so a growing tree never blocks the way to it. */
+    public static final int CLEARING = TINY() ? 2 : 6;
+
+    /** The game tests run in an 8x8 arena (build.gradle sets this for them alone), far too small for the real grove. */
+    private static boolean TINY() {
+        return Boolean.getBoolean("industriousgolems.tinyGrove");
+    }
+
+    /** Whether the spot is inside the clearing kept around the chest. */
+    public static boolean inClearing(BlockPos pos, BlockPos chest) {
+        return Math.max(Math.abs(pos.getX() - chest.getX()), Math.abs(pos.getZ() - chest.getZ())) < CLEARING;
+    }
     /** Free air needed above the sapling for the tree to grow into. */
     private static final int HEADROOM = 5;
     /** Trees and saplings around the chest, at which it plants no more. */
@@ -48,7 +60,7 @@ public final class Planting {
             if (Math.abs(pos.getX() - chest.getX()) > RADIUS || Math.abs(pos.getZ() - chest.getZ()) > RADIUS || pos.getY() > chest.getY() + 3) continue;
             if (LumberWork.isFree(state) && level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD) && !ignored.test(pos)
                     && Blocks.OAK_SAPLING.defaultBlockState().canSurvive(level, pos)
-                    && pos.distSqr(chest) >= 6.25) candidates.add(pos.immutable());
+                    && !inClearing(pos, chest)) candidates.add(pos.immutable());
         }
         if (trees >= CAP) return null;
         candidates.sort(java.util.Comparator.comparingDouble(pos -> pos.distSqr(from)));

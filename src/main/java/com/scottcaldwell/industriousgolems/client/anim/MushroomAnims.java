@@ -100,13 +100,15 @@ public final class MushroomAnims {
     }
 
     // ---- the chest: the golem climbs it ----
-    private static final double HAND_Z = -12.6, HAND_Y = 10.3;
-    private static final double STAND_Z = -6, HANG_Z = -8.3, PERCH_Z = -13.2;
-    private static final double[][] UPZ = {k(0, STAND_Z), k(0.3, STAND_Z), k(0.7, HANG_Z), k(2.4, HANG_Z), k(3.2, -9.6), k(4.2, PERCH_Z)};
+    // z is pixels toward the chest from where it stands (13 px from the chest's centre, so the front face is at -6 and the centre at -13):
+    // it hangs against the front face and ends up perched on the front edge of the lid, not out over its middle
+    private static final double HAND_Z = -10.6, HAND_Y = 10.3;
+    private static final double STAND_Z = -6, HANG_Z = -6.6, PERCH_Z = -8.4, DOWN_Z = -8.6;
+    private static final double[][] UPZ = {k(0, STAND_Z), k(0.3, STAND_Z), k(0.7, HANG_Z), k(2.4, HANG_Z), k(3.2, -7.4), k(4.2, PERCH_Z)};
     private static final double[][] UPY = {k(0, 0), k(0.3, 0), k(0.7, 3.0, 'o'), k(0.95, 2.3), k(1.4, 2.5), k(1.8, 4.2), k(2.05, 3.7), k(2.5, 5.9),
             k(2.8, 5.4), k(3.5, 10)};
     private static final double[][] UPR = {k(0, 0), k(0.7, 0.08), k(2.4, 0.08), k(3.1, 0.3), k(3.6, 0.55), k(4.3, 0.42)};
-    private static final double[][] DNZ = {k(0, PERCH_Z), k(0.45, -12.0)};
+    private static final double[][] DNZ = {k(0, PERCH_Z), k(0.45, DOWN_Z)};
 
     /** The whole climb as one continuous timeline; the chest clips each play a slice of it. T = walk start, walk end, crouch start, unused, way down. */
     private static double[] perch(Pose P, double t, double[] T) {
@@ -122,7 +124,7 @@ public final class MushroomAnims {
             y = kf(u, UPY);
         } else {
             double s = Math.max(0, Math.min(0.9, d - 0.5));
-            z = d < 0.5 ? kf(d, DNZ) : -12 * (1 - s / 0.9);
+            z = d < 0.5 ? kf(d, DNZ) : DOWN_Z * (1 - s / 0.9);
             y = d < 0.5 ? 10 : Math.max(0, 10 + 17.97 * s - 32.3 * s * s);
         }
         double lean = (up ? kf(u, UPR) : 0) * (1 - sstep(td - 0.5, td + 0.05, t));
@@ -346,9 +348,9 @@ public final class MushroomAnims {
             P.body.rx += -0.1 * up;
             P.rleg.rx += 0.35 * hop;
             P.lleg.rx += 0.35 * hop;
-        });
+        }).hold("front"); // (the raised arms put a hand-held item inside the cap, so it stays in front of the body)
         Clip clamber = new Clip("clamber-up", (float) UP_LEN, false, 0, (P, t, c) -> perch(P, t + C0, new double[]{0, 0.7, C0, 0, 1e9}));
-        Clip putIn = new Clip("put-in-chest", 2.1F, false, 0, (P, t, c) -> lobPose(P, t, LOB_Z)).hold("front", 0, (float) LOB_REL);
+        Clip putIn = new Clip("put-in-chest", 2.1F, false, 0, (P, t, c) -> lobPose(P, t, LOB_Z)).hold("front");
         Clip leap = new Clip("leap-and-close", 1.6F, false, 0, (P, t, c) -> leapMotion(P, t, null));
         Clip leapItem = new Clip("leap-and-close-item", 1.6F, false, 0, (P, t, c) -> leapMotion(P, t, c.item == null ? "log" : c.item)).hold("front");
         final double RT_REL = 3.5;
@@ -366,7 +368,7 @@ public final class MushroomAnims {
             P.larm.rx += lx;
             P.body.ry += kf(t, k(3.0, 0), k(3.3, -0.35), k(3.5, 0.2, 'o'), k(3.9, 0.2), k(4.6, 0));
             P.head.rx += -0.3 * win(t, 2.6, 2.9, 3.2, 3.4);
-        }).hold("hand", 2.5F, (float) RT_REL);
+        }).hold("front", 2.5F, (float) RT_REL); // (thrown from in front of the body, see ContainerInteraction.throwOut)
 
         Clip.Ctx stand = opt();
         stand.stand = (float) LOB_Z;
