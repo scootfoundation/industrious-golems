@@ -26,7 +26,7 @@ public class StartTask extends Behavior<WorkGolem> {
 
     /**
      * In order: the profession's work (which only starts with a free hand, or with what it can use in the hand), then
-     * putting whatever else is carried in the chest, then fetching a stack lying about, then a supply from the chest, and last
+     * topping up the carried stack from more of the same lying about, putting it in the chest, then fetching a stack lying about, then a supply from the chest, and last
      * the work that waits on all of those (the profession's "after" planner).
      */
     @Override
@@ -38,6 +38,7 @@ public class StartTask extends Behavior<WorkGolem> {
         if (!state.planDue(now)) return false;
 
         Object plan = ProfessionNeeds.of(golem).work().planner().plan(level, golem);
+        if (plan == null && golem.isCarrying()) plan = PickUp.plan(level, golem); // top up the stack in hand first
         if (plan == null) plan = ContainerInteraction.planDeposit(level, golem);
         if (plan == null) plan = PickUp.plan(level, golem);
         if (plan == null) plan = ContainerInteraction.planSupply(level, golem);

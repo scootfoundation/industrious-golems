@@ -112,6 +112,9 @@ GOLEMS = [
         behaviour=[
             "It looks for trees within <strong>16 blocks</strong> of its chest and fells them log by log, including branches and extra trunks. "
             "Logs, sticks, apples and saplings are carried to the chest.",
+            "It fells a tree from the top: it <strong>sneezes</strong> up onto the crown, then breaks the tree's logs within <strong>3 blocks</strong> of it before the block under its feet, so a big, thick trunk comes down in one go. "
+            "It cannot be hurt by the drop, since a Mushroom Golem <strong>takes no fall damage</strong>.",
+            "If it ever gets stuck on its way somewhere (say after the leaves it cleared leave it boxed in), it uses the same sneeze to hop a few blocks toward where it is headed.",
             "It <strong>ignores logs you have built with</strong> (and stripped logs), so your house is safe.",
             "It replants within <strong>14 blocks</strong> of the chest, keeping saplings at least <strong>5 blocks apart</strong> so trees have room, "
             "and leaves a <strong>6-block clearing</strong> around the chest so the chest never gets walled in.",
@@ -309,7 +312,7 @@ It then asks for something different, so no single item will do. The clock runs 
 
 <h2 id="behaviour">What it does</h2>
 <ul>%(behaviour)s</ul>
-<p>Like every golem it <strong>carries one stack at a time</strong>: it has no inventory, picks things up in its hand, takes them to its chest and goes back for the next.
+<p>Like every golem it <strong>carries one stack at a time</strong>: it has no inventory, picks things up in its hand, takes them to its chest and goes back for the next. With a stack already in hand it first gathers more of the same item, up to a full stack, so it makes fewer trips.
 Supplies come out of the chest the same way.</p>
 
 <h3>It produces</h3>
@@ -359,7 +362,7 @@ Each kind has <strong>eight offerings</strong>, uncommon finds from different bi
 of work; a golem stores two. The more golems you run, the more offerings you need, which means going out exploring.</p>
 <h3>One stack at a time</h3>
 <p>A golem has no inventory. It breaks a block, shears or milks, and the result drops in the world as it would for a player. It picks up <strong>one stack in its hand</strong>,
-carries it to its chest and goes back for the next. Supplies (seeds, saplings, buckets, feed) come out of the chest the same way.</p>
+carries it to its chest and goes back for the next. If more of the same item lies about it collects that first, up to a full stack, before heading to the chest. Supplies (seeds, saplings, buckets, feed) come out of the chest the same way.</p>
 
 <h2 id="golems">The golems</h2>
 <div class="rows">%(rows)s</div>

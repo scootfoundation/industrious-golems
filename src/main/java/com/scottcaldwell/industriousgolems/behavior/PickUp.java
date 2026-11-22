@@ -13,8 +13,8 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.AABB;
 
 /**
- * Walks to a stack lying near the job site (something the work dropped, or a supply left out) and picks it up: the whole
- * stack, since a golem carries one at a time.
+ * Walks to a stack lying near the job site (something the work dropped, or a supply left out) and picks it up. A golem carries one
+ * stack at a time, so with a stack already in hand it collects more of the same item, up to a full stack, before heading for the chest.
  */
 public class PickUp extends TaskRunner<PickUp.Plan> {
 
@@ -55,7 +55,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
 
     /** The nearest stack worth taking, or null. Needs a free hand. */
     public static Plan plan(ServerLevel level, WorkGolem golem) {
-        if (golem.isCarrying()) return null;
+        if (golem.isCarrying() && !golem.canTake(golem.carried())) return null; // a full stack: off to the chest
         BlockPos at = golem.jobSite(level);
         if (at == null) return null;
         TaskState state = golem.getData(ModAttachments.TASK);
@@ -91,7 +91,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     }
 
     private void walk(ServerLevel level, WorkGolem golem, long time) {
-        if (!(level.getEntity(plan.itemId()) instanceof ItemEntity item) || item.isRemoved() || golem.isCarrying()) {
+        if (!(level.getEntity(plan.itemId()) instanceof ItemEntity item) || item.isRemoved() || !golem.canTake(item.getItem())) {
             done();
             return;
         }
@@ -123,7 +123,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         holdStill(golem);
         timer++;
         if (machine.is(State.CROUCH) && timer >= Math.round(spec.grab() * 20)) {
-            if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && !golem.isCarrying()) golem.pickUp(item);
+            if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && golem.canTake(item.getItem())) golem.pickUp(item);
             machine.to(State.RISE);
         }
         if (timer >= Math.round(spec.len() * 20)) done();

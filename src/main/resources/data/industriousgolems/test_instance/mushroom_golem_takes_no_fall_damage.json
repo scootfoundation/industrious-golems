@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:mushroom_golem_takes_no_fall_damage",
+  "max_ticks": 12000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

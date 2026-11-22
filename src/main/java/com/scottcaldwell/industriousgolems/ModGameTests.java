@@ -118,6 +118,8 @@ public class ModGameTests {
         strictly("lumberjack_interrupted_in_tree", ModGameTests::lumberjackInterruptedInTree);
         strictly("lumberjack_ignores_stripped_logs", ModGameTests::lumberjackIgnoresStrippedLogs);
         strictly("lumberjack_leaves_dark_oak_saplings", ModGameTests::lumberjackLeavesDarkOakSaplings);
+        strictly("lumberjack_tops_up_stack", ModGameTests::lumberjackTopsUpStack);
+        strictly("mushroom_golem_takes_no_fall_damage", ModGameTests::mushroomTakesNoFallDamage);
         strictly("registry_consistency", ModGameTests::registryConsistency);
         strictly("state_graphs", ModGameTests::stateGraphs);
         strictly("golem_leaves_chest_top_before_animating", ModGameTests::golemLeavesChestTopBeforeAnimating);
@@ -441,7 +443,7 @@ public class ModGameTests {
         chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 2));
         helper.succeedWhen(() -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 0, "all four logs should be felled, " + logsAt(helper, 5, 5) + " left");
-            helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood");
+            helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood" + describe(helper, jack, chest) + " saplings lying " + itemsOnGround(helper, Items.OAK_SAPLING) + " chest saplings " + count(chest, Items.OAK_SAPLING) + " logs lying " + itemsOnGround(helper, Items.OAK_LOG) + " plan " + jack.getData(com.scottcaldwell.industriousgolems.ModAttachments.TASK).plan);
             helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "the four logs should be carried to the chest, got " + count(chest, Items.OAK_LOG));
             helper.assertTrue(!jack.isCarrying(), "nothing is carried afterwards");
         });
@@ -828,6 +830,36 @@ public class ModGameTests {
         helper.spawnItem(Items.OAK_LOG, new net.minecraft.world.phys.Vec3(3.5, 1.5, 6.5));
         helper.runAtTickTime(60, () -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 4 || count(chest, Items.OAK_LOG) >= 1, "the lying log is dealt with before the tree is touched");
+            helper.succeed();
+        });
+    }
+
+    /** With a stack in hand the lumberjack collects more of the same item (up to a full stack) before it goes to the chest. */
+    private static void lumberjackTopsUpStack(GameTestHelper helper) {
+        buildFarm(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        jack.setCarried(new ItemStack(Items.OAK_LOG, 3));
+        helper.spawnItem(Items.OAK_LOG, new Vec3(5.5, 1.5, 6.5)).setItem(new ItemStack(Items.OAK_LOG, 5));
+        helper.spawnItem(Items.OAK_LOG, new Vec3(3.5, 1.5, 1.5)).setItem(new ItemStack(Items.OAK_LOG, 5));
+        int[] first = {-1};
+        helper.succeedWhen(() -> {
+            int inChest = count(chest, Items.OAK_LOG);
+            if (first[0] < 0 && inChest > 0) first[0] = inChest;
+            helper.assertTrue(inChest == 13 && first[0] == 13, "all thirteen logs go to the chest in one trip, first deposit was " + first[0] + describe(helper, jack, chest));
+        });
+    }
+
+    /** Mushroom golems land softly; the others do not. */
+    private static void mushroomTakesNoFallDamage(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        helper.runAtTickTime(5, () -> {
+            jack.causeFallDamage(12, 1.0F, jack.damageSources().fall());
+            farmer.causeFallDamage(12, 1.0F, farmer.damageSources().fall());
+            helper.assertTrue(jack.getHealth() == jack.getMaxHealth(), "the mushroom golem is unhurt, health " + jack.getHealth());
+            helper.assertTrue(farmer.getHealth() < farmer.getMaxHealth(), "other golems still take fall damage");
             helper.succeed();
         });
     }

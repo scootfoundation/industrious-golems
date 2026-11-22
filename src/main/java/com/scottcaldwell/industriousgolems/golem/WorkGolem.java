@@ -71,6 +71,9 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     /** What the golem is doing at the top level; see {@link GolemMode}. Not saved: it is read off the golem again. */
     private final com.scottcaldwell.industriousgolems.behavior.Machine.Run<GolemMode> mode = GolemMode.GRAPH.run();
 
+    /** The mushroom golem's short-range teleport out of places it cannot walk out of. */
+    private final Sneeze sneeze = new Sneeze(this);
+
     public GolemMode mode() {
         return mode.state();
     }
@@ -125,7 +128,9 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
             pausedUntil = 0;
             stopClip();
         }
-        if (pausedUntil == 0) {
+        if (pausedUntil == 0 && sneeze.tick(level)) {
+            // sneezing its way out of a tight spot: the task waits
+        } else if (pausedUntil == 0) {
             profiler.push("workGolemBrain");
             getBrain().tick(level, this);
             profiler.pop();
@@ -295,9 +300,22 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         return true;
     }
 
+    /** Whether the hand has room for this stack: empty, or already holding the same thing short of a full stack. */
+    public boolean canTake(ItemStack stack) {
+        ItemStack held = carried();
+        return held.isEmpty() || (ItemStack.isSameItemSameComponents(held, stack) && held.getCount() < held.getMaxStackSize());
+    }
+
     @Override
     public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
-        return isCharged() && !isCarrying() && !pickupSuspended && profession().needs().picksUp(stack);
+        return isCharged() && !pickupSuspended && canTake(stack) && profession().needs().picksUp(stack);
+    }
+
+    /** Mushroom golems land softly. */
+    @Override
+    public boolean causeFallDamage(double fallDistance, float damageMultiplier, DamageSource source) {
+        if (profession() == ModProfessions.LUMBERJACK) return false;
+        return super.causeFallDamage(fallDistance, damageMultiplier, source);
     }
 
     @Override
@@ -305,14 +323,20 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         pickUp(item);
     }
 
-    /** Takes the whole stack lying there, if the golem has a free hand. */
+    /** Takes the stack lying there with a free hand; with a stack already in hand, tops it up from the same item as far as one stack goes. */
     public void pickUp(ItemEntity item) {
-        if (isCarrying() || item.isRemoved() || item.getItem().isEmpty()) return;
-        ItemStack stack = item.getItem().copy();
+        if (item.isRemoved() || item.getItem().isEmpty() || !canTake(item.getItem())) return;
+        ItemStack lying = item.getItem();
+        int n = isCarrying() ? Math.min(lying.getCount(), carried().getMaxStackSize() - carried().getCount()) : lying.getCount();
         onItemPickup(item);
-        setCarried(stack);
-        take(item, stack.getCount());
-        item.discard();
+        if (isCarrying()) {
+            ItemStack held = carried().copy();
+            held.grow(n);
+            setCarried(held);
+        } else setCarried(lying.copyWithCount(n));
+        take(item, n);
+        lying.shrink(n);
+        if (lying.isEmpty()) item.discard();
     }
 
     // ---- being given an offering ----------------------------------------------------------------------------------

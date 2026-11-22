@@ -6,7 +6,7 @@ import com.scottcaldwell.industriousgolems.behavior.PickUp;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
+import com.scottcaldwell.industriousgolems.golem.Sneeze;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -38,6 +38,9 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     /** Ticks spent trying to get to the foot of the tree before giving up. */
     private static final int STALL_TICKS = 600;
 
+    /** Logs of the tree within this many blocks of the golem break with each swing, before the block under its feet. */
+    private static final double LOG_REACH = 3.0;
+
     /** Most sneezes (extra visits after the first) in one felling. */
     private static final int MAX_VISITS = 12;
 
@@ -51,7 +54,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .state(State.WALK, "Walking to within 3.5 blocks of the foot of the tree.")
             .state(State.SNEEZE, "Sneeze-and-vanish clip; a puff of spores at the end.")
             .state(State.APPEAR, "Teleported onto the crown; the appear clip plays.")
-            .state(State.BREAK, "Standing on the top block of the trunk's column, the break clip playing; the block below breaks at the hit moment.")
+            .state(State.BREAK, "Standing on the top block of the trunk's column, the break clip playing; at the hit moment the tree's other logs within 3 blocks break first (big trunks), then the block below.")
             .state(State.DESCEND, "Swing done and the block is gone: waiting to land on the next block down.")
             .state(State.DONE, "(end) Task over. If interrupted up in the tree he poofs back to the ground.")
             .edge(State.WALK, State.SNEEZE, "within 3.5 blocks of the tree and there is room on top of the crown")
@@ -180,6 +183,13 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 if (timer == Math.round(Anim.M_BREAK_AT * 20)) {
                     golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                     BlockPos below = golem.blockPosition().below();
+                    // the tree's other logs within reach go first (a big trunk is several columns), then the block underfoot
+                    BlockPos here = golem.blockPosition();
+                    for (BlockPos log : plan.logs()) {
+                        if (!log.equals(below) && log.distSqr(here) <= LOG_REACH * LOG_REACH && level.getBlockState(log).is(BlockTags.LOGS)) {
+                            level.destroyBlock(log, true, golem);
+                        }
+                    }
                     if (isTreeBlock(level, below)) level.destroyBlock(below, true, golem);
                 }
                 if (timer >= Math.round(Anim.M_BREAK_LEN * 20)) { machine.to(State.DESCEND); falling = 0; }
@@ -222,8 +232,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     }
 
     private static void puff(ServerLevel level, Vec3 at) {
-        level.sendParticles(ParticleTypes.SPORE_BLOSSOM_AIR, at.x, at.y, at.z, 24, 0.35, 0.3, 0.35, 0.05);
-        level.sendParticles(ParticleTypes.POOF, at.x, at.y, at.z, 8, 0.25, 0.25, 0.25, 0.03);
+        Sneeze.puff(level, at);
     }
 
     @Override
