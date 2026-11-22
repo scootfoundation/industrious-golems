@@ -18,7 +18,7 @@ import java.util.function.Predicate;
 
 /**
  * Finds trees worth felling: a trunk rooted in the ground, with natural leaves, small enough to chop from the ground.
- * Log buildings (no natural leaves, or too many logs) are never touched.
+ * Log buildings (no natural leaves, too many logs, or stripped logs and bark-covered wood) are never touched.
  */
 public final class TreeFinder {
 
@@ -67,6 +67,12 @@ public final class TreeFinder {
         return state.is(BlockTags.LOGS);
     }
 
+    /** Stripped logs and all-bark wood blocks are never found on a tree: someone built with them. */
+    private static boolean isBuildingWood(BlockState state) {
+        String name = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
+        return name.startsWith("stripped_") || name.endsWith("_wood") || name.endsWith("_hyphae");
+    }
+
     private static boolean isGround(BlockState state) {
         return state.is(BlockTags.SUBSTRATE_OVERWORLD);
     }
@@ -78,11 +84,7 @@ public final class TreeFinder {
 
     /** As above; when the logs turn out not to be a tree they are all added to {@code rejected}, so none of them is tried again. */
     static Tree cluster(ServerLevel level, BlockPos start, Set<BlockPos> rejected) {
-        Tree tree = cluster0(level, start, rejected);
-        return tree;
-    }
-
-    private static Tree cluster0(ServerLevel level, BlockPos start, Set<BlockPos> rejected) {
+        if (isBuildingWood(level.getBlockState(start))) { rejected.add(start); return null; }
         Set<BlockPos> seen = new HashSet<>();
         Deque<BlockPos> queue = new ArrayDeque<>();
         seen.add(start);
@@ -95,6 +97,7 @@ public final class TreeFinder {
                         BlockPos next = current.offset(dx, dy, dz);
                         if (seen.contains(next) || !isLog(level.getBlockState(next))) continue;
                         seen.add(next);
+                        if (isBuildingWood(level.getBlockState(next))) { rejected.addAll(seen); return null; }
                         if (seen.size() > MAX_LOGS) { rejected.addAll(seen); return null; }
                         queue.add(next);
                     }

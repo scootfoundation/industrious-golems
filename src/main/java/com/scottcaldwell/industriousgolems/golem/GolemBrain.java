@@ -8,12 +8,14 @@ import com.scottcaldwell.industriousgolems.behavior.ContainerInteraction;
 import com.scottcaldwell.industriousgolems.behavior.PickUp;
 import com.scottcaldwell.industriousgolems.behavior.StartTask;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.ai.ActivityData;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.behavior.AcquirePoi;
 import net.minecraft.world.entity.ai.behavior.AnimalPanic;
+import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
 import net.minecraft.world.entity.ai.behavior.CountDownCooldownTicks;
 import net.minecraft.world.entity.ai.behavior.DoNothing;
@@ -64,6 +66,19 @@ public final class GolemBrain {
     private static final ImmutableList<SensorType<? extends Sensor<? super WorkGolem>>> SENSOR_TYPES = ImmutableList.of(
             SensorType.NEAREST_LIVING_ENTITIES, SensorType.HURT_BY);
 
+    /** Strolling about near the chest, only with free hands: a golem holding something with nowhere to put it (a full chest) stands and holds it. */
+    private record Wander(BehaviorControl<WorkGolem> stroll) implements BehaviorControl<WorkGolem> {
+        @Override public Behavior.Status getStatus() { return stroll.getStatus(); }
+        @Override public Set<MemoryModuleType<?>> getRequiredMemories() { return stroll.getRequiredMemories(); }
+        @Override public boolean tryStart(ServerLevel level, WorkGolem golem, long time) { return !golem.isCarrying() && stroll.tryStart(level, golem, time); }
+        @Override public void tickOrStop(ServerLevel level, WorkGolem golem, long time) {
+            if (golem.isCarrying()) stroll.doStop(level, golem, time);
+            else stroll.tickOrStop(level, golem, time);
+        }
+        @Override public void doStop(ServerLevel level, WorkGolem golem, long time) { stroll.doStop(level, golem, time); }
+        @Override public String debugString() { return stroll.debugString(); }
+    }
+
     private GolemBrain() { }
 
     public static Brain.Provider<WorkGolem> provider() {
@@ -87,11 +102,11 @@ public final class GolemBrain {
         idle.add(Pair.of(5, new StartTask()));
         idle.add(Pair.of(6, SetEntityLookTargetSometimes.create(EntityTypes.PLAYER, 6.0F, UniformInt.of(40, 80))));
         if (profession != ModProfessions.FARMER) {
-            idle.add(Pair.of(7, new RunOne<>(ImmutableList.of(
+            idle.add(Pair.of(7, new Wander(new RunOne<>(ImmutableList.of(
                     Pair.of(StrollAroundPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 4), 3),
                     Pair.of(StrollToPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 1, 10), 5),
                     Pair.of(RandomStroll.stroll(STROLL_SPEED, 3, 2), 1),
-                    Pair.of(new DoNothing(30, 60), 2)))));
+                    Pair.of(new DoNothing(30, 60), 2))))));
         }
         ImmutableList<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> loiter = idle.build();
         ActivityData<WorkGolem> idleActivity = ActivityData.<WorkGolem>create(Activity.IDLE, loiter);

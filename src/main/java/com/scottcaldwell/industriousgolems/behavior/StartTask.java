@@ -24,7 +24,8 @@ public class StartTask extends Behavior<WorkGolem> {
 
     /**
      * In order: the profession's work (which only starts with a free hand, or with what it can use in the hand), then
-     * putting whatever else is carried in the chest, then fetching a stack lying about, then a supply from the chest.
+     * putting whatever else is carried in the chest, then fetching a stack lying about, then a supply from the chest, and last
+     * the work that waits on all of those (the profession's "after" planner).
      */
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, WorkGolem golem) {
@@ -37,6 +38,7 @@ public class StartTask extends Behavior<WorkGolem> {
         if (plan == null) plan = ContainerInteraction.planDeposit(level, golem);
         if (plan == null) plan = PickUp.plan(level, golem);
         if (plan == null) plan = ContainerInteraction.planSupply(level, golem);
+        if (plan == null && ProfessionNeeds.of(golem).work().after() != null) plan = ProfessionNeeds.of(golem).work().after().plan(level, golem);
         state.plan = plan;
         // nothing to do: look again later, the searches are not free
         state.planAt(now + (plan == null && !golem.isCarrying() ? IDLE_INTERVAL : BUSY_INTERVAL)); // a full hand is never left idle for long

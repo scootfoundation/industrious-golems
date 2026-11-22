@@ -20,10 +20,17 @@ import java.util.function.Supplier;
 public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Work work) {
 
     /** A profession's own work: what to do next, the task that does it, and which supply would let it do more. */
-    public record Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants, List<Supplier<Behavior<WorkGolem>>> more) {
+    public record Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants, List<Supplier<Behavior<WorkGolem>>> more,
+                       Planner after) {
         public Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants) {
-            this(planner, runner, wants, List.of());
+            this(planner, runner, wants, List.of(), null);
         }
+
+        /**
+         * @param more  further runners of the profession (their plan types route to them)
+         * @param after work that comes only once the dispatcher has found nothing to put away, pick up or fetch; may be null
+         */
+        public Work { }
 
         @FunctionalInterface
         public interface Planner {

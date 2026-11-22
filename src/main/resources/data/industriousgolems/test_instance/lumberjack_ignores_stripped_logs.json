@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_ignores_stripped_logs",
+  "max_ticks": 12000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

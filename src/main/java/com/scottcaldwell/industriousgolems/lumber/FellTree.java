@@ -35,7 +35,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     /** How near the golem gets to the foot of the tree before it sneezes. */
     private static final double SNEEZE_DIST = 3.5;
-    /** Ticks spent trying to get to the foot of the tree or the planting spot before giving up. */
+    /** Ticks spent trying to get to the foot of the tree before giving up. */
     private static final int STALL_TICKS = 600;
 
     /** Most sneezes (extra visits after the first) in one felling. */
@@ -74,6 +74,10 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private BlockPos top;
     /** Sneezes so far: a bound, so a tree that will not come down cannot keep him at it forever. */
     private int visits;
+    /** Where the golem stood on the ground when it first sneezed: where it is put back if the felling is cut short up in the tree. */
+    private Vec3 ground;
+    /** Ticks spent waiting to land after a swing. */
+    private int falling;
 
     public FellTree() {
         super(FellPlan.class, 6000); // a big tree with branches takes a while: every log is a sneeze, a drop and a swing
@@ -87,19 +91,13 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         remaining.addAll(plan.logs());
         golem.setReplantPos(plan.replant());
         visits = 0;
+        ground = null;
+        falling = 0;
         aim(level);
         stalled = 0;
         machine.reset();
         timer = 0;
         golem.setPickupSuspended(true); // the drops are left lying until the felling is done, then picked up in turn
-    }
-
-    /**
-     * Where to stand on top of the tree: the trunk's highest log, then up through whatever leaves and logs sit directly over
-     * it. Null when there is no room to stand there.
-     */
-    static BlockPos crownTop(ServerLevel level, List<BlockPos> logs, BlockPos base) {
-        return logs.isEmpty() ? null : standAbove(level, highest(logs, base));
     }
 
     /** The highest log (the one nearest the base among equals). */
@@ -153,6 +151,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 }
                 if (top == null) { giveUp(golem, time); return; } // no room to stand on top
                 holdStill(golem);
+                if (ground == null) ground = golem.position();
                 golem.playClip(Anim.M_SNEEZE_VANISH);
                 machine.to(State.SNEEZE);
                 timer = 0;
@@ -183,11 +182,14 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                     BlockPos below = golem.blockPosition().below();
                     if (isTreeBlock(level, below)) level.destroyBlock(below, true, golem);
                 }
-                if (timer >= Math.round(Anim.M_BREAK_LEN * 20)) machine.to(State.DESCEND);
+                if (timer >= Math.round(Anim.M_BREAK_LEN * 20)) { machine.to(State.DESCEND); falling = 0; }
             }
             case DESCEND -> {
                 holdStill(golem);
-                if (!golem.onGround()) return;
+                if (!golem.onGround()) {
+                    if (++falling > STALL_TICKS / 6) { golem.stopClip(); done(); } // hung up on something: let go
+                    return;
+                }
                 if (isTreeBlock(level, golem.blockPosition().below())) startBreak(golem);
                 else if (visits < MAX_VISITS && aim(level)) {
                     // logs still stand (a branch, a second trunk): vanish and reappear over the highest
@@ -226,11 +228,8 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
-        // interrupted up in the tree: poof back to the ground rather than be stuck on a leaf
-        BlockPos base = plan == null ? null : plan.replant();
-        if (base != null && golem.getY() > base.getY() + 1.5) {
-            golem.teleportTo(base.getX() + 0.5, base.getY(), base.getZ() + 0.5);
-        }
+        // interrupted up in the tree: poof back to where it stood on the ground (the trunk is still standing there, so never to the base)
+        if (ground != null && golem.getY() > ground.y + 1.5) golem.teleportTo(ground.x, ground.y, ground.z);
         golem.setPickupSuspended(false);
         remaining.clear();
         top = null;

@@ -17,6 +17,24 @@ public class TaskState {
     private final Map<Integer, Long> ignoredItems = new HashMap<>();
     private final Map<Long, Long> ignoredBlocks = new HashMap<>();
 
+    private BlockPos plantSpot;
+    private long plantSpotAt = Long.MIN_VALUE / 2;
+
+    /** Whether the last planting-place search is younger than {@code maxAge} ticks. */
+    public boolean plantSpotFresh(long now, long maxAge) {
+        return now - plantSpotAt <= maxAge;
+    }
+
+    /** Its result: null when it found nothing. */
+    public BlockPos plantSpot() {
+        return plantSpot;
+    }
+
+    public void cachePlantSpot(BlockPos pos, long now) {
+        plantSpot = pos;
+        plantSpotAt = now;
+    }
+
     public void clear() {
         plan = null;
     }

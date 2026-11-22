@@ -165,6 +165,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         timer = 0;
         stalled = 0;
         stowed = null;
+        golem.setPickupSuspended(true); // a free hand while the stack is in the air must not grab something else
         lookAtChest(golem);
     }
 
@@ -232,8 +233,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 machine.to(State.LET_GO);
             }
             if (machine.is(State.LET_GO) && t >= spec.putDrop()) { // and it lands in the chest
-                ItemStack rest = opened == null ? stowed : insert(opened, stowed);
-                if (opened != null) opened.setChanged();
+                boolean intact = opened != null && HopperBlockEntity.getContainerAt(level, chestPos) == opened; // not broken meanwhile
+                ItemStack rest = intact ? insert(opened, stowed) : stowed;
+                if (intact) opened.setChanged();
                 stowed = ItemStack.EMPTY;
                 if (!rest.isEmpty()) golem.setCarried(rest);
                 machine.to(State.TRANSFERRED);
@@ -279,6 +281,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
+        golem.setPickupSuspended(false);
         closeChest(golem); // also covers interruptions (panic, damage, timeout)
         if (stowed != null && !stowed.isEmpty()) { // let go of a stack the chest never received
             if (golem.carried().isEmpty()) golem.setCarried(stowed);

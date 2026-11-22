@@ -32,6 +32,10 @@ public final class Animator {
             } else if (moving) {
                 clip = item != null && kit.get(kit.walkItem()) != null ? kit.get(kit.walkItem()) : kit.get(kit.walk());
                 t = clip.move > 0 ? walkDist / clip.move : ageSeconds;
+            } else if (!dormant && item != null && kit.get(kit.walkItem()) != null) {
+                // standing with something in hand: it holds it, rather than looking around as if it had nothing to do (the carry pose, still)
+                clip = kit.get(kit.walkItem());
+                t = 0;
             } else {
                 // a golem with charge is between jobs (searching): it looks around; a dormant one keeps its slumped idle
                 clip = dormant ? null : kit.get("look-around");

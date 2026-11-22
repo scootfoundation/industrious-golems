@@ -18,7 +18,8 @@ import net.minecraft.world.phys.AABB;
  */
 public class PickUp extends TaskRunner<PickUp.Plan> {
 
-    private static final int RADIUS = 12;
+    /** How far from the job site stacks are collected: past the lumberjack's tree search (16) and the canopy that drops leaves around it. */
+    public static final int RADIUS = 24;
     private static final double REACH_SQR = 1.2 * 1.2;
     /** Walking this long without getting hold of the stack means it cannot be reached. */
     private static final int GIVE_UP_TICKS = 240;
@@ -34,7 +35,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             .state(State.RISE, "The stack has reached the hand; the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.WALK, State.CROUCH, "settled on the spot")
-            .edge(State.WALK, State.DONE, "stack gone, hand already full, strayed over 12 blocks, or no path for 12 s (the stack is then ignored for 5 min)")
+            .edge(State.WALK, State.DONE, "stack gone, hand already full, strayed far from the job site, or no path for 12 s (the stack is then ignored for 5 min)")
             .edge(State.CROUCH, State.RISE, "the clip reaches its grab time: the stack moves into the hand")
             .edge(State.CROUCH, State.DONE, "the clip ends without a grab (nothing left to take)")
             .edge(State.RISE, State.DONE, "the clip ends");
@@ -102,7 +103,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             spot = item.position().add(away.normalize().scale(spec.dist()));
             if (!Stand.reachable(level, golem, spot)) spot = item.position(); // no room to stand back from it
         }
-        if (walking > 0 && golem.distanceToSqr(item) > 12 * 12) { done(); return; }
+        if (walking > 0 && golem.distanceToSqr(item) > (RADIUS + 8) * (RADIUS + 8)) { done(); return; }
         if (!standAt(golem, spot, 0.9)) {
             if (++walking > GIVE_UP_TICKS) { // stuck behind something: leave it, so it does not hold up the rest of the work
                 golem.getData(ModAttachments.TASK).ignoreItem(item.getId(), time + IGNORE_TICKS);

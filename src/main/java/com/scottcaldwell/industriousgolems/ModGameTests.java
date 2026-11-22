@@ -102,6 +102,11 @@ public class ModGameTests {
         strictly("lumberjack_plants_spaced_saplings", ModGameTests::lumberjackPlantsSpacedSaplings);
         strictly("lumberjack_fells_branches", ModGameTests::lumberjackFellsBranchingTree);
         strictly("lumberjack_collects_before_felling", ModGameTests::lumberjackCollectsBeforeFelling);
+        strictly("lumberjack_never_conjures_saplings", ModGameTests::lumberjackNeverConjuresSaplings);
+        strictly("lumberjack_plants_through_grass", ModGameTests::lumberjackPlantsThroughGrass);
+        strictly("lumberjack_interrupted_in_tree", ModGameTests::lumberjackInterruptedInTree);
+        strictly("lumberjack_ignores_stripped_logs", ModGameTests::lumberjackIgnoresStrippedLogs);
+        strictly("lumberjack_leaves_dark_oak_saplings", ModGameTests::lumberjackLeavesDarkOakSaplings);
         strictly("registry_consistency", ModGameTests::registryConsistency);
         strictly("state_graphs", ModGameTests::stateGraphs);
         strictly("golem_leaves_chest_top_before_animating", ModGameTests::golemLeavesChestTopBeforeAnimating);
@@ -794,7 +799,7 @@ public class ModGameTests {
             StringBuilder where = new StringBuilder();
             for (int x = 4; x <= 7; x++) for (int y = 1; y <= 5; y++) if (helper.getBlockState(new BlockPos(x, y, 5)).is(Blocks.OAK_LOG)) { left++; where.append(x).append(',').append(y).append(' '); }
             helper.assertTrue(left == 0, "every log is felled, " + left + " left: " + where);
-            helper.assertTrue(count(chest, Items.OAK_LOG) == 10, "all ten logs reach the chest, got " + count(chest, Items.OAK_LOG));
+            helper.assertTrue(count(chest, Items.OAK_LOG) == 11, "all eleven logs reach the chest, got " + count(chest, Items.OAK_LOG));
         });
     }
 
@@ -807,6 +812,93 @@ public class ModGameTests {
         helper.spawnItem(Items.OAK_LOG, new net.minecraft.world.phys.Vec3(3.5, 1.5, 6.5));
         helper.runAtTickTime(60, () -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 4 || count(chest, Items.OAK_LOG) >= 1, "the lying log is dealt with before the tree is touched");
+            helper.succeed();
+        });
+    }
+
+    /** Open grass, no trees and nothing in the chest: no sapling can appear, in the ground or in the hand. */
+    private static void lumberjackNeverConjuresSaplings(GameTestHelper helper) {
+        buildFarm(helper);
+        grassField(helper);
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(400, () -> {
+            for (int x = 0; x <= 7; x++) for (int z = 0; z <= 7; z++) {
+                helper.assertTrue(!helper.getBlockState(new BlockPos(x, 1, z)).is(Blocks.OAK_SAPLING), "no sapling without one to plant");
+            }
+            helper.assertTrue(!jack.isCarrying(), "the hand stays empty");
+            helper.succeed();
+        });
+    }
+
+    private static void grassField(GameTestHelper helper) {
+        for (int x = 0; x <= 7; x++) {
+            for (int z = 0; z <= 7; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
+                for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR);
+            }
+        }
+    }
+
+    /** Short grass covering the ground is no obstacle: the sapling replaces it. */
+    private static void lumberjackPlantsThroughGrass(GameTestHelper helper) {
+        buildFarm(helper);
+        grassField(helper);
+        for (int x = 0; x <= 7; x++) for (int z = 0; z <= 7; z++) {
+            BlockPos p = new BlockPos(x, 1, z);
+            if (helper.getBlockState(p).isAir()) helper.setBlock(p, Blocks.SHORT_GRASS);
+        }
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 3));
+        spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.succeedWhen(() -> {
+            boolean any = false;
+            for (int x = 0; x <= 7; x++) for (int z = 0; z <= 7; z++) any |= helper.getBlockState(new BlockPos(x, 1, z)).is(Blocks.OAK_SAPLING);
+            helper.assertTrue(any, "a sapling goes in where the grass was");
+        });
+    }
+
+    /** Cut short up in the tree (here: out of charge), the golem is put back on the ground, never inside the standing trunk. */
+    private static void lumberjackInterruptedInTree(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        double groundY = helper.absolutePos(new BlockPos(5, 1, 5)).getY();
+        boolean[] cut = {false};
+        helper.succeedWhen(() -> {
+            if (!cut[0]) {
+                if (jack.getY() > groundY + 3) { cut[0] = true; jack.setChargeTicks(0); }
+                helper.assertTrue(false, "waiting for the golem to be up in the tree");
+            }
+            var level = helper.getLevel();
+            helper.assertTrue(jack.getY() <= groundY + 1.5, "back on the ground");
+            helper.assertTrue(level.getBlockState(jack.blockPosition()).getCollisionShape(level, jack.blockPosition()).isEmpty(), "not inside a block");
+        });
+    }
+
+    /** A column of stripped logs with leaves beside it is somebody's building, not a tree. */
+    private static void lumberjackIgnoresStrippedLogs(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        for (int y = 1; y <= 4; y++) helper.setBlock(new BlockPos(5, y, 5), Blocks.STRIPPED_OAK_LOG);
+        spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(500, () -> {
+            for (int y = 1; y <= 4; y++) helper.assertTrue(helper.getBlockState(new BlockPos(5, y, 5)).is(Blocks.STRIPPED_OAK_LOG), "stripped logs are left alone");
+            helper.succeed();
+        });
+    }
+
+    /** Dark oak only grows from a 2x2 planting: the golem never plants a single one, nor takes them out of the chest. */
+    private static void lumberjackLeavesDarkOakSaplings(GameTestHelper helper) {
+        buildFarm(helper);
+        grassField(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.DARK_OAK_SAPLING, 4));
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(400, () -> {
+            for (int x = 0; x <= 7; x++) for (int z = 0; z <= 7; z++) {
+                helper.assertTrue(!helper.getBlockState(new BlockPos(x, 1, z)).is(Blocks.DARK_OAK_SAPLING), "no lone dark oak sapling");
+            }
+            helper.assertTrue(count(chest, Items.DARK_OAK_SAPLING) + (jack.carried().is(Items.DARK_OAK_SAPLING) ? jack.carried().getCount() : 0) == 4, "none is lost");
             helper.succeed();
         });
     }

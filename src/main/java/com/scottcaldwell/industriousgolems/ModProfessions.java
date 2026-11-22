@@ -80,8 +80,11 @@ public final class ModProfessions {
             0.5,
             SoundEvents.VILLAGER_WORK_FLETCHER,
             new ProfessionNeeds(List.of(
-                    Need.supply("saplings", s -> s.is(ItemTags.SAPLINGS), Items.OAK_SAPLING, 64)
-            ), s -> s.is(ModTags.LUMBERJACK_OUTPUT), new ProfessionNeeds.Work(LumberWork::plan, FellTree::new, LumberWork::wants, List.of(PlantSapling::new))),
+                    Need.supply("saplings", LumberWork::plantable, Items.OAK_SAPLING, 64)
+            ), s -> s.is(ModTags.LUMBERJACK_OUTPUT) || (s.is(ItemTags.SAPLINGS) && !LumberWork.plantable(s)),
+                    // (saplings it cannot grow are only put away)
+                    new ProfessionNeeds.Work(LumberWork::plan, FellTree::new, LumberWork::wants,
+                    List.of(PlantSapling::new), LumberWork::fell)),
             offerings(Items.AMETHYST_SHARD, Items.RESIN_CLUMP, Items.SPORE_BLOSSOM, Items.PINK_PETALS, Items.GOAT_HORN,
                     Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM),
             ModBlocks.MUSHROOM_CHEST::get, state -> state.is(Blocks.RED_MUSHROOM_BLOCK));

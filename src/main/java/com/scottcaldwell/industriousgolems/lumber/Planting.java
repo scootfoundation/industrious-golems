@@ -15,8 +15,9 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Where the lumberjack plants a tree when there is nothing to fell: open ground near its chest, with room overhead to grow, and well
- * away from every other tree and sapling, so the grove it keeps stays spread out. It stops planting once there are enough trees about.
+ * Where the lumberjack plants a tree when it has a sapling and the last stump is not the place: open ground (bare, or covered by grass
+ * or flowers) near its chest, with room overhead to grow, and well away from every other tree and sapling, so the grove it keeps stays
+ * spread out. It stops planting once there are enough trees about.
  */
 public final class Planting {
     private Planting() { }
@@ -45,7 +46,7 @@ public final class Planting {
                 continue;
             }
             if (Math.abs(pos.getX() - chest.getX()) > RADIUS || Math.abs(pos.getZ() - chest.getZ()) > RADIUS || pos.getY() > chest.getY() + 3) continue;
-            if (state.isAir() && level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD) && !ignored.test(pos)
+            if (LumberWork.isFree(state) && level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD) && !ignored.test(pos)
                     && Blocks.OAK_SAPLING.defaultBlockState().canSurvive(level, pos)
                     && pos.distSqr(chest) >= 6.25) candidates.add(pos.immutable());
         }
@@ -70,7 +71,7 @@ public final class Planting {
 
     private static boolean roomAbove(ServerLevel level, BlockPos pos) {
         for (int i = 1; i <= HEADROOM; i++) {
-            if (!level.getBlockState(pos.above(i)).isAir()) return false;
+            if (!LumberWork.isFree(level.getBlockState(pos.above(i)))) return false;
         }
         return true;
     }

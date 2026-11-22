@@ -63,7 +63,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     private long pausedUntil;
     private int chargeTicks;
     private int lastOffering = -1;
-    /** Where the last tree stood, so the lumberjack can replant it; not saved. */
+    /** Where the last tree stood, so the lumberjack can replant it. */
     private @Nullable BlockPos replantPos;
     private @Nullable BlockPos openedChestPos;
     /** Set while the work itself drops things the golem should leave lying until it is done (mining); not saved. */
@@ -245,6 +245,11 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
+        if (replantPos != null) {
+            output.putInt("ReplantX", replantPos.getX());
+            output.putInt("ReplantY", replantPos.getY());
+            output.putInt("ReplantZ", replantPos.getZ());
+        }
     }
 
     @Override
@@ -253,6 +258,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setChargeTicks(input.getIntOr("ChargeTicks", 0));
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
+        int rx = input.getIntOr("ReplantX", Integer.MIN_VALUE);
+        replantPos = rx == Integer.MIN_VALUE ? null : new BlockPos(rx, input.getIntOr("ReplantY", 0), input.getIntOr("ReplantZ", 0));
     }
 
     // ---- carrying -------------------------------------------------------------------------------------------------
