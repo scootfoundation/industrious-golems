@@ -29,7 +29,7 @@ import java.util.List;
  * Fells a natural tree from the top down. The lumberjack walks to the foot of the tree, sneezes and vanishes in a puff
  * of spores, and reappears standing on top of the crown. From there it mines straight down through the trunk's column,
  * bare-handed: the block under its feet breaks (leaves and logs alike, dropped as for a player and carried off a stack
- * at a time, see PickUp), it drops one block, and again, until it lands on the ground. The stump is left for {@link PlantSapling}. Runs in the exclusive task activity.
+ * at a time, see PickUp), it drops one block, and again, until it lands on the ground. Runs in the exclusive task activity.
  */
 public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
@@ -48,7 +48,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("fell-tree", "Lumberjack: fell a tree",
             "Mushroom golem, empty-handed. Walks to the foot of a tree, sneezes, vanishes and reappears on top of the crown, then mines straight down "
-                    + "through the trunk. Branches and extra trunks are felled the same way: each time he lands with logs still standing he sneezes up onto the highest. The stump is left for a sapling to be planted in (a separate task, see plant-sapling).",
+                    + "through the trunk. Branches and extra trunks are felled the same way: each time he lands with logs still standing he sneezes up onto the highest.",
             State.class)
             .start(State.WALK)
             .state(State.WALK, "Walking to within 3.5 blocks of the foot of the tree.")
@@ -92,7 +92,6 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         remaining.clear();
         remaining.addAll(plan.logs());
-        golem.setReplantPos(plan.replant());
         visits = 0;
         ground = null;
         falling = 0;

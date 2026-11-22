@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Where the lumberjack plants a tree when it has a sapling and the last stump is not the place: open ground (bare, or covered by grass
+ * Where the lumberjack plants a tree when it has a sapling: open ground (bare, or covered by grass
  * or flowers) near its chest but outside a clear zone around it, with room overhead to grow, and well away from every other tree and
  * sapling, so the grove it keeps stays spread out. It stops planting once there are enough trees about.
  */

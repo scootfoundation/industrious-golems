@@ -110,7 +110,6 @@ public class ModGameTests {
         strictly("lumberjack_clamber_stays_on_the_edge", ModGameTests::lumberjackClamberStaysOnTheEdge);
         strictly("lumberjack_grove_spacing", ModGameTests::lumberjackGroveSpacing);
         strictly("lumberjack_clears_around_chest", ModGameTests::lumberjackClearsAroundChest);
-        strictly("lumberjack_remembers_stump", ModGameTests::lumberjackRemembersStump);
         strictly("lumberjack_fells_far_tree", ModGameTests::lumberjackFellsFarTree);
         strictly("lumberjack_fetches_far_drop", ModGameTests::lumberjackFetchesFarDrop);
         strictly("lumberjack_stands_up_when_chest_has_room", ModGameTests::lumberjackStandsUp);
@@ -444,7 +443,7 @@ public class ModGameTests {
         chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 2));
         helper.succeedWhen(() -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 0, "all four logs should be felled, " + logsAt(helper, 5, 5) + " left");
-            helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood" + describe(helper, jack, chest) + " saplings lying " + itemsOnGround(helper, Items.OAK_SAPLING) + " chest saplings " + count(chest, Items.OAK_SAPLING) + " logs lying " + itemsOnGround(helper, Items.OAK_LOG) + " plan " + jack.getData(com.scottcaldwell.industriousgolems.ModAttachments.TASK).plan);
+            helper.assertTrue(saplingInArena(helper), "a sapling should be planted in the grove" + describe(helper, jack, chest) + " saplings lying " + itemsOnGround(helper, Items.OAK_SAPLING) + " chest saplings " + count(chest, Items.OAK_SAPLING) + " logs lying " + itemsOnGround(helper, Items.OAK_LOG) + " plan " + jack.getData(com.scottcaldwell.industriousgolems.ModAttachments.TASK).plan);
             helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "the four logs should be carried to the chest, got " + count(chest, Items.OAK_LOG));
             helper.assertTrue(!jack.isCarrying(), "nothing is carried afterwards");
         });
@@ -795,7 +794,7 @@ public class ModGameTests {
         chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 3));
         spawnLumberjack(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
-            helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling is planted at the stump");
+            helper.assertTrue(saplingInArena(helper), "a sapling is planted");
             helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "the logs are in the chest, got " + count(chest, Items.OAK_LOG));
             // the leaves that wither once the trunk is gone may drop a sapling or two as well, and they are gathered up too
             helper.assertTrue(count(chest, Items.OAK_SAPLING) >= 2, "the two spare saplings are back in the chest, got " + count(chest, Items.OAK_SAPLING));
@@ -1018,17 +1017,9 @@ public class ModGameTests {
         });
     }
 
-    /** The stump it means to replant is saved with the golem and comes back after a restart. */
-    private static void lumberjackRemembersStump(GameTestHelper helper) {
-        buildFarm(helper);
-        WorkGolem jack = spawnLumberjack(helper, AT);
-        BlockPos stump = helper.absolutePos(new BlockPos(6, 1, 6));
-        jack.setReplantPos(stump);
-        WorkGolem copy = reload(helper, jack);
-        helper.assertTrue(stump.equals(copy.replantPos()), "the stump survives a reload, got " + copy.replantPos());
-        jack.setReplantPos(null);
-        helper.assertTrue(reload(helper, jack).replantPos() == null, "no stump stays no stump");
-        helper.succeed();
+    private static boolean saplingInArena(GameTestHelper helper) {
+        for (int x = 0; x <= 7; x++) for (int z = 0; z <= 7; z++) if (helper.getBlockState(new BlockPos(x, 1, z)).is(Blocks.OAK_SAPLING)) return true;
+        return false;
     }
 
     private static WorkGolem reload(GameTestHelper helper, WorkGolem golem) {

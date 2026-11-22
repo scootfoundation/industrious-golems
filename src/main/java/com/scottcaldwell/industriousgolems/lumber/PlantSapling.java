@@ -29,8 +29,8 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
     private enum State { STEP_UP, PLANT, DONE }
 
     public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("plant-sapling", "Lumberjack: plant a sapling",
-            "Mushroom golem, holding a sapling. Walks to a spot beside the place to plant (the last tree's stump, or open ground near the "
-                    + "chest) and plants it. The sapling comes from the hand: fetched from the chest or picked up, never conjured.", State.class)
+            "Mushroom golem, holding a sapling. Walks to a spot beside the place to plant (the open ground near the "
+                    + "chest best suited to a tree) and plants it. The sapling comes from the hand: fetched from the chest or picked up, never conjured.", State.class)
             .start(State.STEP_UP)
             .state(State.STEP_UP, "Walking to the spot a plant-distance from the place, facing it.")
             .state(State.PLANT, "Plant clip playing; the sapling leaves the hand and goes in at the planting moment.")
@@ -124,7 +124,6 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
         level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
         stack.shrink(1);
         if (stack.isEmpty()) golem.setCarried(ItemStack.EMPTY);
-        if (pos.equals(golem.replantPos())) golem.setReplantPos(null);
     }
 
     @Override
