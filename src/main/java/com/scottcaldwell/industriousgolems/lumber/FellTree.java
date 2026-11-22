@@ -38,11 +38,14 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     /** Ticks spent trying to get to the foot of the tree or the planting spot before giving up. */
     private static final int STALL_TICKS = 600;
 
+    /** Most sneezes (extra visits after the first) in one felling. */
+    private static final int MAX_VISITS = 12;
+
     private enum State { WALK, SNEEZE, APPEAR, BREAK, DESCEND, DONE }
 
     public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("fell-tree", "Lumberjack: fell a tree",
             "Mushroom golem, empty-handed. Walks to the foot of a tree, sneezes, vanishes and reappears on top of the crown, then mines straight down "
-                    + "through the trunk. The stump is left for a sapling to be planted in (a separate task, see plant-sapling).",
+                    + "through the trunk. Branches and extra trunks are felled the same way: each time he lands with logs still standing he sneezes up onto the highest. The stump is left for a sapling to be planted in (a separate task, see plant-sapling).",
             State.class)
             .start(State.WALK)
             .state(State.WALK, "Walking to within 3.5 blocks of the foot of the tree.")
@@ -57,7 +60,8 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .edge(State.APPEAR, State.BREAK, "appear clip ends")
             .edge(State.BREAK, State.DESCEND, "break clip ends")
             .edge(State.DESCEND, State.BREAK, "landed, and another log or leaf is directly below")
-            .edge(State.DESCEND, State.DONE, "landed on something that is not part of the tree");
+            .edge(State.DESCEND, State.SNEEZE, "landed on something that is not part of the tree, but logs of the tree remain (a branch, another trunk): vanishes again to reach them")
+            .edge(State.DESCEND, State.DONE, "landed on something that is not part of the tree and no log of it is left (or none can be stood over)");
 
     /** The tree chosen by {@link #plan}: chop {@code logs}, then replant at {@code replant}. */
     public record FellPlan(List<BlockPos> logs, BlockPos replant) { }
@@ -68,9 +72,11 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private int stalled;
     /** The spot on top of the crown the golem pops out at (its feet), or null when there is none. */
     private BlockPos top;
+    /** Sneezes so far: a bound, so a tree that will not come down cannot keep him at it forever. */
+    private int visits;
 
     public FellTree() {
-        super(FellPlan.class, 1800);
+        super(FellPlan.class, 6000); // a big tree with branches takes a while: every log is a sneeze, a drop and a swing
     }
 
     // ---- the job ------------------------------------------------------------------------------------------------
@@ -80,7 +86,8 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         remaining.clear();
         remaining.addAll(plan.logs());
         golem.setReplantPos(plan.replant());
-        top = remaining.isEmpty() ? null : crownTop(level, plan.logs(), plan.replant());
+        visits = 0;
+        aim(level);
         stalled = 0;
         machine.reset();
         timer = 0;
@@ -92,16 +99,39 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
      * it. Null when there is no room to stand there.
      */
     static BlockPos crownTop(ServerLevel level, List<BlockPos> logs, BlockPos base) {
+        return logs.isEmpty() ? null : standAbove(level, highest(logs, base));
+    }
+
+    /** The highest log (the one nearest the base among equals). */
+    private static BlockPos highest(List<BlockPos> logs, BlockPos base) {
         BlockPos high = logs.get(0);
         for (BlockPos log : logs) {
             if (log.getY() > high.getY() || (log.getY() == high.getY() && log.distSqr(base) < high.distSqr(base))) high = log;
         }
-        BlockPos column = high;
+        return high;
+    }
+
+    /** The spot over the log's column, above whatever leaves and logs sit directly over it; null when there is no room to stand there. */
+    private static BlockPos standAbove(ServerLevel level, BlockPos log) {
+        BlockPos column = log;
         while (isTreeBlock(level, column.above())) column = column.above();
         BlockPos feet = column.above();
         if (!level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
                 || !level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()) return null;
         return feet;
+    }
+
+    /** Drops the logs that are gone, then aims at the highest one that can be stood over (giving up on those that cannot). */
+    private boolean aim(ServerLevel level) {
+        remaining.removeIf(pos -> !level.getBlockState(pos).is(BlockTags.LOGS));
+        while (!remaining.isEmpty()) {
+            BlockPos log = highest(remaining, plan.replant());
+            top = standAbove(level, log);
+            if (top != null) return true;
+            remaining.remove(log);
+        }
+        top = null;
+        return false;
     }
 
     private static boolean isTreeBlock(ServerLevel level, BlockPos pos) {
@@ -159,7 +189,14 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 holdStill(golem);
                 if (!golem.onGround()) return;
                 if (isTreeBlock(level, golem.blockPosition().below())) startBreak(golem);
-                else { golem.stopClip(); done(); }
+                else if (visits < MAX_VISITS && aim(level)) {
+                    // logs still stand (a branch, a second trunk): vanish and reappear over the highest
+                    visits++;
+                    holdStill(golem);
+                    golem.playClip(Anim.M_SNEEZE_VANISH);
+                    machine.to(State.SNEEZE);
+                    timer = 0;
+                } else { golem.stopClip(); done(); }
             }
             case DONE -> { }
         }
