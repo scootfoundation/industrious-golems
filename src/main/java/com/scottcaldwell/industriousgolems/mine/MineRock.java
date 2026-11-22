@@ -82,8 +82,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     }
 
     /** The golem needs no supplies: it digs bare-handed. */
-    public static String wants(ServerLevel level, WorkGolem golem) {
-        return null;
+    public static java.util.List<String> wants(ServerLevel level, WorkGolem golem) {
+        return java.util.List.of();
     }
 
     private static MineFinder.Target findTarget(ServerLevel level, WorkGolem golem) {

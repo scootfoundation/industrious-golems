@@ -73,6 +73,7 @@ public class ModGameTests {
         strictly("herder_milks_cow", ModGameTests::herderMilksCow);
         strictly("herder_culls_crowded_pen", ModGameTests::herderCullsCrowdedPen);
         strictly("herder_breeds_sparse_pen", ModGameTests::herderBreedsSparsePen);
+        strictly("herder_breeds_without_bucket", ModGameTests::herderBreedsWithoutBucket);
         strictly("pen_detection", ModGameTests::penDetection);
         strictly("lumberjack_fells_and_replants", ModGameTests::lumberjackFellsAndReplants);
         strictly("lumberjack_ignores_log_building", ModGameTests::lumberjackIgnoresLogBuilding);
@@ -376,6 +377,24 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(alive(helper, Cow.class).size() >= 4, "a calf should have been born");
             helper.assertTrue(total(herder, chest, Items.WHEAT) < 8, "the herder should have fed wheat");
+        });
+    }
+
+    /**
+     * Two cows that could be milked, a chest with wheat but no bucket: the herder must still fetch the wheat and breed them
+     * (a milking it cannot do must not hide the breeding it can).
+     */
+    private static void herderBreedsWithoutBucket(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.WHEAT, 16));
+        helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
+        helper.spawn(EntityTypes.COW, new BlockPos(7, 1, 6));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        helper.assertTrue(HerdWork.wants(helper.getLevel(), herder).contains("feed"), "the pen has room, so it wants feed (as well as a bucket, which the chest lacks)");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(alive(helper, Cow.class).size() >= 3 || alive(helper, Cow.class).stream().anyMatch(c -> c.isInLove()), "the cows should have been fed");
+            helper.assertTrue(total(herder, chest, Items.WHEAT) < 16, "the herder should have taken wheat");
         });
     }
 
@@ -1156,7 +1175,7 @@ public class ModGameTests {
         chest.setItem(0, new ItemStack(Items.BUCKET, 3));
         helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
-        helper.assertTrue("bucket".equals(HerdWork.wants(helper.getLevel(), herder)), "a cow to milk and no bucket in hand: the herder wants one");
+        helper.assertTrue(HerdWork.wants(helper.getLevel(), herder).contains("bucket"), "a cow to milk and no bucket in hand: the herder wants one");
         helper.succeedWhen(() -> {
             helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 1, "one cow, one milking");
             helper.assertTrue(count(chest, Items.BUCKET) == 2, "only one bucket was taken, " + count(chest, Items.BUCKET) + " left");

@@ -70,11 +70,14 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     public static Plan planSupply(ServerLevel level, WorkGolem golem) {
         if (golem.isCarrying()) return null;
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        String id = needs.work().wants().need(level, golem);
-        Need need = id == null ? null : needs.need(id);
-        if (need == null) return null;
-        BlockPos pos = best(level, golem, chest -> slotWith(need, chest) >= 0, false);
-        return pos == null ? null : new Plan(pos, need.id());
+        // every supply the work could use, in order of want: one the chest has none of must not hold up the others
+        for (String id : needs.work().wants().need(level, golem)) {
+            Need need = needs.need(id);
+            if (need == null) continue;
+            BlockPos pos = best(level, golem, chest -> slotWith(need, chest) >= 0, false);
+            if (pos != null) return new Plan(pos, need.id());
+        }
+        return null;
     }
 
     private static BlockPos best(ServerLevel level, WorkGolem golem, java.util.function.Predicate<Container> usable,

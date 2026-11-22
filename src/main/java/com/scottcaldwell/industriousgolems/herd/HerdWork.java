@@ -97,13 +97,19 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         return findPlan(level, golem, site, bucket, feed, !golem.isCarrying());
     }
 
-    /** The supply that would let the golem milk or breed, when nothing else is worth doing. */
-    public static String wants(ServerLevel level, WorkGolem golem) {
+    /**
+     * The supplies that would let the golem milk or breed, when nothing else is worth doing. Each is asked on its own: a cow that could
+     * be milked must not hide that the pen also has room to breed, or a chest with feed but no bucket would never be asked for the feed.
+     */
+    public static List<String> wants(ServerLevel level, WorkGolem golem) {
         BlockPos site = golem.jobSite(level);
-        if (site == null || golem.isCarrying()) return null;
-        HerdPlan plan = findPlan(level, golem, site, true, true, false);
-        if (plan == null) return null;
-        return plan.action() == HerdPlan.Action.MILK ? "bucket" : plan.action() == HerdPlan.Action.BREED ? "feed" : null;
+        if (site == null || golem.isCarrying()) return List.of();
+        List<String> wanted = new ArrayList<>();
+        HerdPlan milk = findPlan(level, golem, site, true, false, false);
+        if (milk != null && milk.action() == HerdPlan.Action.MILK) wanted.add("bucket");
+        HerdPlan breed = findPlan(level, golem, site, false, true, false);
+        if (breed != null && breed.action() == HerdPlan.Action.BREED) wanted.add("feed");
+        return wanted;
     }
 
     private static HerdPlan findPlan(ServerLevel level, WorkGolem golem, BlockPos site, boolean bucket, boolean feed,

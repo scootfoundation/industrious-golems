@@ -40,8 +40,8 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Wo
 
         @FunctionalInterface
         public interface Wants {
-            /** @return the id of the {@link Need} the golem would work with if it had it, or null */
-            String need(ServerLevel level, WorkGolem golem);
+            /** @return the ids of the {@link Need}s the golem could work with if it had them, most wanted first (empty when none) */
+            List<String> need(ServerLevel level, WorkGolem golem);
         }
     }
 

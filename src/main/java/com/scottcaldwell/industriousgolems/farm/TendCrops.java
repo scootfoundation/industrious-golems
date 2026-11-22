@@ -82,10 +82,10 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     }
 
     /** Seeds would let the golem sow some bare farmland. */
-    public static String wants(ServerLevel level, WorkGolem golem) {
+    public static java.util.List<String> wants(ServerLevel level, WorkGolem golem) {
         BlockPos site = golem.jobSite(level);
-        if (site == null || golem.isCarrying()) return null;
-        return nearest(level, site, golem, false).isPresent() ? "seeds" : null;
+        if (site == null || golem.isCarrying()) return java.util.List.of();
+        return nearest(level, site, golem, false).isPresent() ? java.util.List.of("seeds") : java.util.List.of();
     }
 
     private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, boolean ripe) {

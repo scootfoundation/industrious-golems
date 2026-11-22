@@ -52,12 +52,12 @@ public final class LumberWork {
     }
 
     /** A sapling from the chest is wanted when there is somewhere to plant it. */
-    public static String wants(ServerLevel level, WorkGolem golem) {
-        if (golem.isCarrying()) return null;
+    public static java.util.List<String> wants(ServerLevel level, WorkGolem golem) {
+        if (golem.isCarrying()) return java.util.List.of();
         BlockPos site = golem.jobSite(level);
-        if (site == null || !EventHooks.canEntityGrief(level, golem)) return null;
+        if (site == null || !EventHooks.canEntityGrief(level, golem)) return java.util.List.of();
         TaskState state = golem.getData(ModAttachments.TASK);
-        return plantingPlace(level, golem, site, state, level.getGameTime(), null) != null ? "saplings" : null;
+        return plantingPlace(level, golem, site, state, level.getGameTime(), null) != null ? java.util.List.of("saplings") : java.util.List.of();
     }
 
     /** The best open ground near the chest (see {@link Planting}); the golem does not remember where trees stood. {@code sapling} null means "any sapling would do". */
