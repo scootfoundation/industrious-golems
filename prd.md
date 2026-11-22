@@ -1,4 +1,4 @@
-# Industrious Golems ó Product Requirements Document (Draft v2)
+# Industrious Golems ‚Äî Product Requirements Document (Draft v3)
 
 ## Overview
 
@@ -6,10 +6,10 @@
 
 Two value propositions:
 
-1. **Adds productive automation that doesn't exist in vanilla** ó auto-farming, auto-logging, herding, and (planned) auto-mining ó replacing the fragile-redstone-contraption meta with a clean role-based answer.
-2. **Leaves the rest of the game alone** ó no changes to villager trading, professions or schedules.
+1. **Adds productive automation that doesn't exist in vanilla** ‚Äî auto-farming, auto-logging, herding and mining ‚Äî replacing the fragile-redstone-contraption meta with a clean role-based answer.
+2. **Leaves the rest of the game alone** ‚Äî no changes to villager trading, professions or schedules.
 
-Each new role retires a category of menial player labour, lifting the player up the abstraction ladder (‡ la Factorio). Player work shifts from manual labour to systems-thinking: layout, logistics, defense, expansion.
+Each new role retires a category of menial player labour, lifting the player up the abstraction ladder (√† la Factorio). Player work shifts from manual labour to systems-thinking: layout, logistics, defense, expansion.
 
 **Target loader:** NeoForge.
 
@@ -41,18 +41,18 @@ All golems share:
 ### Hay golem (farmer)
 
 - **Job site:** Hay chest. **Built from:** hay bale + pumpkin.
-- **Consumes:** Seeds.
+- **Consumes:** Villager-plantable seeds and crops (wheat seeds, carrots, potatoes, beetroot seeds, ...).
 - **Wants:** Slimeball, glow ink sac, pufferfish, cobweb, rabbit's foot, cactus flower, pointed dripstone, glow berries.
-- **Produces:** Crops the player has planted on pre-tilled soil within range.
-- **Behaviour:** Stands on each plot it works: walks onto a ripe crop and breaks it, then onto bare farmland to sow the seeds it carries. Works pre-tilled blocks only. Deliberately slow (it walks at less than half the others' pace). Player provides the first generation of seeds.
+- **Produces:** Wheat, carrots, potatoes, beetroot, melon, pumpkins and sweet berries from crops the player has planted on pre-tilled soil within range.
+- **Behaviour:** Works the pre-tilled farmland within 10 blocks of its chest (2 blocks up and down): walks onto a ripe crop and breaks it, then onto bare farmland to sow the seeds it carries. Never tills, and never sows anything that is not a seed. Deliberately slow: it plods. Player provides the first generation of seeds.
 
 ### Mushroom golem (lumberjack)
 
 - **Job site:** Mushroom chest. **Built from:** red mushroom block + pumpkin.
-- **Consumes:** Saplings.
+- **Consumes:** Saplings (handed over a few at a time; what it does not plant is carried back).
 - **Wants:** Amethyst shard, resin clump, spore blossom, pink petals, goat horn, armadillo scute, honey bottle, open eyeblossom.
 - **Produces:** Logs, saplings, sticks, apples.
-- **Behaviour:** Works a grove around the job site. Fells natural trees log by log and replants saplings from output. Ignores player-built log structures.
+- **Behaviour:** Works a grove around the job site. Finds natural trees within 16 blocks and fells them log by log (branches and extra trunks included). Replants within 14 blocks of the chest with saplings at least 5 blocks apart and a 6-block clearing round the chest, so the chest is never walled in. Only plants saplings it has been given or collected, and leaves lone dark oak saplings alone. Ignores player-built and stripped logs. When its chest is full it sits down holding its stack, and stands up when there is room.
 
 ### Terracotta golem (herder)
 
@@ -60,15 +60,15 @@ All golems share:
 - **Consumes:** Buckets (turned into milk), animal feed.
 - **Wants:** Turtle scute, sea pickle, cocoa beans, mangrove propagule, powder snow bucket, any pottery sherd, shroomlight, big dripleaf.
 - **Produces:** Wool, milk, meat and hides, kept to a target herd size.
-- **Behaviour:** Shears sheep, milks cows, breeds sparse pens and culls crowded ones.
+- **Behaviour:** Manages enclosed pens (up to 64 floor blocks) within 16 blocks of its chest. Shears sheep, milks cows (each cow at most every 5 minutes), breeds a pen with more than 4 floor blocks per animal using feed from the chest, and culls one below 3.5 floor blocks per animal, never below two adults of a species.
 
-### Stone golem (miner) ó planned
+### Stone golem (miner)
 
-- **Job site:** Stone chest (art done, mossy stone bricks with an iron latch), placed at the target Y level by the player. **Built from:** stone bricks + pumpkin.
-- **Consumes:** Wood (tunnel supports), torches, optionally rails.
-- **Wants:** Eight offerings still to be chosen (candidates: ender pearl, honeycomb, calcite, packed ice, moss block, sweet berries, phantom membrane, nether quartz).
-- **Produces:** Cobblestone and the ore distribution at the chosen Y level.
-- **Behaviour:** Excavates a 3◊3 trunk-and-branch mine in the four cardinal directions; seals off lava and caves.
+- **Job site:** Stone chest (mossy stone bricks with an iron latch), placed at the level the player wants to mine. **Built from:** smooth stone + pumpkin (the chest is craftable from a chest, a stonecutter and smooth stone).
+- **Consumes:** Nothing: it digs bare-handed.
+- **Wants:** Nautilus shell, prismarine crystals, echo shard, disc fragment 5, chorus fruit, phantom membrane, ghast tear, breeze rod.
+- **Produces:** Cobblestone, cobbled deepslate, granite, diorite, andesite, tuff and the ores (coal, raw iron, raw copper, raw gold, redstone, lapis, diamond, emerald), as an iron pickaxe would drop them.
+- **Behaviour:** Digs rock that is already exposed to air within 7 blocks of its chest, working inward from the faces it can see, never below the chest's level and at most 2 blocks above it. Prefers ore to plain stone. Will not open onto liquid or bring sand or gravel down. Digs a batch of 12 blocks, then collects the drops and carries them to the chest.
 
 ## Villagers
 
@@ -76,8 +76,7 @@ Unchanged from vanilla, including trading, professions, schedules, breeding, iro
 
 ## Open Questions
 
-- **Acquisition.** Spawn eggs only for now; a build-by-pattern or craftable recipe is undecided.
-- **Behaviour when a miner exhausts their claim.** Idle with a depleted indicator? Particle alert? To be confirmed.
+- **Behaviour when a miner runs out of reachable rock.** It idles; whether it should signal that (particles, an indicator) is undecided.
 - **Consumption and production rates.** Deferred to playtest.
 - **Exact claim dimensions.** Subject to revision.
 
@@ -86,7 +85,7 @@ Unchanged from vanilla, including trading, professions, schedules, breeding, iro
 An unordered bucket; not commitments, not phased:
 
 - More production roles: toolsmith, armorer, weaponsmith, shearer, butcher, librarian (auto-enchanting), cartographer (auto-mapping). New job site blocks and villager textures become reasonable at this stage.
-- Construction roles: carpenters, pavers, builders ‚Äî automating expansion rather than production.
+- Construction roles: carpenters, pavers, builders √¢‚Ç¨‚Äù automating expansion rather than production.
 - Warrior villagers replacing iron golems; consume armour and weapons in combat, creating real sinks for armorer/weaponsmith chains.
 - Per-role configuration via right-clicking the villager (whitelists for crops, tree types, kept materials).
 - Cobble overflow handling: filtering at source, or a void toggle on the miner.

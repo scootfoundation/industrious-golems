@@ -271,9 +271,8 @@ SCALE = 3  # screen pixels per game pixel
 _CACHE = {}
 
 
-def slot_icon(vanilla, item, tint=None):
-    """An item as the inventory shows it: its sprite, or the block's isometric render, on a Minecraft slot (18x18 game px at SCALE)."""
-    kind, data = item_scene(vanilla, item)
+def slot_image(icon=None):
+    """An inventory slot (18x18 game px at SCALE), optionally holding a 16x16-game-px icon image already at SCALE."""
     side = 18 * SCALE
     slot = Image.new("RGBA", (18, 18), (139, 139, 139, 255))
     px = slot.load()
@@ -284,6 +283,19 @@ def slot_icon(vanilla, item, tint=None):
             if i == 17 or j == 17:
                 px[i, j] = (255, 255, 255, 255)    # and its light bottom-right edge
     slot = slot.resize((side, side), Image.NEAREST)
+    if icon is not None:
+        slot.alpha_composite(icon, (SCALE, SCALE))
+    return slot
+
+
+def scene_icon(scene):
+    """A block-like scene as the inventory's GUI view draws it."""
+    return scene.render(16 * SCALE, yaw=-45, pitch=30, pad=0.0)[0]
+
+
+def slot_icon(vanilla, item, tint=None):
+    """An item as the inventory shows it: its sprite, or the block's isometric render, on a Minecraft slot."""
+    kind, data = item_scene(vanilla, item)
     if kind == "sprite":
         icon = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
         for layer in data:
@@ -292,9 +304,8 @@ def slot_icon(vanilla, item, tint=None):
             icon = tinted(icon, tint)
         icon = icon.resize((16 * SCALE, 16 * SCALE), Image.NEAREST)
     else:
-        icon, _ = data.render(16 * SCALE, yaw=-45, pitch=30, pad=0.0)
-    slot.alpha_composite(icon, (SCALE, SCALE))
-    return slot
+        icon = scene_icon(data)
+    return slot_image(icon)
 
 
 def tinted(img, rgb):
