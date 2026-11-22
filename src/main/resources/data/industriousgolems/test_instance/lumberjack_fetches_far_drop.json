@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_fetches_far_drop",
+  "max_ticks": 3000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

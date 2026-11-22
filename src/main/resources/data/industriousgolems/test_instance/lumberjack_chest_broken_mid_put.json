@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_chest_broken_mid_put",
+  "max_ticks": 800,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

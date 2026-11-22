@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_stands_up_when_chest_has_room",
+  "max_ticks": 1200,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

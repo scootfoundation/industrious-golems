@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems;
 
 import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
+import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.ChestSpawn;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import com.scottcaldwell.industriousgolems.herd.HerdPen;
@@ -105,6 +106,15 @@ public class ModGameTests {
         strictly("lumberjack_never_conjures_saplings", ModGameTests::lumberjackNeverConjuresSaplings);
         strictly("lumberjack_plants_through_grass", ModGameTests::lumberjackPlantsThroughGrass);
         strictly("lumberjack_sits_when_chest_full", ModGameTests::lumberjackSitsWhenChestFull);
+        strictly("lumberjack_keeps_item_in_view", ModGameTests::lumberjackKeepsItemInView);
+        strictly("lumberjack_clamber_stays_on_the_edge", ModGameTests::lumberjackClamberStaysOnTheEdge);
+        strictly("lumberjack_grove_spacing", ModGameTests::lumberjackGroveSpacing);
+        strictly("lumberjack_clears_around_chest", ModGameTests::lumberjackClearsAroundChest);
+        strictly("lumberjack_remembers_stump", ModGameTests::lumberjackRemembersStump);
+        strictly("lumberjack_fells_far_tree", ModGameTests::lumberjackFellsFarTree);
+        strictly("lumberjack_fetches_far_drop", ModGameTests::lumberjackFetchesFarDrop);
+        strictly("lumberjack_stands_up_when_chest_has_room", ModGameTests::lumberjackStandsUp);
+        strictly("lumberjack_chest_broken_mid_put", ModGameTests::lumberjackChestBrokenMidPut);
         strictly("lumberjack_interrupted_in_tree", ModGameTests::lumberjackInterruptedInTree);
         strictly("lumberjack_ignores_stripped_logs", ModGameTests::lumberjackIgnoresStrippedLogs);
         strictly("lumberjack_leaves_dark_oak_saplings", ModGameTests::lumberjackLeavesDarkOakSaplings);
@@ -397,18 +407,23 @@ public class ModGameTests {
 
     /** A 4-log oak with natural leaves rooted in grass at (x, z). */
     private static void buildTree(GameTestHelper helper, int x, int z) {
-        helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
+        buildTree(helper, x, z, 0);
+    }
+
+    /** The same, {@code up} blocks higher (the sky platform). */
+    private static void buildTree(GameTestHelper helper, int x, int z, int up) {
+        helper.setBlock(new BlockPos(x, up, z), Blocks.GRASS_BLOCK);
         var leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, false);
         for (int y = 4; y <= 5; y++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     if (dx == 0 && dz == 0 && y == 4) continue;
-                    helper.setBlock(new BlockPos(x + dx, y, z + dz), leaf);
+                    helper.setBlock(new BlockPos(x + dx, up + y, z + dz), leaf);
                 }
             }
         }
-        for (int y = 1; y <= 4; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG);
-        for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR); // the arena's low ceiling: room to stand on top of the crown
+        for (int y = 1; y <= 4; y++) helper.setBlock(new BlockPos(x, up + y, z), Blocks.OAK_LOG);
+        for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, up + y, z), Blocks.AIR); // the arena's low ceiling: room to stand on top of the crown
     }
 
     private static int logsAt(GameTestHelper helper, int x, int z) {
@@ -848,8 +863,179 @@ public class ModGameTests {
         WorkGolem jack = spawnLumberjack(helper, AT);
         jack.setCarried(new ItemStack(Items.OAK_LOG, 3));
         helper.succeedWhen(() -> {
-            helper.assertTrue(com.scottcaldwell.industriousgolems.golem.Anim.M_SIT_FULL.equals(jack.clip()), "it sits down, clip is '" + jack.clip() + "'");
+            helper.assertTrue(Anim.M_SIT_FULL.equals(jack.clip()), "it sits down, clip is '" + jack.clip() + "'");
             helper.assertTrue(jack.carried().is(Items.OAK_LOG) && jack.carried().getCount() == 3, "and keeps the stack");
+        });
+    }
+
+    // ---- lumberjack: coverage of the review fixes ---------------------------------------------------------------
+
+    /** The held item is drawn (in front of the body, never lost inside the cap) through every clip in which the golem carries it. */
+    private static void lumberjackKeepsItemInView(GameTestHelper helper) {
+        var kit = com.scottcaldwell.industriousgolems.client.anim.Animator.MUSHROOM;
+        var pose = new com.scottcaldwell.industriousgolems.client.anim.Pose();
+        var spec = Anim.chest("lumberjack");
+        for (String item : List.of("log", "sapling")) {
+            for (double t = 0; t < spec.putRelease() - 0.05; t += 0.05) {
+                String hold = com.scottcaldwell.industriousgolems.client.anim.Animator.evaluate(kit, pose, Anim.M_PUT_IN, t, false, 0, t, false, false, item,
+                        new com.scottcaldwell.industriousgolems.client.anim.AnimState());
+                helper.assertTrue("front".equals(hold), item + " put-in at " + t + "s is held '" + hold + "'");
+            }
+            for (double t = spec.fetchTake() + 0.02; t < spec.fetchThrow() - 0.02; t += 0.05) {
+                String hold = com.scottcaldwell.industriousgolems.client.anim.Animator.evaluate(kit, pose, Anim.M_FETCH, t, false, 0, t, false, false, item,
+                        new com.scottcaldwell.industriousgolems.client.anim.AnimState());
+                helper.assertTrue("front".equals(hold), item + " fetch at " + t + "s is held '" + hold + "'");
+            }
+            for (boolean moving : new boolean[]{true, false}) {
+                String hold = com.scottcaldwell.industriousgolems.client.anim.Animator.evaluate(kit, pose, null, 1.3, moving, 6.0, 1.3, false, false, item,
+                        new com.scottcaldwell.industriousgolems.client.anim.AnimState());
+                helper.assertTrue("front".equals(hold), item + (moving ? " walking" : " standing") + " is held '" + hold + "'");
+            }
+        }
+        helper.succeed();
+    }
+
+    /** The climb ends on the front edge of the lid (z -8..-9 pixels toward the chest), never out over its middle (-13). */
+    private static void lumberjackClamberStaysOnTheEdge(GameTestHelper helper) {
+        var kit = com.scottcaldwell.industriousgolems.client.anim.Animator.MUSHROOM;
+        var pose = new com.scottcaldwell.industriousgolems.client.anim.Pose();
+        float deepest = 0;
+        for (double t = 0; t < Anim.chest("lumberjack").fetchLen(); t += 0.05) {
+            com.scottcaldwell.industriousgolems.client.anim.Animator.evaluate(kit, pose, Anim.M_FETCH, t, false, 0, t, false, false, null,
+                    new com.scottcaldwell.industriousgolems.client.anim.AnimState());
+            deepest = Math.min(deepest, pose.offZ);
+        }
+        helper.assertTrue(deepest <= -8.0F, "it does climb up onto the chest, got " + deepest);
+        helper.assertTrue(deepest >= -9.0F, "but stays on the front edge, got " + deepest);
+        helper.succeed();
+    }
+
+    private static final int SKY = 40;
+
+    /** A big flat grass platform high above the arena (the real grove is far larger than the 8x8 arena), with the fletching table and chest on it. */
+    private static void skyGrove(GameTestHelper helper) {
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) helper.getLevel().setChunkForced((origin.getX() >> 4) + dx, (origin.getZ() >> 4) + dz, true);
+        }
+        for (int x = -20; x <= 30; x++) for (int z = -20; z <= 30; z++) helper.setBlock(new BlockPos(x, SKY, z), Blocks.GRASS_BLOCK);
+        helper.setBlock(new BlockPos(2, SKY + 1, 2), Blocks.FLETCHING_TABLE);
+        helper.setBlock(new BlockPos(4, SKY + 1, 2), Blocks.CHEST);
+    }
+
+    /** At its real size the grove keeps clear of the chest and spreads out: no two saplings near each other, none by the chest, and a cap. */
+    private static void lumberjackGroveSpacing(GameTestHelper helper) {
+        skyGrove(helper);
+        WorkGolem jack = spawnWorker(helper, ModProfessions.LUMBERJACK, new BlockPos(2, SKY + 1, 2), new BlockPos(3, SKY + 1, 4));
+        helper.runAtTickTime(10, () -> {
+            var layout = com.scottcaldwell.industriousgolems.lumber.Planting.Layout.GROVE;
+            BlockPos site = helper.absolutePos(new BlockPos(2, SKY + 1, 2));
+            List<BlockPos> planted = new ArrayList<>();
+            for (int i = 0; i < 20; i++) {
+                BlockPos at = com.scottcaldwell.industriousgolems.lumber.Planting.find(helper.getLevel(), jack, site, p -> false, layout);
+                if (at == null) break;
+                helper.getLevel().setBlockAndUpdate(at, Blocks.OAK_SAPLING.defaultBlockState());
+                planted.add(at);
+            }
+            helper.assertTrue(planted.size() == layout.cap(), "it plants up to the cap and no more, got " + planted.size());
+            for (BlockPos a : planted) {
+                helper.assertTrue(!layout.clears(a, site), "clear of the chest: " + a.subtract(site));
+                helper.assertTrue(Math.abs(a.getX() - site.getX()) <= layout.radius() && Math.abs(a.getZ() - site.getZ()) <= layout.radius(), "within reach: " + a.subtract(site));
+                for (BlockPos b : planted) {
+                    if (a != b) helper.assertTrue(Math.max(Math.abs(a.getX() - b.getX()), Math.abs(a.getZ() - b.getZ())) > layout.spacing(), "spaced apart: " + a + " " + b);
+                }
+            }
+            helper.succeed();
+        });
+    }
+
+    /** A stump inside the clear zone round the chest is not replanted (the tree would grow over the way to it). */
+    private static void lumberjackClearsAroundChest(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 3, 3); // one block diagonal from the job site at (2, 2): inside the clearing
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 3));
+        spawnLumberjack(helper, new BlockPos(2, 1, 5));
+        helper.runAtTickTime(2600, () -> {
+            helper.assertTrue(logsAt(helper, 3, 3) == 0, "the tree is felled");
+            helper.assertTrue(!helper.getBlockState(new BlockPos(3, 1, 3)).is(Blocks.OAK_SAPLING), "but nothing is planted on the stump by the chest");
+            helper.succeed();
+        });
+    }
+
+    /** The stump it means to replant is saved with the golem and comes back after a restart. */
+    private static void lumberjackRemembersStump(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem jack = spawnLumberjack(helper, AT);
+        BlockPos stump = helper.absolutePos(new BlockPos(6, 1, 6));
+        jack.setReplantPos(stump);
+        WorkGolem copy = reload(helper, jack);
+        helper.assertTrue(stump.equals(copy.replantPos()), "the stump survives a reload, got " + copy.replantPos());
+        jack.setReplantPos(null);
+        helper.assertTrue(reload(helper, jack).replantPos() == null, "no stump stays no stump");
+        helper.succeed();
+    }
+
+    private static WorkGolem reload(GameTestHelper helper, WorkGolem golem) {
+        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess());
+        golem.saveWithoutId(out);
+        WorkGolem copy = helper.spawn(ModEntities.typeOf(golem.profession()), new BlockPos(5, 1, 5));
+        copy.load(TagValueInput.create(ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), out.buildResult()));
+        return copy;
+    }
+
+    /** A tree at the edge of the 16-block search, 14 blocks from the chest: every log it drops is still gathered. */
+    private static void lumberjackFellsFarTree(GameTestHelper helper) {
+        skyGrove(helper);
+        buildTree(helper, 16, 4, SKY);
+        ChestBlockEntity chest = helper.getBlockEntity(new BlockPos(4, SKY + 1, 2), ChestBlockEntity.class);
+        spawnWorker(helper, ModProfessions.LUMBERJACK, new BlockPos(2, SKY + 1, 2), new BlockPos(3, SKY + 1, 4));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(new BlockPos(16, SKY + 1, 4)).isAir() || helper.getBlockState(new BlockPos(16, SKY + 1, 4)).is(Blocks.OAK_SAPLING), "the tree is felled");
+            helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "all four logs reach the chest, got " + count(chest, Items.OAK_LOG));
+        });
+    }
+
+    /** A stack lying 14 blocks out (where a far tree's drops land) is fetched: the pick-up reaches as far as the tree search does. */
+    private static void lumberjackFetchesFarDrop(GameTestHelper helper) {
+        skyGrove(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(new BlockPos(4, SKY + 1, 2), ChestBlockEntity.class);
+        spawnWorker(helper, ModProfessions.LUMBERJACK, new BlockPos(2, SKY + 1, 2), new BlockPos(3, SKY + 1, 4));
+        helper.spawnItem(Items.OAK_LOG, new Vec3(16.5, SKY + 1.5, 4.5));
+        helper.succeedWhen(() -> helper.assertTrue(count(chest, Items.OAK_LOG) == 1, "the far log reaches the chest, got " + count(chest, Items.OAK_LOG)));
+    }
+
+    /** Sat down with a stack and a full chest, it gets up and puts the stack away as soon as there is room. */
+    private static void lumberjackStandsUp(GameTestHelper helper) {
+        buildFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        for (int i = 0; i < chest.getContainerSize(); i++) chest.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+        WorkGolem jack = spawnLumberjack(helper, AT);
+        jack.setCarried(new ItemStack(Items.OAK_LOG, 3));
+        boolean[] sat = {false};
+        helper.succeedWhen(() -> {
+            if (!sat[0]) {
+                if (Anim.M_SIT_FULL.equals(jack.clip())) { sat[0] = true; chest.setItem(0, ItemStack.EMPTY); }
+                helper.assertTrue(false, "waiting for it to sit down");
+            }
+            helper.assertTrue(!Anim.M_SIT_FULL.equals(jack.clip()), "it gets up");
+            helper.assertTrue(!jack.isCarrying() && count(chest, Items.OAK_LOG) == 3, "and puts the logs away, got " + count(chest, Items.OAK_LOG));
+        });
+    }
+
+    /** The chest breaks while the stack is in the air: the golem is left holding it, nothing lost or spilled. */
+    private static void lumberjackChestBrokenMidPut(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem jack = spawnLumberjack(helper, AT);
+        jack.setCarried(new ItemStack(Items.OAK_LOG, 3));
+        boolean[] broken = {false};
+        helper.succeedWhen(() -> {
+            if (!broken[0]) {
+                if (jack.carried().isEmpty()) { broken[0] = true; helper.setBlock(CHEST, Blocks.AIR); }
+                helper.assertTrue(false, "waiting for the hand to let go");
+            }
+            helper.assertTrue(jack.carried().is(Items.OAK_LOG) && jack.carried().getCount() == 3, "the stack is back in hand, got " + jack.carried());
+            helper.assertTrue(itemsOnGround(helper, Items.OAK_LOG) == 0, "and nothing is spilled");
         });
     }
 

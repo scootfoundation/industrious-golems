@@ -64,7 +64,7 @@ public final class LumberWork {
     private static BlockPos plantingPlace(ServerLevel level, WorkGolem golem, BlockPos site, TaskState state, long now, ItemStack sapling) {
         BlockPos stump = golem.replantPos();
         // (a stump in the clearing around the chest is not replanted: the tree would grow over the way to it)
-        if (stump != null && !Planting.inClearing(stump, site) && !state.ignoresBlock(stump, now) && canPlantAt(level, stump, sapling)) return stump;
+        if (stump != null && !Planting.LAYOUT.clears(stump, site) && !state.ignoresBlock(stump, now) && canPlantAt(level, stump, sapling)) return stump;
         if (state.plantSpotFresh(now, PLACE_CACHE_TICKS)) {
             BlockPos cached = state.plantSpot();
             if (cached == null) return null; // looked a moment ago and found nothing
