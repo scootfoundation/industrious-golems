@@ -6,26 +6,26 @@ import random
 
 # 8 rows tall; 6 columns wide unless noted (M is 8). '#' is a block.
 GLYPHS = {
-    "I": ["######", "######", "..##..", "..##..", "..##..", "..##..", "######", "######"],
-    "T": ["######", "######", "..##..", "..##..", "..##..", "..##..", "..##..", "..##.."],
-    "E": ["######", "######", "##....", "####..", "####..", "##....", "######", "######"],
-    "C": [".#####", "######", "##....", "##....", "##....", "##....", "######", ".#####"],
-    "N": ["##..##", "###.##", "######", "######", "##.###", "##..##", "##..##", "##..##"],
-    "M": ["##....##", "###..###", "########", "########", "##.##.##", "##....##", "##....##", "##....##"],
-    "R": ["#####.", "######", "##..##", "##..##", "#####.", "####..", "##.###", "##..##"],
-    "A": [".####.", "######", "##..##", "##..##", "######", "######", "##..##", "##..##"],
-    "F": ["######", "######", "##....", "####..", "####..", "##....", "##....", "##...."],
-    "D": ["#####.", "######", "##..##", "##..##", "##..##", "##..##", "######", "#####."],
-    "U": ["##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "######", ".####."],
-    "S": [".#####", "######", "##....", ".####.", "..####", "....##", "######", "#####."],
-    "O": [".####.", "######", "##..##", "##..##", "##..##", "##..##", "######", ".####."],
-    "G": [".#####", "######", "##....", "##.###", "##.###", "##..##", "######", ".####."],
-    "L": ["##....", "##....", "##....", "##....", "##....", "##....", "######", "######"],
+    "I": ["####", "####", ".##.", ".##.", ".##.", ".##.", "####", "####"],
+    "T": ["#####", "#####", ".###.", ".###.", ".###.", ".###.", ".###.", ".###."],
+    "E": ["#####", "#####", "##...", "####.", "####.", "##...", "#####", "#####"],
+    "C": [".####", "#####", "##...", "##...", "##...", "##...", "#####", ".####"],
+    "N": ["##.##", "###.#", "#####", "#####", "#.###", "##.##", "##.##", "##.##"],
+    "M": ["##...##", "###.###", "#######", "#######", "##.#.##", "##...##", "##...##", "##...##"],
+    "R": ["####.", "#####", "##.##", "#####", "####.", "####.", "##.##", "##.##"],
+    "A": [".###.", "#####", "##.##", "##.##", "#####", "#####", "##.##", "##.##"],
+    "F": ["#####", "#####", "##...", "###..", "###..", "##...", "##...", "##..."],
+    "D": ["####.", "#####", "##.##", "##.##", "##.##", "##.##", "#####", "####."],
+    "U": ["##.##", "##.##", "##.##", "##.##", "##.##", "##.##", "#####", ".###."],
+    "S": [".####", "#####", "##...", ".###.", "..###", "...##", "#####", "####."],
+    "O": [".###.", "#####", "##.##", "##.##", "##.##", "##.##", "#####", ".###."],
+    "G": [".####", "#####", "##...", "##.##", "##.##", "##.##", "#####", ".####"],
+    "L": ["##...", "##...", "##...", "##...", "##...", "##...", "#####", "#####"],
 }
 GAP = 1          # blank columns between letters: the lettering is tight, as in the game's logo
 SPACE = 4        # columns for a word space
-SLANT = 8.0      # degrees the whole lettering leans
-ASPECT = 1.15    # block width / height
+SLANT = 11.0      # degrees the whole lettering leans
+ASPECT = 1.1    # block width / height
 
 
 def layout(text):
@@ -120,14 +120,14 @@ class Line:
                             for (x, y, w, h) in (self.rect(c, r, n) for (c, r, n) in runs(blocks)))
             out.append('<g fill="url(#%s)">%s</g>' % (self.style[name]["face"], rects))
         hi, lo = [], []
-        t = self.bh * 0.13
+        t = self.bh * 0.2
         for (c, r) in sorted(self.all):
             x, y, w, h = self.rect(c, r)
             if (c, r - 1) not in self.all:
                 hi.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y, w + 0.8, t))
             if (c, r + 1) not in self.all:
                 lo.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (x, y + h - t, w + 0.8, t))
-        out.append('<g fill="#ffffff60">%s</g><g fill="#00000038">%s</g>' % ("".join(hi), "".join(lo)))
+        out.append('<g fill="#ffffff70">%s</g><g fill="#00000050">%s</g>' % ("".join(hi), "".join(lo)))
         return "".join(out)
 
     def cracks(self, rng, count):
@@ -156,7 +156,7 @@ class Line:
         return '<g fill="none" stroke-linecap="round" stroke-linejoin="round">%s</g>' % "".join(out)
 
 
-def make(path):
+def make(path, only_top=False):
     rng = random.Random(11)
     u = 12.0                                    # block height of the top line
     top, bottom = "MINECRAFT", "INDUSTRIOUS GOLEMS"
@@ -172,7 +172,7 @@ def make(path):
     line1 = Line(top, pad + 1.0 * u, y_top, u, depth1, {"MINECRAFT": {"face": "stone", "side": "stoneSide"}})
     y2 = y_top + 8 * u + 3.1 * u                # the second line starts inside the first's extrusion
     line2 = Line(bottom, pad + 1.0 * u, y2, u2, depth2, {"INDUSTRIOUS": {"face": "amber", "side": "amberSide"}, "GOLEMS": {"face": "grass", "side": "grassSide"}}, aspect=asp2)
-    H = y2 + 8 * u2 + line2.dy + pad
+    H = (y_top + 8 * u + line1.dy + pad) if only_top else y2 + 8 * u2 + line2.dy + pad
     W = w1 + 2 * pad + 2 * u + shear * H
     face1 = (y_top, y_top + 8 * u)
     ext1 = (y_top + 8 * u, y_top + 8 * u + line1.dy)
@@ -183,16 +183,15 @@ def make(path):
         return '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="%.1f" x2="0" y2="%.1f">%s</linearGradient>' % (
             i, y0, y1, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in stops))
     defs = "".join([
-        grad("stone", *face1, [(0, "#d3cec7"), (0.6, "#b9b4ad"), (1, "#a29d96")]),
-        grad("stoneSide", face1[1] - u, ext1[1] + u, [(0, "#1c1c1c"), (0.45, "#3a3a3a"), (1, "#565656")]),
+        grad("stone", *face1, [(0, "#d9d5ce"), (0.55, "#c2bdb6"), (1, "#a8a39c")]),
+        grad("stoneSide", face1[0], ext1[1], [(0, "#0e0e0e"), ("%.3f" % ((face1[1] - face1[0]) / (ext1[1] - face1[0]) - 0.001), "#0e0e0e"), ("%.3f" % ((face1[1] - face1[0]) / (ext1[1] - face1[0])), "#707070"), (1, "#0a0a0a")]),
         grad("amber", *face2, [(0, "#d8883a"), (0.45, "#f0b04a"), (1, "#ffe27a")]),
         grad("amberSide", face2[1] - u2, ext2[1] + u2, [(0, "#3a1d12"), (1, "#6a4020")]),
         grad("grass", *face2, [(0, "#9fd36a"), (0.5, "#c7ec86"), (1, "#e6f7a8")]),
         grad("grassSide", face2[1] - u2, ext2[1] + u2, [(0, "#233a14"), (1, "#4c6a28")]),
     ])
     # the second line is drawn first so the first line's extrusion lies over its top, as in the game's logo
-    body = (line2.outline() + line2.side() + line2.face()
-            + line1.outline() + line1.side() + line1.face() + line1.cracks(rng, 34))
+    body = ('' if only_top else line2.outline() + line2.side() + line2.face()) + (line1.outline() + line1.side() + line1.face() + line1.cracks(rng, 34))
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %.0f %.0f" role="img" aria-label="Industrious Golems">'
            '<title>Industrious Golems</title><defs>%s</defs>'
            '<g transform="translate(%.1f 0) skewX(%.1f)">%s</g></svg>') % (W, H, defs, shear * H, -SLANT, body)
@@ -202,3 +201,4 @@ def make(path):
 
 if __name__ == "__main__":
     make("logo.svg")
+    make("minecraft.svg", True)
