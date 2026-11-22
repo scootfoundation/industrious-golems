@@ -116,7 +116,7 @@ def make(path, only_top=False):
     cam = Cam(W, 6.0)
     lines = []
     lines.append(dict(strokes=s1, z0=0.0, s=1.0, dx=0.0, kind="stone", sy=1.25))
-    z2 = 12.5 + 7.5
+    z2 = 12.5 + 8.0
     if not only_top:
         lines.append(dict(strokes=word_strokes(words[0][0])[0], z0=z2, s=sc2, dx=0.0, kind=0, sy=1.5))
         lines.append(dict(strokes=word_strokes(words[1][0])[0], z0=z2, s=sc2, dx=(w1 + 5.0) * sc2, kind=1, sy=1.5))
@@ -124,14 +124,17 @@ def make(path, only_top=False):
     allpts, built = [], []
     for ln in order:
         s, z0, dx = ln["s"], ln["z0"], ln["dx"]
-        tops, sides = [], []
+        tops, sides, edges = [], [], []
         for st in ln["strokes"]:
             t3 = [cam(dx + (px * XS + SLANT * (10 - py)) * s, 0.0, z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
-            b3 = [cam(dx + (px * XS + SLANT * (10 - py) - 0.22 * DEPTH) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 0.8), z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
+            b3 = [cam(dx + (px * XS + SLANT * (10 - py) - 0.22 * DEPTH) * s, -DEPTH * s * (1.0 if ln["kind"] == "stone" else 1.1), z0 + py * s * ln.get("sy", 1.0)) for px, py in st]
             tops.append(t3)
+            for k in (min(range(len(t3)), key=lambda q: t3[q][0]), max(range(len(t3)), key=lambda q: t3[q][0])):
+                edges.append(t3[k] + b3[k])
             sides.append(hull(t3 + b3))
             allpts += t3 + b3
         ln["tops"], ln["sides"] = tops, sides
+        ln["edges"] = edges
     xs, ys = [p[0] for p in allpts], [p[1] for p in allpts]
     unit = (max(xs) - min(xs)) / W
     pad = 1.4 * unit
@@ -146,30 +149,32 @@ def make(path, only_top=False):
         f = (ylit - y0) / (y1 - y0)
         if ln["kind"] == "stone":
             topf = ("t%d" % i, [(0, "#d4d0c9"), (1, "#c2bdb6")])
-            lit, dark = "#707070", "#060606"
+            lit, dark = "#5c5c5c", "#060606"
         else:
             a, b, c = words[ln["kind"]][1:]
-            topf = ("t%d" % i, [(0, lerpc(a, a, 0)), (1, lerpc(b, b, 0))])
+            topf = ("t%d" % i, [(0, lerpc(a, a, 0)), (0.4, lerpc(a, a, 0)), (1, lerpc(b, b, 0))])
             lit, dark = lerpc(c, c, 0), "#0a0806"
         defs.append('<linearGradient id="t%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">%s</linearGradient>' % (
             i, y0, ylit, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in topf[1])))
         defs.append('<linearGradient id="s%d" gradientUnits="userSpaceOnUse" x1="0" y1="%.2f" x2="0" y2="%.2f">'
                     '<stop offset="0" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/><stop offset="%.3f" stop-color="%s"/></linearGradient>' % (
                         i, y0, y1, dark, max(0, f - 0.01), dark, f, lit, 0.97, dark))
-        sw = 1.5 * unit
+        sw = 2.2 * unit
         g = ['<g filter="url(#rough)">']
         g.append('<g fill="#000" stroke="#000" stroke-width="%.2f" stroke-linejoin="round">%s</g>' % (sw, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
         g.append('<g fill="url(#s%d)" stroke="none">%s</g>' % (i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["sides"])))
-        if ln["kind"] == "stone":
-            g.append('<g fill="#f4f1ec" transform="translate(0 %.2f)">%s</g>' % (-0.5 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
-            g.append('<g fill="#86827d" transform="translate(0 %.2f)">%s</g>' % (0.45 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
+        rim, lip = ("#f4f1ec", "#86827d") if ln["kind"] == "stone" else ("#fff6d0", "#e0903a" if ln["kind"] == 0 else "#8cc860")
+        g.append('<g fill="%s" transform="translate(0 %.2f)">%s</g>' % (rim, -0.5 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
+        g.append('<g fill="%s" transform="translate(0 %.2f)">%s</g>' % (lip, 0.45 * unit, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
+        sep = ['<path d="M%.2f %.2f L%.2f %.2f"/>' % e3 for e3 in ln["edges"]]
+        g.append('<g stroke="#000" stroke-opacity="0.7" stroke-width="%.2f">%s</g>' % (0.25 * unit, "".join(sep)))
         g.append('<g fill="url(#t%d)" stroke="url(#t%d)" stroke-width="0.3">%s</g>' % (i, i, "".join('<polygon points="%s"/>' % pstr(p) for p in ln["tops"])))
         g.append("</g>")
         body.append("".join(g))
         if ln["kind"] == "stone":
             cr = []
             strokes = ln["strokes"]
-            for _ in range(20):
+            for _ in range(26):
                 st = rng.choice(strokes)
                 xsb = [p[0] for p in st]
                 ysb = [p[1] for p in st]
@@ -181,9 +186,9 @@ def make(path, only_top=False):
                     continue
                 pts = [(x, y)]
                 ang = rng.random() * math.tau
-                for _ in range(rng.randrange(2, 5)):
+                for _ in range(rng.randrange(3, 7)):
                     ang += rng.uniform(-1.2, 1.2)
-                    L = rng.uniform(0.5, 1.5)
+                    L = rng.uniform(1.0, 2.4)
                     nx, ny = x + math.cos(ang) * L, y + math.sin(ang) * L
                     if not inside(st, (nx, ny)):
                         break
@@ -194,6 +199,13 @@ def make(path, only_top=False):
                     cr.append('<path d="%s" stroke="#3b3733" stroke-width="%.2f"/>' % (d, 0.2 * unit * 1.6))
                     cr.append('<path d="%s" transform="translate(%.2f %.2f)" stroke="#f4f1ec" stroke-width="%.2f"/>' % (d, 0.12 * unit, 0.18 * unit, 0.12 * unit * 1.6))
             body.append('<g fill="none" stroke-linecap="round" stroke-linejoin="round">%s</g>' % "".join(cr))
+            ax = sum(LETTERS[ch][0] + GAP for ch in "MINECR")
+            sy1 = ln.get("sy", 1.0)
+            px_ = []
+            for (x0, y0_, w_, h_) in [(1.9, 0.55, 1.3, 1.15), (4.9, 0.55, 1.3, 1.15), (3.4, 1.55, 1.7, 1.2)]:
+                q = [cam((ax + x0 + dx_) * XS + SLANT * (10 - (y0_ + dy_)), 0, (y0_ + dy_) * sy1) for dx_, dy_ in ((0, 0), (w_, 0), (w_, h_), (0, h_))]
+                px_.append('<polygon points="%s"/>' % pstr(q))
+            body.append('<g fill="#26231f">%s</g>' % "".join(px_))
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%.1f %.1f %.1f %.1f" role="img" aria-label="Industrious Golems">'
            '<title>Industrious Golems</title><defs>%s</defs>%s</svg>') % (vb + ("".join(defs), "".join(body)))
     with open(path, "w", encoding="utf-8") as f:
