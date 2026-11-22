@@ -4,6 +4,7 @@ import com.scottcaldwell.industriousgolems.farm.TendCrops;
 import com.scottcaldwell.industriousgolems.golem.GolemMode;
 import com.scottcaldwell.industriousgolems.herd.HerdWork;
 import com.scottcaldwell.industriousgolems.lumber.FellTree;
+import com.scottcaldwell.industriousgolems.lumber.PlantSapling;
 import com.scottcaldwell.industriousgolems.mine.MineRock;
 
 import java.util.List;
@@ -13,7 +14,7 @@ public final class Graphs {
     private Graphs() { }
 
     public static List<Machine.Graph<?>> all() {
-        return List.of(GolemMode.GRAPH, ContainerInteraction.GRAPH, PickUp.GRAPH, TendCrops.GRAPH, FellTree.GRAPH, MineRock.GRAPH, HerdWork.GRAPH);
+        return List.of(GolemMode.GRAPH, ContainerInteraction.GRAPH, PickUp.GRAPH, TendCrops.GRAPH, FellTree.GRAPH, PlantSapling.GRAPH, MineRock.GRAPH, HerdWork.GRAPH);
     }
 
     /** The diagram page: the template with a navigation bar and one section per machine filled in. */

@@ -39,7 +39,7 @@ public class StartTask extends Behavior<WorkGolem> {
         if (plan == null) plan = ContainerInteraction.planSupply(level, golem);
         state.plan = plan;
         // nothing to do: look again later, the searches are not free
-        state.planAt(now + (plan == null ? IDLE_INTERVAL : BUSY_INTERVAL));
+        state.planAt(now + (plan == null && !golem.isCarrying() ? IDLE_INTERVAL : BUSY_INTERVAL)); // a full hand is never left idle for long
         return plan != null;
     }
 

@@ -20,7 +20,11 @@ import java.util.function.Supplier;
 public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Work work) {
 
     /** A profession's own work: what to do next, the task that does it, and which supply would let it do more. */
-    public record Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants) {
+    public record Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants, List<Supplier<Behavior<WorkGolem>>> more) {
+        public Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants) {
+            this(planner, runner, wants, List.of());
+        }
+
         @FunctionalInterface
         public interface Planner {
             /** @return a plan for the runner (a type it recognises), or null when there is nothing to do right now */

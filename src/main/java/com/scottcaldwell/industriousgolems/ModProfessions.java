@@ -3,6 +3,8 @@ package com.scottcaldwell.industriousgolems;
 import com.scottcaldwell.industriousgolems.farm.TendCrops;
 import com.scottcaldwell.industriousgolems.herd.HerdWork;
 import com.scottcaldwell.industriousgolems.lumber.FellTree;
+import com.scottcaldwell.industriousgolems.lumber.LumberWork;
+import com.scottcaldwell.industriousgolems.lumber.PlantSapling;
 import com.scottcaldwell.industriousgolems.mine.MineRock;
 import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
@@ -79,7 +81,7 @@ public final class ModProfessions {
             SoundEvents.VILLAGER_WORK_FLETCHER,
             new ProfessionNeeds(List.of(
                     Need.supply("saplings", s -> s.is(ItemTags.SAPLINGS), Items.OAK_SAPLING, 64)
-            ), s -> s.is(ModTags.LUMBERJACK_OUTPUT), new ProfessionNeeds.Work(FellTree::plan, FellTree::new, FellTree::wants)),
+            ), s -> s.is(ModTags.LUMBERJACK_OUTPUT), new ProfessionNeeds.Work(LumberWork::plan, FellTree::new, LumberWork::wants, List.of(PlantSapling::new))),
             offerings(Items.AMETHYST_SHARD, Items.RESIN_CLUMP, Items.SPORE_BLOSSOM, Items.PINK_PETALS, Items.GOAT_HORN,
                     Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM),
             ModBlocks.MUSHROOM_CHEST::get, state -> state.is(Blocks.RED_MUSHROOM_BLOCK));

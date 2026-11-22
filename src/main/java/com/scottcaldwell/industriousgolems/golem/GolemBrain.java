@@ -105,6 +105,7 @@ public final class GolemBrain {
         tasks.add(Pair.of(0, new ContainerInteraction()));
         tasks.add(Pair.of(0, new PickUp()));
         tasks.add(Pair.of(0, profession.needs().work().runner().get()));
+        for (var more : profession.needs().work().more()) tasks.add(Pair.of(0, more.get()));
         ActivityData<WorkGolem> task = ActivityData.<WorkGolem>create(ModActivities.TASK.get(), tasks.build());
         return List.of(core, idleActivity, rest, work, task);
     }

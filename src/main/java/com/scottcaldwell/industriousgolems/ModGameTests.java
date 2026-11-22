@@ -100,6 +100,8 @@ public class ModGameTests {
         strictly("miner_ignores_unreachable_rock", ModGameTests::minerIgnoresUnreachableRock);
         strictly("golem_meets_chest_face_on_and_opens_it", ModGameTests::golemMeetsChestFaceOn);
         strictly("lumberjack_plants_spaced_saplings", ModGameTests::lumberjackPlantsSpacedSaplings);
+        strictly("lumberjack_no_conjured_saplings", ModGameTests::lumberjackConjuresNoSaplings);
+        strictly("lumberjack_collects_before_felling", ModGameTests::lumberjackCollectsBeforeFelling);
         strictly("registry_consistency", ModGameTests::registryConsistency);
         strictly("state_graphs", ModGameTests::stateGraphs);
         strictly("golem_leaves_chest_top_before_animating", ModGameTests::golemLeavesChestTopBeforeAnimating);
@@ -409,13 +411,13 @@ public class ModGameTests {
         return n;
     }
 
-    /** The lumberjack fells a natural tree bare-handed, carries the logs to the chest a stack at a time and plants the sapling it holds. */
+    /** The lumberjack fells a natural tree bare-handed, carries the logs to the chest a stack at a time and plants a sapling from its chest. */
     private static void lumberjackFellsAndReplants(GameTestHelper helper) {
         buildFarm(helper);
         buildTree(helper, 5, 5);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
         WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
-        jack.setCarried(new ItemStack(Items.OAK_SAPLING, 2));
+        chest.setItem(0, new ItemStack(Items.OAK_SAPLING, 2));
         helper.succeedWhen(() -> {
             helper.assertTrue(logsAt(helper, 5, 5) == 0, "all four logs should be felled, " + logsAt(helper, 5, 5) + " left");
             helper.assertTrue(helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "a sapling should be planted where the trunk stood");
@@ -773,6 +775,31 @@ public class ModGameTests {
             helper.assertTrue(count(chest, Items.OAK_LOG) == 4, "the logs are in the chest, got " + count(chest, Items.OAK_LOG));
             // the leaves that wither once the trunk is gone may drop a sapling or two as well, and they are gathered up too
             helper.assertTrue(count(chest, Items.OAK_SAPLING) >= 2, "the two spare saplings are back in the chest, got " + count(chest, Items.OAK_SAPLING));
+        });
+    }
+
+    /** With no sapling in hand or in the chest, a felled tree's stump stays bare: saplings do not appear from nowhere. */
+    private static void lumberjackConjuresNoSaplings(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(900, () -> {
+            helper.assertTrue(logsAt(helper, 5, 5) == 0, "the tree is felled");
+            helper.assertTrue(!helper.getBlockState(new BlockPos(5, 1, 5)).is(Blocks.OAK_SAPLING), "no sapling without one to plant");
+            helper.succeed();
+        });
+    }
+
+    /** Stacks lying near the chest are carried off before another tree is started. */
+    private static void lumberjackCollectsBeforeFelling(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        helper.spawnItem(Items.OAK_LOG, new net.minecraft.world.phys.Vec3(3.5, 1.5, 6.5));
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(logsAt(helper, 5, 5) == 4 || count(chest, Items.OAK_LOG) >= 1, "the lying log is dealt with before the tree is touched");
+            helper.succeed();
         });
     }
 
