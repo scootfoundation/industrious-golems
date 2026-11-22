@@ -73,17 +73,13 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
-    /** Rock to dig, when the golem has a free hand and may break blocks; null otherwise. */
-    public static Object plan(ServerLevel level, WorkGolem golem) {
-        if (golem.isCarrying() || !EventHooks.canEntityGrief(level, golem)) return null;
-        if (com.scottcaldwell.industriousgolems.behavior.PickUp.plan(level, golem) != null) return null; // carry off what is lying about first
-        MineFinder.Target target = findTarget(level, golem);
-        return target == null ? null : new MinePlan(target);
-    }
-
-    /** The golem needs no supplies: it digs bare-handed. */
-    public static java.util.List<String> wants(ServerLevel level, WorkGolem golem) {
-        return java.util.List.of();
+    /** Rock to dig, when the golem has a free hand and may break blocks, once what lies about is carried off. It needs no supplies. */
+    public static java.util.stream.Stream<com.scottcaldwell.industriousgolems.needs.Job> jobs(ServerLevel level, WorkGolem golem) {
+        if (golem.isCarrying() || !EventHooks.canEntityGrief(level, golem)) return java.util.stream.Stream.empty();
+        return com.scottcaldwell.industriousgolems.needs.Jobs.of(() -> {
+            MineFinder.Target target = findTarget(level, golem);
+            return target == null ? null : com.scottcaldwell.industriousgolems.needs.Job.whenTidy(new MinePlan(target));
+        });
     }
 
     private static MineFinder.Target findTarget(ServerLevel level, WorkGolem golem) {

@@ -4,6 +4,9 @@ import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.ContainerInteraction;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import com.scottcaldwell.industriousgolems.needs.Job;
+import com.scottcaldwell.industriousgolems.needs.Jobs;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
@@ -31,33 +34,28 @@ public final class LumberWork {
         return stack.is(ItemTags.SAPLINGS) && !stack.is(Items.DARK_OAK_SAPLING) && !stack.is(Items.PALE_OAK_SAPLING);
     }
 
-    /** A {@link PlantSapling.Plan} for the sapling in hand, or null (the dispatcher then deposits, picks up, fetches, and finally calls {@link #fell}). */
-    public static Object plan(ServerLevel level, WorkGolem golem) {
+    /**
+     * In order: plant the sapling in hand if there is somewhere for it (else it goes back in the chest); with a free hand, fetch a sapling when
+     * there is somewhere to plant one; and last, with a free hand, fell a tree.
+     */
+    public static Stream<Job> jobs(ServerLevel level, WorkGolem golem) {
         BlockPos site = golem.jobSite(level);
-        if (site == null || !EventHooks.canEntityGrief(level, golem)) return null;
-        if (!golem.isCarrying() || !plantable(golem.carried())) return null;
+        if (site == null || !EventHooks.canEntityGrief(level, golem)) return Stream.empty();
         TaskState state = golem.getData(ModAttachments.TASK);
-        BlockPos at = plantingPlace(level, golem, site, state, level.getGameTime(), golem.carried());
-        return at == null ? null : new PlantSapling.Plan(at); // no place: the sapling goes back in the chest
-    }
-
-    /** A tree to fell, once there is nothing to put away, pick up, fetch or plant. */
-    public static Object fell(ServerLevel level, WorkGolem golem) {
-        BlockPos site = golem.jobSite(level);
-        if (site == null || !EventHooks.canEntityGrief(level, golem) || golem.isCarrying()) return null;
-        TaskState state = golem.getData(ModAttachments.TASK);
-        long now = level.getGameTime();
-        TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
-        return tree == null ? null : new FellTree.FellPlan(tree.logs(), tree.base());
-    }
-
-    /** A sapling from the chest is wanted when there is somewhere to plant it. */
-    public static java.util.List<String> wants(ServerLevel level, WorkGolem golem) {
-        if (golem.isCarrying()) return java.util.List.of();
-        BlockPos site = golem.jobSite(level);
-        if (site == null || !EventHooks.canEntityGrief(level, golem)) return java.util.List.of();
-        TaskState state = golem.getData(ModAttachments.TASK);
-        return plantingPlace(level, golem, site, state, level.getGameTime(), null) != null ? java.util.List.of("saplings") : java.util.List.of();
+        if (golem.isCarrying()) {
+            if (!plantable(golem.carried())) return Stream.empty();
+            return Jobs.of(() -> {
+                BlockPos at = plantingPlace(level, golem, site, state, level.getGameTime(), golem.carried());
+                return at == null ? null : Job.now(new PlantSapling.Plan(at));
+            });
+        }
+        return Jobs.of(
+                () -> plantingPlace(level, golem, site, state, level.getGameTime(), null) != null ? Job.needing("saplings") : null,
+                () -> {
+                    long now = level.getGameTime();
+                    TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
+                    return tree == null ? null : Job.whenTidy(new FellTree.FellPlan(tree.logs(), tree.base()));
+                });
     }
 
     /** The best open ground near the chest (see {@link Planting}); the golem does not remember where trees stood. {@code sapling} null means "any sapling would do". */

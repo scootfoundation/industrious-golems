@@ -9,6 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * What a profession uses up and produces. Declared once per profession in {@link ModProfessions}.
@@ -19,29 +20,22 @@ import java.util.function.Supplier;
  */
 public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Work work) {
 
-    /** A profession's own work: what to do next, the task that does it, and which supply would let it do more. */
-    public record Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants, List<Supplier<Behavior<WorkGolem>>> more,
-                       Planner after) {
-        public Work(Planner planner, Supplier<Behavior<WorkGolem>> runner, Wants wants) {
-            this(planner, runner, wants, List.of(), null);
+    /** A profession's own work: the jobs it could do, and the task that does them. */
+    public record Work(Candidates jobs, Supplier<Behavior<WorkGolem>> runner, List<Supplier<Behavior<WorkGolem>>> more) {
+        public Work(Candidates jobs, Supplier<Behavior<WorkGolem>> runner) {
+            this(jobs, runner, List.of());
         }
 
-        /**
-         * @param more  further runners of the profession (their plan types route to them)
-         * @param after work that comes only once the dispatcher has found nothing to put away, pick up or fetch; may be null
-         */
+        /** @param more further runners of the profession (their plan types route to them) */
         public Work { }
 
         @FunctionalInterface
-        public interface Planner {
-            /** @return a plan for the runner (a type it recognises), or null when there is nothing to do right now */
-            Object plan(ServerLevel level, WorkGolem golem);
-        }
-
-        @FunctionalInterface
-        public interface Wants {
-            /** @return the ids of the {@link Need}s the golem could work with if it had them, most wanted first (empty when none) */
-            List<String> need(ServerLevel level, WorkGolem golem);
+        public interface Candidates {
+            /**
+             * Every job the golem could do now, best first, given what it holds. Read lazily, so a search that is only needed when the
+             * jobs before it fall through is not made otherwise. This is the one place the work is decided: see {@link Job}.
+             */
+            Stream<Job> jobs(ServerLevel level, WorkGolem golem);
         }
     }
 

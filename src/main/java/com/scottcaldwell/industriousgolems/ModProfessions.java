@@ -53,7 +53,7 @@ public final class ModProfessions {
                     Need.supply("seeds", s -> s.is(ItemTags.VILLAGER_PLANTABLE_SEEDS), Items.WHEAT_SEEDS, 64)
             ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
                     || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES) || s.is(Items.CARROT) || s.is(Items.POTATO),
-                    new ProfessionNeeds.Work(TendCrops::plan, TendCrops::new, TendCrops::wants)),
+                    new ProfessionNeeds.Work(TendCrops::jobs, TendCrops::new)),
             offerings(Items.SLIME_BALL, Items.GLOW_INK_SAC, Items.PUFFERFISH, Items.COBWEB, Items.RABBIT_FOOT,
                     Items.CACTUS_FLOWER, Items.POINTED_DRIPSTONE, Items.GLOW_BERRIES),
             ModBlocks.HAY_CHEST::get, state -> state.is(Blocks.HAY_BLOCK));
@@ -67,7 +67,7 @@ public final class ModProfessions {
                     // buckets are material, not a tool: each milking turns one into a bucket of milk
                     Need.supply("bucket", s -> s.is(Items.BUCKET), Items.BUCKET, 1),
                     Need.supply("feed", s -> s.is(ModTags.ANIMAL_FEED), Items.WHEAT, 16)
-            ), s -> s.is(ModTags.HERDER_OUTPUT), new ProfessionNeeds.Work(HerdWork::plan, HerdWork::new, HerdWork::wants)),
+            ), s -> s.is(ModTags.HERDER_OUTPUT), new ProfessionNeeds.Work(HerdWork::jobs, HerdWork::new)),
             List.of(Offering.of(Items.TURTLE_SCUTE), Offering.of(Items.SEA_PICKLE), Offering.of(Items.COCOA_BEANS),
                     Offering.of(Items.MANGROVE_PROPAGULE), Offering.of(Items.POWDER_SNOW_BUCKET),
                     Offering.anyOf(ItemTags.DECORATED_POT_SHERDS, Items.SNORT_POTTERY_SHERD, "offering.industriousgolems.any_sherd"),
@@ -83,8 +83,8 @@ public final class ModProfessions {
                     Need.supply("saplings", LumberWork::plantable, Items.OAK_SAPLING, 8) // (a few at a time: it only ever plants a handful, and whatever is left is carried back)
             ), s -> s.is(ModTags.LUMBERJACK_OUTPUT) || (s.is(ItemTags.SAPLINGS) && !LumberWork.plantable(s)),
                     // (saplings it cannot grow are only put away)
-                    new ProfessionNeeds.Work(LumberWork::plan, FellTree::new, LumberWork::wants,
-                    List.of(PlantSapling::new), LumberWork::fell)),
+                    new ProfessionNeeds.Work(LumberWork::jobs, FellTree::new,
+                    List.of(PlantSapling::new))),
             offerings(Items.AMETHYST_SHARD, Items.RESIN_CLUMP, Items.SPORE_BLOSSOM, Items.PINK_PETALS, Items.GOAT_HORN,
                     Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM),
             ModBlocks.MUSHROOM_CHEST::get, state -> state.is(Blocks.RED_MUSHROOM_BLOCK));
@@ -95,7 +95,7 @@ public final class ModProfessions {
             0.35,
             SoundEvents.VILLAGER_WORK_MASON,
             new ProfessionNeeds(List.of(), s -> s.is(ModTags.MINER_OUTPUT),
-                    new ProfessionNeeds.Work(MineRock::plan, MineRock::new, MineRock::wants)),
+                    new ProfessionNeeds.Work(MineRock::jobs, MineRock::new)),
             offerings(Items.NAUTILUS_SHELL, Items.PRISMARINE_CRYSTALS, Items.ECHO_SHARD, Items.DISC_FRAGMENT_5,
                     Items.CHORUS_FRUIT, Items.PHANTOM_MEMBRANE, Items.GHAST_TEAR, Items.BREEZE_ROD),
             ModBlocks.STONE_CHEST::get, state -> state.is(Blocks.SMOOTH_STONE));

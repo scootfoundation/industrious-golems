@@ -3,6 +3,7 @@ package com.scottcaldwell.industriousgolems.herd;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
+import com.scottcaldwell.industriousgolems.needs.Job;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -30,6 +31,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * The herder's work, deliberately slower and more limited than a player: it manages the animals inside an enclosed
@@ -85,50 +87,33 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
-    /** Picks the next herding job, or null. Milking and breeding need the bucket or feed in the golem's hand. */
-    public static Object plan(ServerLevel level, WorkGolem golem) {
+    /**
+     * The herding jobs the golem could do, best first, pen by pen. Cull, shear, milk, breed: each is offered if the pen calls for it, as
+     * doable now when the hand already holds what it takes (nothing for culling and shearing, a bucket for milking, feed for breeding), or,
+     * with a free hand, as a job that needs the bucket or the feed fetched first. Whether the chest has them is not asked here: that is
+     * the dispatcher's business, and a job it cannot supply simply does not hold up the ones after it.
+     */
+    public static Stream<Job> jobs(ServerLevel level, WorkGolem golem) {
         BlockPos site = golem.jobSite(level);
-        if (site == null) return null;
+        if (site == null) return Stream.empty();
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
         ItemStack carried = golem.carried();
         boolean bucket = needs.isSupply("bucket", carried);
         boolean feed = needs.isSupply("feed", carried);
-        if (golem.isCarrying() && !bucket && !feed) return null; // something to take to the chest first
-        return findPlan(level, golem, site, bucket, feed, !golem.isCarrying());
+        if (golem.isCarrying() && !bucket && !feed) return Stream.empty(); // something to take to the chest first
+        return Stream.of(site).flatMap(at -> HerdPen.find(level, at).stream())
+                .flatMap(pen -> jobsFor(level, golem, pen, bucket, feed).stream());
     }
 
-    /**
-     * The supplies that would let the golem milk or breed, when nothing else is worth doing. Each is asked on its own: a cow that could
-     * be milked must not hide that the pen also has room to breed, or a chest with feed but no bucket would never be asked for the feed.
-     */
-    public static List<String> wants(ServerLevel level, WorkGolem golem) {
-        BlockPos site = golem.jobSite(level);
-        if (site == null || golem.isCarrying()) return List.of();
-        List<String> wanted = new ArrayList<>();
-        HerdPlan milk = findPlan(level, golem, site, true, false, false);
-        if (milk != null && milk.action() == HerdPlan.Action.MILK) wanted.add("bucket");
-        HerdPlan breed = findPlan(level, golem, site, false, true, false);
-        if (breed != null && breed.action() == HerdPlan.Action.BREED) wanted.add("feed");
-        return wanted;
-    }
-
-    private static HerdPlan findPlan(ServerLevel level, WorkGolem golem, BlockPos site, boolean bucket, boolean feed,
-                                     boolean bareHanded) {
-        for (HerdPen pen : HerdPen.find(level, site)) {
-            HerdPlan plan = planFor(level, golem, pen, bucket, feed, bareHanded);
-            if (plan != null) return plan;
-        }
-        return null;
-    }
-
-    private static HerdPlan planFor(ServerLevel level, WorkGolem golem, HerdPen pen, boolean bucket, boolean feed,
-                                    boolean bareHanded) {
+    private static List<Job> jobsFor(ServerLevel level, WorkGolem golem, HerdPen pen, boolean bucket, boolean feed) {
+        boolean bareHanded = !golem.isCarrying();
         int total = pen.animals.size();
         int cells = pen.cells.size();
         Map<EntityType<?>, List<Animal>> adults = new HashMap<>();
         for (Animal animal : pen.animals) {
             if (!animal.isBaby()) adults.computeIfAbsent(animal.getType(), t -> new ArrayList<>()).add(animal);
         }
+        List<Job> jobs = new ArrayList<>();
 
         // too crowded: cull the most numerous species, but always keep a breeding pair
         if (bareHanded && total * CULL_ABOVE_CELLS_PER_ANIMAL > cells) {
@@ -137,7 +122,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 if (species.size() > MIN_ADULTS && (crowded == null || species.size() > crowded.size())) crowded = species;
             }
             Animal victim = crowded == null ? null : nearest(golem, crowded, null);
-            if (victim != null) return new HerdPlan(HerdPlan.Action.CULL, victim.getId());
+            if (victim != null) jobs.add(Job.now(new HerdPlan(HerdPlan.Action.CULL, victim.getId())));
         }
 
         if (bareHanded) {
@@ -146,10 +131,10 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 if (animal instanceof Sheep sheep && !sheep.isBaby() && sheep.readyForShearing()) ready.add(animal);
             }
             Animal shearable = nearest(golem, ready, null);
-            if (shearable != null) return new HerdPlan(HerdPlan.Action.SHEAR, shearable.getId());
+            if (shearable != null) jobs.add(Job.now(new HerdPlan(HerdPlan.Action.SHEAR, shearable.getId())));
         }
 
-        if (bucket) {
+        if (bucket || bareHanded) {
             long now = level.getGameTime();
             List<Animal> milkable = new ArrayList<>();
             for (Animal animal : pen.animals) {
@@ -159,11 +144,11 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 }
             }
             Animal cow = nearest(golem, milkable, null);
-            if (cow != null) return new HerdPlan(HerdPlan.Action.MILK, cow.getId());
+            if (cow != null) jobs.add(bucket ? Job.now(new HerdPlan(HerdPlan.Action.MILK, cow.getId())) : Job.needing("bucket"));
         }
 
         // room to grow: feed a pair of the least common species that can breed
-        if (feed && total * BREED_BELOW_CELLS_PER_ANIMAL < cells) {
+        if ((feed || bareHanded) && total * BREED_BELOW_CELLS_PER_ANIMAL < cells) {
             List<List<Animal>> species = new ArrayList<>(adults.values());
             species.sort(Comparator.comparingInt(List::size));
             for (List<Animal> group : species) {
@@ -173,15 +158,17 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 List<Animal> candidates = new ArrayList<>();
                 for (Animal animal : group) {
                     if (animal.getAge() == 0 && !animal.isInLove() && animal.canFallInLove()
-                            && (!golem.isCarrying() || animal.isFood(golem.carried()))) {
+                            && (!feed || animal.isFood(golem.carried()))) {
                         candidates.add(animal);
                     }
                 }
                 Animal pick = nearest(golem, candidates, null);
-                if (pick != null) return new HerdPlan(HerdPlan.Action.BREED, pick.getId());
+                if (pick == null) continue;
+                // fetching: only feed this species eats will do (a cow cannot be fed carrots)
+                jobs.add(feed ? Job.now(new HerdPlan(HerdPlan.Action.BREED, pick.getId())) : Job.needing("feed", pick::isFood));
             }
         }
-        return null;
+        return jobs;
     }
 
     private static Animal nearest(WorkGolem golem, List<Animal> animals, Animal exclude) {

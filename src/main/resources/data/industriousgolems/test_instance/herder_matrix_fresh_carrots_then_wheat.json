@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:alone_fresh_carrots_then_wheat",
+  "function": "industriousgolems:herder_matrix_fresh_carrots_then_wheat",
+  "max_ticks": 12000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

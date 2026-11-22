@@ -74,6 +74,14 @@ public class ModGameTests {
         strictly("herder_culls_crowded_pen", ModGameTests::herderCullsCrowdedPen);
         strictly("herder_breeds_sparse_pen", ModGameTests::herderBreedsSparsePen);
         strictly("herder_breeds_without_bucket", ModGameTests::herderBreedsWithoutBucket);
+        herderMatrix("herder_matrix_fresh_wheat", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.WHEAT, 16)}, false, true, null);
+        herderMatrix("herder_matrix_fresh_bucket", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.BUCKET, 1)}, true, false, null);
+        herderMatrix("herder_matrix_fresh_bucket_and_wheat", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.BUCKET, 1), new ItemStack(Items.WHEAT, 16)}, true, true, null);
+        herderMatrix("herder_matrix_fresh_nothing", Pen.FRESH, () -> new ItemStack[]{}, false, false, null);
+        herderMatrix("herder_matrix_fresh_carrots_only", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.CARROT, 16)}, false, false, Items.CARROT);
+        herderMatrix("herder_matrix_fresh_carrots_then_wheat", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.CARROT, 16), new ItemStack(Items.WHEAT, 16)}, false, true, Items.CARROT);
+        herderMatrix("herder_matrix_milked_wheat", Pen.MILKED, () -> new ItemStack[]{new ItemStack(Items.WHEAT, 16)}, false, true, null);
+        herderMatrix("herder_matrix_milked_bucket", Pen.MILKED, () -> new ItemStack[]{new ItemStack(Items.BUCKET, 1)}, false, false, Items.BUCKET);
         strictly("pen_detection", ModGameTests::penDetection);
         strictly("lumberjack_fells_and_replants", ModGameTests::lumberjackFellsAndReplants);
         strictly("lumberjack_ignores_log_building", ModGameTests::lumberjackIgnoresLogBuilding);
@@ -391,10 +399,50 @@ public class ModGameTests {
         helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
         helper.spawn(EntityTypes.COW, new BlockPos(7, 1, 6));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
-        helper.assertTrue(HerdWork.wants(helper.getLevel(), herder).contains("feed"), "the pen has room, so it wants feed (as well as a bucket, which the chest lacks)");
+        helper.assertTrue(suppliesWanted(helper, herder).contains("feed"), "the pen has room, so it wants feed (as well as a bucket, which the chest lacks)");
         helper.succeedWhen(() -> {
             helper.assertTrue(alive(helper, Cow.class).size() >= 3 || alive(helper, Cow.class).stream().anyMatch(c -> c.isInLove()), "the cows should have been fed");
             helper.assertTrue(total(herder, chest, Items.WHEAT) < 16, "the herder should have taken wheat");
+        });
+    }
+
+    /** The supplies the herder's jobs would need, as the dispatcher sees them. */
+    private static List<String> suppliesWanted(GameTestHelper helper, WorkGolem golem) {
+        return HerdWork.jobs(helper.getLevel(), golem).filter(com.scottcaldwell.industriousgolems.needs.Job::needsSupply)
+                .map(com.scottcaldwell.industriousgolems.needs.Job::supply).toList();
+    }
+
+    private enum Pen { FRESH, MILKED }
+
+    /** Registers one cell of the herder matrix. */
+    private static void herderMatrix(String name, Pen pen, java.util.function.Supplier<ItemStack[]> stock, boolean milks, boolean feeds, net.minecraft.world.item.Item never) {
+        strictly(name, helper -> herderMatrixCase(helper, pen, stock, milks, feeds, never));
+    }
+
+    /**
+     * The herder's supply decisions, every combination of what the chest holds and what the two cows (room to breed in the pen) are fit for:
+     * it must do exactly the jobs that are possible, and never walk off with something it cannot use ({@code never}). When nothing is possible
+     * it must stay idle, which is checked once it has had time to do something foolish.
+     */
+    private static void herderMatrixCase(GameTestHelper helper, Pen pen, java.util.function.Supplier<ItemStack[]> stockOf, boolean milks, boolean feeds, net.minecraft.world.item.Item never) {
+        buildHerdFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        ItemStack[] stock = stockOf.get();
+        for (int i = 0; i < stock.length; i++) chest.setItem(i, stock[i]);
+        int wheat0 = count(chest, Items.WHEAT), bucket0 = count(chest, Items.BUCKET);
+        var cows = List.of(helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5)), helper.spawn(EntityTypes.COW, new BlockPos(7, 1, 6)));
+        if (pen == Pen.MILKED) for (var cow : cows) cow.setData(ModAttachments.MILKED_AT, helper.getLevel().getGameTime());
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        boolean[] carriedUseless = {false};
+        helper.succeedWhen(() -> {
+            if (never != null && herder.carried().is(never)) carriedUseless[0] = true;
+            helper.assertTrue(!carriedUseless[0], "the herder took something nothing here can use");
+            if (milks) helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) > 0, "a cow should have been milked");
+            if (feeds) helper.assertTrue(total(herder, chest, Items.WHEAT) < wheat0, "the cows should have been fed");
+            if (!milks && !feeds) helper.assertTrue(helper.getTick() >= 600, "idle: waiting to see that it stays idle");
+            if (!milks) helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 0, "nothing to milk with, or the cows are not ready");
+            if (!feeds) helper.assertTrue(total(herder, chest, Items.WHEAT) == wheat0 && cows.stream().noneMatch(c -> c.isInLove()), "no usable feed");
+            helper.assertTrue(total(herder, chest, Items.BUCKET) + total(herder, chest, Items.MILK_BUCKET) >= bucket0, "buckets are not lost");
         });
     }
 
@@ -836,7 +884,8 @@ public class ModGameTests {
             StringBuilder where = new StringBuilder();
             for (int x = 4; x <= 7; x++) for (int y = 1; y <= 5; y++) if (helper.getBlockState(new BlockPos(x, y, 5)).is(Blocks.OAK_LOG)) { left++; where.append(x).append(',').append(y).append(' '); }
             helper.assertTrue(left == 0, "every log is felled, " + left + " left: " + where);
-            helper.assertTrue(count(chest, Items.OAK_LOG) == 11, "all eleven logs reach the chest, got " + count(chest, Items.OAK_LOG));
+            // (at least: arenas run side by side, and a golem may also gather logs a neighbouring arena has felled)
+            helper.assertTrue(count(chest, Items.OAK_LOG) >= 11, "all eleven logs reach the chest, got " + count(chest, Items.OAK_LOG));
         });
     }
 
@@ -1175,7 +1224,7 @@ public class ModGameTests {
         chest.setItem(0, new ItemStack(Items.BUCKET, 3));
         helper.spawn(EntityTypes.COW, new BlockPos(5, 1, 5));
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
-        helper.assertTrue(HerdWork.wants(helper.getLevel(), herder).contains("bucket"), "a cow to milk and no bucket in hand: the herder wants one");
+        helper.assertTrue(suppliesWanted(helper, herder).contains("bucket"), "a cow to milk and no bucket in hand: the herder wants one");
         helper.succeedWhen(() -> {
             helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 1, "one cow, one milking");
             helper.assertTrue(count(chest, Items.BUCKET) == 2, "only one bucket was taken, " + count(chest, Items.BUCKET) + " left");

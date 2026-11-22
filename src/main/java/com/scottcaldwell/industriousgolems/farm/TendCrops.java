@@ -6,6 +6,8 @@ import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
 import com.scottcaldwell.industriousgolems.golem.Stand;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
+import com.scottcaldwell.industriousgolems.needs.Job;
+import com.scottcaldwell.industriousgolems.needs.Jobs;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -25,6 +27,7 @@ import net.neoforged.neoforge.event.EventHooks;
 
 import java.util.Comparator;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Works the pre-tilled soil around the job site one plant at a time. The golem steps up to the plot it is working: it
@@ -70,22 +73,20 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
-    /** Carrying seeds: sow the nearest bare farmland. Hands free: reap the nearest ripe crop. Otherwise nothing. */
-    public static Object plan(ServerLevel level, WorkGolem golem) {
+    /**
+     * Carrying seeds: sow the nearest bare farmland. Hands free: reap the nearest ripe crop, else fetch seeds if there is bare farmland to
+     * sow. Carrying anything else: nothing.
+     */
+    public static Stream<Job> jobs(ServerLevel level, WorkGolem golem) {
         BlockPos site = golem.jobSite(level);
-        if (site == null || !EventHooks.canEntityGrief(level, golem)) return null;
+        if (site == null || !EventHooks.canEntityGrief(level, golem)) return Stream.empty();
         if (golem.isCarrying()) {
-            if (!ProfessionNeeds.of(golem).isSupply("seeds", golem.carried())) return null;
-            return nearest(level, site, golem, false).map(p -> new CropPlan(Kind.SOW, p)).orElse(null);
+            if (!ProfessionNeeds.of(golem).isSupply("seeds", golem.carried())) return Stream.empty();
+            return Jobs.of(() -> nearest(level, site, golem, false).map(p -> Job.now(new CropPlan(Kind.SOW, p))).orElse(null));
         }
-        return nearest(level, site, golem, true).map(p -> new CropPlan(Kind.REAP, p)).orElse(null);
-    }
-
-    /** Seeds would let the golem sow some bare farmland. */
-    public static java.util.List<String> wants(ServerLevel level, WorkGolem golem) {
-        BlockPos site = golem.jobSite(level);
-        if (site == null || golem.isCarrying()) return java.util.List.of();
-        return nearest(level, site, golem, false).isPresent() ? java.util.List.of("seeds") : java.util.List.of();
+        return Jobs.of(
+                () -> nearest(level, site, golem, true).map(p -> Job.now(new CropPlan(Kind.REAP, p))).orElse(null),
+                () -> nearest(level, site, golem, false).isPresent() ? Job.needing("seeds") : null);
     }
 
     private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, boolean ripe) {

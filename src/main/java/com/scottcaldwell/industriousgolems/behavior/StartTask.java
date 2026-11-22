@@ -5,6 +5,7 @@ import com.scottcaldwell.industriousgolems.ModActivities;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.golem.Anim;
+import com.scottcaldwell.industriousgolems.needs.Job;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.Behavior;
@@ -25,9 +26,9 @@ public class StartTask extends Behavior<WorkGolem> {
     }
 
     /**
-     * In order: the profession's work (which only starts with a free hand, or with what it can use in the hand), then
-     * topping up the carried stack from more of the same lying about, putting it in the chest, then fetching a stack lying about, then a supply from the chest, and last
-     * the work that waits on all of those (the profession's "after" planner).
+     * The profession lists the jobs it could do, best first (see {@link Job}); this takes them in this order: the first that can start with
+     * the hand as it is, then topping up the carried stack from more of the same lying about, putting it in the chest, picking up a stack
+     * lying about, fetching the supply of the first job that needs one the chest can give, and last the first job that waits on all of those.
      */
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, WorkGolem golem) {
@@ -37,12 +38,17 @@ public class StartTask extends Behavior<WorkGolem> {
         long now = level.getGameTime();
         if (!state.planDue(now)) return false;
 
-        Object plan = ProfessionNeeds.of(golem).work().planner().plan(level, golem);
+        JobList jobs = new JobList(ProfessionNeeds.of(golem).work().jobs().jobs(level, golem).iterator());
+        Job ready = jobs.first(Job::ready);
+        Object plan = ready == null ? null : ready.plan();
         if (plan == null && golem.isCarrying()) plan = PickUp.plan(level, golem); // top up the stack in hand first
         if (plan == null) plan = ContainerInteraction.planDeposit(level, golem);
         if (plan == null) plan = PickUp.plan(level, golem);
-        if (plan == null) plan = ContainerInteraction.planSupply(level, golem);
-        if (plan == null && ProfessionNeeds.of(golem).work().after() != null) plan = ProfessionNeeds.of(golem).work().after().plan(level, golem);
+        if (plan == null) plan = ContainerInteraction.planSupply(level, golem, jobs);
+        if (plan == null) {
+            Job tidy = jobs.first(Job::afterTidying);
+            plan = tidy == null ? null : tidy.plan();
+        }
         state.plan = plan;
         // a lumberjack with a stack in hand and nowhere to put it (the chest is full) sits down with it, rather than standing about looking busy
         if (plan == null && golem.isCarrying() && golem.profession() == ModProfessions.LUMBERJACK) {

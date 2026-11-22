@@ -8,6 +8,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.entity.item.ItemEntity;
 import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
+import com.scottcaldwell.industriousgolems.needs.Job;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
@@ -56,7 +58,11 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     // ---- choosing a container ---------------------------------------------------------------------------------
 
     /** Which container to visit; {@code supply} is the need to take from it, or null to put the carried stack in. */
-    public record Plan(BlockPos pos, String supply) { }
+    public record Plan(BlockPos pos, String supply, java.util.function.Predicate<ItemStack> accepts) {
+        public Plan(BlockPos pos, String supply) {
+            this(pos, supply, s -> true);
+        }
+    }
 
     /** Puts what the golem carries away: always the first thing to do with a full hand. */
     public static Plan planDeposit(ServerLevel level, WorkGolem golem) {
@@ -66,16 +72,19 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         return pos == null ? null : new Plan(pos, null);
     }
 
-    /** Fetches a stack of the supply the work is waiting for, when a container nearby holds some. */
-    public static Plan planSupply(ServerLevel level, WorkGolem golem) {
+    /**
+     * Fetches a stack of a supply for the best job that needs one and that a container nearby can supply. A job whose supply nothing nearby
+     * holds (or holds only in a form the job cannot use) is passed over, so it cannot hold up the jobs after it.
+     */
+    public static Plan planSupply(ServerLevel level, WorkGolem golem, JobList jobs) {
         if (golem.isCarrying()) return null;
         ProfessionNeeds needs = ProfessionNeeds.of(golem);
-        // every supply the work could use, in order of want: one the chest has none of must not hold up the others
-        for (String id : needs.work().wants().need(level, golem)) {
-            Need need = needs.need(id);
+        for (Job job : jobs) {
+            if (!job.needsSupply()) continue;
+            Need need = needs.need(job.supply());
             if (need == null) continue;
-            BlockPos pos = best(level, golem, chest -> slotWith(need, chest) >= 0, false);
-            if (pos != null) return new Plan(pos, need.id());
+            BlockPos pos = best(level, golem, chest -> slotWith(need, job.accepts(), chest) >= 0, false);
+            if (pos != null) return new Plan(pos, need.id(), job.accepts());
         }
         return null;
     }
@@ -105,10 +114,10 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         return best;
     }
 
-    private static int slotWith(Need need, Container chest) {
+    private static int slotWith(Need need, Predicate<ItemStack> accepts, Container chest) {
         for (int i = 0; i < chest.getContainerSize(); i++) {
             ItemStack s = chest.getItem(i);
-            if (!s.isEmpty() && need.match().test(s)) return i;
+            if (!s.isEmpty() && need.match().test(s) && accepts.test(s)) return i;
         }
         return -1;
     }
@@ -246,7 +255,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         } else {
             if (machine.is(State.OPEN) && t >= spec.fetchTake()) {
                 if (opened != null) {
-                    take(ProfessionNeeds.of(golem).need(visit.supply()), golem, opened);
+                    take(ProfessionNeeds.of(golem).need(visit.supply()), visit.accepts(), golem, opened);
                     opened.setChanged();
                 }
                 machine.to(State.TRANSFERRED);
@@ -303,9 +312,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     // ---- moving the stack -------------------------------------------------------------------------------------
 
     /** Takes one stack of the supply (at most what the need allows) from the chest into the hand. */
-    private static void take(Need need, WorkGolem golem, Container chest) {
+    private static void take(Need need, Predicate<ItemStack> accepts, WorkGolem golem, Container chest) {
         if (need == null || golem.isCarrying()) return;
-        int slot = slotWith(need, chest);
+        int slot = slotWith(need, accepts, chest);
         if (slot < 0) return;
         ItemStack in = chest.getItem(slot);
         int n = Math.min(need.carry(), in.getCount());
