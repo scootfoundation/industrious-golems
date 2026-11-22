@@ -29,10 +29,11 @@ public final class Planting {
      * @param spacing  no other tree or sapling within this many blocks of a new one, either way sideways (a grown oak spreads about two
      *                 blocks each way, so at 5 their crowns never touch)
      * @param clearing nothing is planted within this many blocks of the chest (a square around it), so a growing tree never blocks the way to it
-     * @param cap      trees and saplings around the chest at which it plants no more
+     * @param cap      trees and saplings inside the planting area at which it plants no more (the spacing already limits a grove to about
+     *                 this many, so it only matters as a backstop: the golem keeps planting until there is no good ground left)
      */
     public record Layout(int radius, int spacing, int clearing, int cap) {
-        public static final Layout GROVE = new Layout(14, 5, 6, 9);
+        public static final Layout GROVE = new Layout(14, 5, 6, 25);
         /** The game tests' 8x8 arena (build.gradle sets the flag for them alone) is far too small for the real grove. */
         public static final Layout TEST_ARENA = new Layout(10, 3, 2, 9);
 
@@ -59,8 +60,9 @@ public final class Planting {
         for (BlockPos pos : BlockPos.betweenClosed(chest.offset(-reach, -3, -reach), chest.offset(reach, 8, reach))) {
             BlockState state = level.getBlockState(pos);
             if (state.is(BlockTags.LOGS) || state.is(BlockItemTags.SAPLINGS.block())) {
-                planted.add(pos.immutable());
-                if (state.is(BlockItemTags.SAPLINGS.block()) || level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD)) trees++;
+                planted.add(pos.immutable()); // (trees just outside the planting area still crowd a spot at its edge)
+                boolean inside = Math.abs(pos.getX() - chest.getX()) <= layout.radius() && Math.abs(pos.getZ() - chest.getZ()) <= layout.radius();
+                if (inside && (state.is(BlockItemTags.SAPLINGS.block()) || level.getBlockState(pos.below()).is(BlockTags.SUBSTRATE_OVERWORLD))) trees++;
                 continue;
             }
             if (Math.abs(pos.getX() - chest.getX()) > layout.radius() || Math.abs(pos.getZ() - chest.getZ()) > layout.radius()

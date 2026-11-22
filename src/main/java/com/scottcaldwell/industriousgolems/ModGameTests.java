@@ -82,6 +82,7 @@ public class ModGameTests {
         herderMatrix("herder_matrix_fresh_carrots_then_wheat", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.CARROT, 16), new ItemStack(Items.WHEAT, 16)}, false, true, Items.CARROT);
         herderMatrix("herder_matrix_milked_wheat", Pen.MILKED, () -> new ItemStack[]{new ItemStack(Items.WHEAT, 16)}, false, true, null);
         herderMatrix("herder_matrix_milked_bucket", Pen.MILKED, () -> new ItemStack[]{new ItemStack(Items.BUCKET, 1)}, false, false, Items.BUCKET);
+        strictly("lumberjack_sneezes_out_of_pit", ModGameTests::lumberjackSneezesOutOfPit);
         strictly("pen_detection", ModGameTests::penDetection);
         strictly("lumberjack_fells_and_replants", ModGameTests::lumberjackFellsAndReplants);
         strictly("lumberjack_ignores_log_building", ModGameTests::lumberjackIgnoresLogBuilding);
@@ -468,6 +469,25 @@ public class ModGameTests {
     }
 
     // ---- lumberjack -----------------------------------------------------------------------------------------
+
+    /**
+     * Boxed in by walls it cannot climb, with its chest out of reach: no job can even be planned, so it is idle with nowhere to walk, and it
+     * must sneeze its way out toward the chest instead of staying put for good.
+     */
+    private static void lumberjackSneezesOutOfPit(GameTestHelper helper) {
+        buildFarm(helper);
+        for (int x = 5; x <= 7; x++) {
+            for (int z = 5; z <= 7; z++) {
+                if (x == 6 && z == 6) continue;
+                for (int y = 1; y <= 3; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+            }
+        }
+        WorkGolem golem = spawnLumberjack(helper, new BlockPos(6, 1, 6));
+        helper.succeedWhen(() -> {
+            BlockPos at = golem.blockPosition().subtract(helper.absolutePos(BlockPos.ZERO));
+            helper.assertTrue(Math.abs(at.getX() - 6) > 1 || Math.abs(at.getZ() - 6) > 1, "still in the pit at " + at);
+        });
+    }
 
     private static WorkGolem spawnLumberjack(GameTestHelper helper, BlockPos at) {
         helper.setBlock(COMPOSTER, Blocks.FLETCHING_TABLE);
@@ -877,15 +897,17 @@ public class ModGameTests {
         for (int x = 6; x <= 7; x++) helper.setBlock(new BlockPos(x, 4, 5), Blocks.OAK_LOG);
         helper.setBlock(new BlockPos(7, 5, 5), Blocks.OAK_LOG);
         for (int x : new int[]{4, 6, 7}) for (int y = 6; y <= 7; y++) helper.setBlock(new BlockPos(x, y, 5), Blocks.AIR); // room above each column (the arena ceiling is low)
+        // the east wall is built up out of the way: a log that pops off the east branch must land on the floor, not rest on top of the wall where nothing can reach it
+        for (int z = 0; z <= 7; z++) for (int y = 4; y <= 8; y++) helper.setBlock(new BlockPos(8, y, z), Blocks.STONE);
         ChestBlockEntity chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
-        spawnLumberjack(helper, new BlockPos(2, 1, 4));
+        WorkGolem jack = spawnLumberjack(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
             int left = 0;
             StringBuilder where = new StringBuilder();
             for (int x = 4; x <= 7; x++) for (int y = 1; y <= 5; y++) if (helper.getBlockState(new BlockPos(x, y, 5)).is(Blocks.OAK_LOG)) { left++; where.append(x).append(',').append(y).append(' '); }
             helper.assertTrue(left == 0, "every log is felled, " + left + " left: " + where);
-            // (at least: arenas run side by side, and a golem may also gather logs a neighbouring arena has felled)
-            helper.assertTrue(count(chest, Items.OAK_LOG) >= 11, "all eleven logs reach the chest, got " + count(chest, Items.OAK_LOG));
+            // (this test has an environment of its own: arenas in one batch run side by side, and golems gather each other's logs)
+            helper.assertTrue(count(chest, Items.OAK_LOG) == 11, "all eleven logs reach the chest, got " + count(chest, Items.OAK_LOG) + describe(helper, jack, chest));
         });
     }
 
@@ -1059,7 +1081,7 @@ public class ModGameTests {
                 helper.getLevel().setBlockAndUpdate(at, Blocks.OAK_SAPLING.defaultBlockState());
                 planted.add(at);
             }
-            helper.assertTrue(planted.size() == layout.cap(), "it plants up to the cap and no more, got " + planted.size());
+            helper.assertTrue(planted.size() >= 15 && planted.size() <= layout.cap(), "it keeps planting until the spacing leaves no good ground, got " + planted.size());
             for (BlockPos a : planted) {
                 helper.assertTrue(!layout.clears(a, site), "clear of the chest: " + a.subtract(site));
                 helper.assertTrue(Math.abs(a.getX() - site.getX()) <= layout.radius() && Math.abs(a.getZ() - site.getZ()) <= layout.radius(), "within reach: " + a.subtract(site));

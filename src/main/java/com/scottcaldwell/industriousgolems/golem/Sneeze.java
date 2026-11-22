@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.golem;
 
+import com.scottcaldwell.industriousgolems.IndustriousGolems;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
@@ -11,47 +12,57 @@ import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The mushroom golem's way out of a tight spot: when it has somewhere to be, cannot get any closer on foot (no path, or hemmed in, say
- * after felling a tree whose leaves hang close to the ground), it sneezes and pops up a few blocks nearer to where it is going.
- * Only the lumberjack does this, and only while a task is running; nothing else touches the golem during the hop.
+ * The mushroom golem's way out of a tight spot: when it has somewhere to be and cannot get any closer on foot (no path, hemmed in,
+ * oscillating against an obstacle, say after felling a tree whose leaves hang close to the ground), it sneezes and pops up a few blocks
+ * nearer to where it is going. Only the lumberjack does this. Where it is going is its walk goal, whoever set it (a task, a stroll); a golem
+ * that is idle with no walk goal but cannot reach its own chest (boxed in, so that no job can even be planned) heads for the chest.
+ * Nothing else touches the golem during the hop.
  */
 public class Sneeze {
 
-    /** Ticks without progress toward a walk goal before the golem sneezes its way out. */
-    private static final int STUCK_TICKS = 30;
+    /** Ticks without getting any nearer the goal before the golem sneezes its way out. */
+    private static final int STUCK_TICKS = 40;
+    /** Getting this much nearer to the goal counts as progress. */
+    private static final double PROGRESS = 0.5;
     /** Longest single hop, in blocks. */
     private static final double MAX_HOP = 8.0;
-    /** A goal farther than this is not a short hop away: the golem does not sneeze toward it. */
-    private static final double MAX_GOAL_DIST = 12.0;
+    /** A walk goal farther than this is not a short hop away: the golem does not sneeze toward it (the game tests' arenas sit side by side). */
+    private static final double MAX_GOAL_DIST = Boolean.getBoolean("industriousgolems.tinyGrove") ? 12.0 : 24.0;
     /** Closer to the goal than this and the golem is simply there: no hop. */
     private static final double MIN_GOAL_DIST = 2.5;
     /** A landing spot is never farther than this from the golem's chest. */
     private static final double RANGE_FROM_SITE = 24.0;
     /** Quiet period after a failed search for a landing spot, so it is not repeated every tick. */
     private static final int RETRY_TICKS = 60;
+    /** How often an idle golem checks it can still get to its chest, and how near the chest counts as home. */
+    private static final int HOME_CHECK_TICKS = 40;
+    private static final double HOME_DIST = 4.0;
 
     private enum State { WATCH, VANISH, APPEAR }
 
     public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("sneeze-hop", "Mushroom golem: sneeze out of a tight spot",
-            "Lumberjack only, while a task is running. If a walk goal is set and the golem makes no headway for 1.5 s it sneezes, vanishes and "
-                    + "reappears up to 8 blocks nearer the goal (on the nearest standable spot), then carries on walking. The task is paused meanwhile.",
+            "Lumberjack only. If a walk goal is set (or the golem is idle and cannot reach its chest) and it gets no nearer for 2 s it sneezes, "
+                    + "vanishes and reappears up to 8 blocks nearer the goal (on the nearest standable spot), then carries on. The brain is paused meanwhile.",
             State.class)
             .start(State.WATCH)
-            .state(State.WATCH, "Watching its own progress toward the current walk goal.")
-            .state(State.VANISH, "Sneeze-and-vanish clip; a puff of spores at the end. The task waits.")
-            .state(State.APPEAR, "Teleported onto the landing spot; the appear clip plays. The task waits.")
-            .edge(State.WATCH, State.VANISH, "stuck for 1.5 s with a goal 2.5 blocks or more away, and a standable landing spot exists toward it")
+            .state(State.WATCH, "Watching its own progress toward the current goal.")
+            .state(State.VANISH, "Sneeze-and-vanish clip; a puff of spores at the end. The brain waits.")
+            .state(State.APPEAR, "Teleported onto the landing spot; the appear clip plays. The brain waits.")
+            .edge(State.WATCH, State.VANISH, "no nearer the goal for 2 s, the goal 2.5 blocks or more away, and a standable landing spot exists toward it")
             .edge(State.VANISH, State.APPEAR, "vanish moment reached: teleports onto the landing spot")
             .edge(State.APPEAR, State.WATCH, "appear clip ends");
 
     private final WorkGolem golem;
     private final Machine.Run<State> machine = GRAPH.run();
-    private Vec3 anchor;
     private BlockPos goal;
+    private boolean goalIsHome;
     private long goalSeen = Long.MIN_VALUE;
+    private double best = Double.MAX_VALUE;
     private int stuck;
     private int timer;
     private Vec3 landing;
+    private long nextHomeCheck;
+    private boolean boxedIn;
 
     public Sneeze(WorkGolem golem) {
         this.golem = golem;
@@ -61,23 +72,23 @@ public class Sneeze {
     public boolean tick(ServerLevel level) {
         if (golem.profession() != ModProfessions.LUMBERJACK) return false;
         if (!machine.is(State.WATCH)) return hop(level);
-        if (!Tasks.active(golem) || !golem.clip().isEmpty()) { stuck = 0; anchor = null; return false; }
+        if (!golem.isCharged() || !golem.clip().isEmpty() || golem.isPassenger()) { forget(); return false; }
         long now = level.getGameTime();
-        WalkTarget target = golem.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
-        if (target != null) {
-            goal = target.getTarget().currentBlockPosition();
-            goalSeen = now;
-        }
-        if (goal == null || now - goalSeen > 5) { stuck = 0; anchor = null; return false; }
-        double dx = goal.getX() + 0.5 - golem.getX(), dz = goal.getZ() + 0.5 - golem.getZ();
+        BlockPos aim = currentGoal(level, now);
+        if (aim == null) { forget(); return false; }
+        if (goal == null || goal.distSqr(aim) > 4) { best = Double.MAX_VALUE; stuck = Math.min(stuck, 0); } // a new goal: progress starts afresh
+        goal = aim;
+        double dx = goal.getX() + 0.5 - golem.getX(), dz = goal.getZ() + 0.5 - golem.getZ(), dy = goal.getY() - golem.getY();
         double flat = Math.sqrt(dx * dx + dz * dz);
         // already there, or too far for a hop to be a short cut: only short distances are sneezed
-        if ((flat < MIN_GOAL_DIST && Math.abs(goal.getY() - golem.getY()) < 2) || flat > MAX_GOAL_DIST) { stuck = 0; anchor = null; return false; }
-        Vec3 here = golem.position();
-        if (anchor == null || here.distanceToSqr(anchor) > 0.25) { anchor = here; stuck = Math.min(stuck, 0); return false; }
+        if ((flat < MIN_GOAL_DIST && Math.abs(dy) < 2) || flat > (goalIsHome ? RANGE_FROM_SITE : MAX_GOAL_DIST)) { forget(); return false; }
+        double dist = Math.sqrt(flat * flat + dy * dy);
+        if (dist < best - PROGRESS) { best = dist; if (stuck > 0) stuck = 0; return false; } // (a retry pause, below zero, runs on)
         if (++stuck < STUCK_TICKS) return false;
         stuck = 0;
         landing = landingSpot(level, goal);
+        IndustriousGolems.LOGGER.debug("Sneeze: {} stuck at {} heading for {}{}: {}", golem.getId(), golem.blockPosition(), goal,
+                goalIsHome ? " (home)" : "", landing == null ? "no landing spot" : "hopping to " + landing);
         if (landing == null) { stuck = -RETRY_TICKS; return false; }
         golem.getNavigation().stop();
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
@@ -85,6 +96,35 @@ public class Sneeze {
         machine.to(State.VANISH);
         timer = 0;
         return true;
+    }
+
+    /**
+     * Where the golem is trying to get to: its walk goal (kept in mind for a few ticks after a walk gives up and starts over), else,
+     * when it is idle far from its chest and cannot reach it, the chest.
+     */
+    private BlockPos currentGoal(ServerLevel level, long now) {
+        WalkTarget target = golem.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        if (target != null) {
+            goalSeen = now;
+            goalIsHome = false;
+            return target.getTarget().currentBlockPosition();
+        }
+        if (goal != null && !goalIsHome && now - goalSeen <= 5) return goal;
+        if (Tasks.active(golem) || golem.isCarrying()) return null;
+        BlockPos site = golem.jobSite(level);
+        if (site == null || golem.distanceToSqr(Vec3.atCenterOf(site)) <= HOME_DIST * HOME_DIST) { boxedIn = false; return null; }
+        if (now >= nextHomeCheck) {
+            nextHomeCheck = now + HOME_CHECK_TICKS;
+            boxedIn = golem.onGround() && Stand.front(level, site, golem, 1.5) == null;
+        }
+        goalIsHome = true;
+        return boxedIn ? site : null;
+    }
+
+    private void forget() {
+        stuck = Math.min(stuck, 0);
+        best = Double.MAX_VALUE;
+        goal = null;
     }
 
     private boolean hop(ServerLevel level) {
@@ -114,7 +154,7 @@ public class Sneeze {
         golem.stopClip();
         machine.reset();
         stuck = 0;
-        anchor = null;
+        best = Double.MAX_VALUE;
         goal = null;
     }
 
