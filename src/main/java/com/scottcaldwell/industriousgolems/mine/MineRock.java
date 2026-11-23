@@ -26,8 +26,8 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 
 /**
- * Digs the next rock of the mine (see {@link Trunk} for which) a block at a time: walk to a spot within reach, look at it, hammer at it (the crack
- * grows with each swing) and break it, then take the next, for a dozen blocks before the work is carried off. The rock yields what an iron
+ * Digs the next rock of the mine (see {@link Trunk} for which) a block at a time: walk to a spot within reach, look at it, stand beside it, wind up and strike it (it breaks as the fist lands
+ * lands), then take the next, for a dozen blocks before the work is carried off. The rock yields what an iron
  * pickaxe would get from it. While it digs the golem leaves the drops lying; it gathers them afterwards, a stack at a time (see PickUp). The
  * golem does not start a slice it cannot finish: when the pack is short of the supports and torches for it, it asks the chest for the kit.
  */
@@ -51,7 +51,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
             .start(State.SEEK)
             .state(State.SEEK, "Choosing the next exposed block to dig (nearest first, skipping ones recently given up on).")
             .state(State.APPROACH, "Walking to a spot within reach of the block, looking at it.")
-            .state(State.SWING, "In reach: the smash clip plays and a crack grows; the block breaks at the hit moment.")
+            .state(State.SWING, "Standing beside it: the smash clip plays and the block breaks as the fist lands.")
             .state(State.SETTLE, "The block is gone and the golem is settling from the blow.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.SEEK, State.APPROACH, "a block was found (the first one comes with the plan)")
@@ -88,7 +88,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
             if (step == null) return null;
             if (!step.affordable(part -> golem.packCount(part.match()))) return com.scottcaldwell.industriousgolems.needs.Job.needing("kit");
             if (!step.digs()) return com.scottcaldwell.industriousgolems.needs.Job.whenTidy(new BuildTrunk.Plan(step.builds()));
-            BlockPos stand = MineFinder.standingSpot(level, step.dig(), golem.blockPosition());
+            BlockPos stand = MineFinder.fistSpot(level, step.dig(), golem.blockPosition());
             if (stand == null) { // nowhere to stand to cut it: leave it for a while
                 golem.getData(ModAttachments.TASK).ignoreBlock(step.dig(), level.getGameTime() + IGNORE_TICKS);
                 return null;
@@ -109,7 +109,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         if (chest == null) return null;
         Trunk.Step step = next(level, golem, chest);
         if (step == null || !step.digs() || !step.affordable(part -> golem.packCount(part.match()))) return null;
-        BlockPos stand = MineFinder.standingSpot(level, step.dig(), golem.blockPosition());
+        BlockPos stand = MineFinder.fistSpot(level, step.dig(), golem.blockPosition());
         if (stand == null) {
             golem.getData(ModAttachments.TASK).ignoreBlock(step.dig(), level.getGameTime() + IGNORE_TICKS);
             return null;
@@ -196,9 +196,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
             dig(level, golem, block, state);
             mined++;
             machine.to(State.SETTLE);
-        } else if (progress % 6 == 0) {
-            level.destroyBlockProgress(golem.getId(), block, Math.min(9, Math.round(t / Anim.S_MINE_HIT * 10.0F)));
-        }
+        } // no crack while it winds up: the block gives way only when the fist lands
     }
 
     /** The next block to dig, unless the batch is done or the golem has run out of rock. */
@@ -213,7 +211,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private static boolean inReach(ServerLevel level, WorkGolem golem, BlockPos block) {
         Vec3 eye = golem.getEyePosition();
         Vec3 center = Vec3.atCenterOf(block);
-        if (eye.distanceTo(center) > MineFinder.REACH) return false;
+        if (eye.distanceTo(center) > MineFinder.REACH || !MineFinder.fistReaches(golem, block)) return false;
         HitResult hit = level.clip(new ClipContext(eye, center, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, golem));
         return hit.getType() == HitResult.Type.MISS || (hit instanceof BlockHitResult b && b.getBlockPos().equals(block));
     }

@@ -74,6 +74,35 @@ public final class MineFinder {
         return best;
     }
 
+    /** How far from its centre the golem's fist lands when it brings an arm down, in blocks. */
+    public static final double FIST = 1.9;
+
+    /**
+     * Where to stand to strike a block: the open floor right beside it (a side or a corner), so the fist lands on it. The golem stands at the
+     * block's height or one or two below it, never over it. Null when there is no such spot.
+     */
+    public static BlockPos fistSpot(ServerLevel level, BlockPos block, BlockPos from) {
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (BlockPos pos : BlockPos.betweenClosed(block.offset(-1, -2, -1), block.offset(1, 0, 1))) {
+            if (pos.getX() == block.getX() && pos.getZ() == block.getZ()) continue;
+            if (!canStandAt(level, pos)) continue;
+            // cardinal neighbours first: the fist lands squarely on the face
+            double distance = pos.distSqr(from) + (pos.getX() != block.getX() && pos.getZ() != block.getZ() ? 4 : 0) + 0.5 * (block.getY() - pos.getY());
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = pos.immutable();
+            }
+        }
+        return best;
+    }
+
+    /** Close enough to the block, on the flat, for the fist to land on it. */
+    public static boolean fistReaches(net.minecraft.world.entity.Entity golem, BlockPos block) {
+        double dx = golem.getX() - (block.getX() + 0.5), dz = golem.getZ() - (block.getZ() + 0.5);
+        return Math.sqrt(dx * dx + dz * dz) <= FIST;
+    }
+
     private static boolean canStandAt(ServerLevel level, BlockPos pos) {
         return isOpen(level, pos) && isOpen(level, pos.above())
                 && !level.getBlockState(pos.below()).getCollisionShape(level, pos.below()).isEmpty()

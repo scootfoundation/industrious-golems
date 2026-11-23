@@ -127,7 +127,7 @@ public final class Trunk {
             int dx = pos.getX() - chest.getX(), dz = pos.getZ() - chest.getZ(), dy = pos.getY() - chest.getY();
             if (dy < 0 || dy > HEIGHT + 1 || Math.min(Math.abs(dx), Math.abs(dz)) > VEIN_BAND || Math.max(Math.abs(dx), Math.abs(dz)) > HUB + ARM_MAX + VEIN_BAND) continue;
             if (!level.isLoaded(pos) || !level.getBlockState(pos).is(com.scottcaldwell.industriousgolems.ModTags.MINER_ORES) || ignored.test(pos)) continue;
-            if (!MineFinder.isMineable(level, pos)) continue;
+            if (!MineFinder.isMineable(level, pos) || MineFinder.fistSpot(level, pos, from) == null) continue;
             double distance = pos.distSqr(from);
             if (distance < bestDistance) {
                 best = pos.immutable();
@@ -148,7 +148,7 @@ public final class Trunk {
         if (result.blocked()) return null;
         if (result.dig().isEmpty()) return new Step(null, result.builds(), result.cost(), arm, slice);
         // some of the rock may not be dug yet from where it lies (it has to be open to the air on a side): take the ones that can be
-        BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p, true)).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
+        BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p, true) && MineFinder.fistSpot(level, p, from) != null).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
         return dig == null ? null : new Step(dig, List.of(), result.cost(), arm, slice);
     }
 
