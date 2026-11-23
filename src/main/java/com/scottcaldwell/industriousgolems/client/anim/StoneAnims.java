@@ -501,6 +501,16 @@ public final class StoneAnims {
             P.offY += d > 0 ? -0.5 * Math.exp(-d * 8) * Math.abs(Math.cos(d * 20)) : 0;
         });
 
+        // ---- afraid: crouched, arms crossed over its head, shaking ----
+        add("cower", 1.2, true, 0, (P, t, c) -> {
+            double sh = Math.sin(S2 * t * 6), sh2 = Math.sin(S2 * t * 6 + 1.3), flinch = 0.5 + 0.5 * Math.sin(S2 * t / 1.2);
+            sPose(P, pose("th", 0.45 + 0.03 * sh2, "rp", 2.9, "lp", 2.9, "rs", -0.35, "ls", -0.35, "rf", -2.0, "lf", -2.0, "hx", 0.75, "bz", 0.05 * sh,
+                    "by", 0.05 * sh2, "hz", 0.07 * sh, "rl", -0.5, "ll", -0.5));
+            sGround(P, 0, 0, 1, 1, true);
+            P.body.sy -= 0.03 * flinch;
+            P.offX += 0.25 * sh;
+        });
+
         // ---- the chest ----
         add("open-lid", 3.6, false, 0, (P, t, c) -> {
             Arm o = openWith(t - 0.3, true);

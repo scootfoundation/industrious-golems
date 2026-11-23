@@ -35,8 +35,8 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private enum State { SEEK, APPROACH, PLACE, SETTLE, DONE }
 
     public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("build-trunk", "Miner: finish a slice of the mine",
-            "Stone golem. Places what a freshly dug slice needs from its pack: cobblestone over missing floor, a support's fence posts and plank beam, "
-                    + "a torch.", State.class)
+            "Stone golem. Places what a slice needs from its pack: cobblestone over missing floor and into liquid that would flood the tunnel, a support's "
+                    + "fence posts and plank beam, a torch.", State.class)
             .start(State.SEEK)
             .state(State.SEEK, "Taking the next block to place.")
             .state(State.APPROACH, "Walking to a spot within reach of it (not standing where it goes).")
@@ -48,7 +48,8 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
             .edge(State.APPROACH, State.PLACE, "within reach with the block's place free of the golem")
             .edge(State.APPROACH, State.SEEK, "the place is already filled, or unreachable for 8 s (ignored for 5 min)")
             .edge(State.PLACE, State.SETTLE, "hit moment: the block is placed")
-            .edge(State.SETTLE, State.SEEK, "the swing has settled");
+            .edge(State.SETTLE, State.SEEK, "the swing has settled")
+            .anyTo(State.DONE, "a hostile mob comes near: the golem drops what it is doing to cower", State.DONE);
 
     private final Machine.Run<State> machine = GRAPH.run();
     private final Queue<Trunk.Placement> queue = new ArrayDeque<>();
@@ -80,6 +81,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
 
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
+        if (Cower.threatened(level, golem)) { done(); return; } // afraid: the cower job takes over
         switch (machine.state()) {
             case SEEK -> seek(level, golem);
             case APPROACH -> approach(level, golem, time);
@@ -104,10 +106,10 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         done();
     }
 
-    /** The spot is still empty (a floor gap, or air for a post, beam or torch). */
+    /** The spot is still empty (a floor gap, or air for a post, beam or torch); cobblestone also goes into liquid, to plug it. */
     private static boolean canPlace(ServerLevel level, Trunk.Placement placement) {
         BlockState state = level.getBlockState(placement.pos());
-        return state.getCollisionShape(level, placement.pos()).isEmpty() && state.getFluidState().isEmpty();
+        return state.getCollisionShape(level, placement.pos()).isEmpty() && (state.getFluidState().isEmpty() || placement.part() == Kit.COBBLE);
     }
 
     private void approach(ServerLevel level, WorkGolem golem, long time) {

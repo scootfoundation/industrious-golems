@@ -71,9 +71,13 @@ public final class Trunk {
 
     private record Cell(BlockPos pos, Role role) { }
 
-    private record Result(boolean blocked, List<BlockPos> dig, List<Placement> builds, Map<Kit, Integer> cost) {
+    private record Result(boolean blocked, List<BlockPos> dig, List<Placement> builds, Map<Kit, Integer> cost, List<Placement> plugs) {
+        Result(boolean blocked, List<BlockPos> dig, List<Placement> builds, Map<Kit, Integer> cost) {
+            this(blocked, dig, builds, cost, List.of());
+        }
+
         boolean done() {
-            return !blocked && dig.isEmpty() && builds.isEmpty();
+            return !blocked && dig.isEmpty() && builds.isEmpty() && plugs.isEmpty();
         }
     }
 
@@ -139,10 +143,12 @@ public final class Trunk {
     }
 
     private static Step step(ServerLevel level, Result result, Direction arm, int slice, BlockPos from) {
+        // liquid in or beside the slice is sealed with cobblestone before anything else is done, even where it ends the arm
+        if (!result.plugs().isEmpty()) return new Step(null, result.plugs(), Map.of(Kit.COBBLE, result.plugs().size()), arm, slice);
         if (result.blocked()) return null;
         if (result.dig().isEmpty()) return new Step(null, result.builds(), result.cost(), arm, slice);
         // some of the rock may not be dug yet from where it lies (it has to be open to the air on a side): take the ones that can be
-        BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p)).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
+        BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p, true)).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
         return dig == null ? null : new Step(dig, List.of(), result.cost(), arm, slice);
     }
 
@@ -151,7 +157,7 @@ public final class Trunk {
         for (int k = 1; k <= ARM_MAX; k++) {
             final int slice = k;
             Result r = assess(level, sliceCells(chest, arm, k), () -> bridgeable(level, chest, arm, slice), ignored);
-            if (r.blocked()) return null;
+            if (r.blocked() && r.plugs().isEmpty()) return null;
             if (!r.done()) return new Frontier(arm, k, r);
         }
         return null;
@@ -218,6 +224,9 @@ public final class Trunk {
         List<BlockPos> dig = new ArrayList<>();
         List<Placement> floors = new ArrayList<>(), posts = new ArrayList<>(), beams = new ArrayList<>(), torches = new ArrayList<>();
         Map<Kit, Integer> cost = new EnumMap<>(Kit.class);
+        List<Placement> plugs = new ArrayList<>();
+        java.util.Set<BlockPos> inside = new java.util.HashSet<>();
+        for (Cell cell : cells) inside.add(cell.pos());
         boolean blocked = false;
         for (Cell cell : cells) {
             BlockPos pos = cell.pos();
@@ -225,8 +234,10 @@ public final class Trunk {
             BlockState state = level.getBlockState(pos);
             switch (cell.role()) {
                 case FLOOR -> {
-                    if (!state.getFluidState().isEmpty()) blocked = true;
-                    else if (state.getCollisionShape(level, pos).isEmpty()) {
+                    if (!state.getFluidState().isEmpty()) { // a pool under the corridor: fill it, and it is floor
+                        if (ignored.test(pos)) blocked = true;
+                        else plugs.add(new Placement(pos, Kit.COBBLE));
+                    } else if (state.getCollisionShape(level, pos).isEmpty()) {
                         if (!bridgeable.getAsBoolean() || ignored.test(pos)) blocked = true;
                         else {
                             floors.add(new Placement(pos, Kit.COBBLE));
@@ -236,7 +247,8 @@ public final class Trunk {
                 }
                 case AIR -> {
                     if (open(level, pos, state)) continue;
-                    if (MineFinder.isRock(state) && !ignored.test(pos)) dig.add(pos);
+                    if (!state.getFluidState().isEmpty() && !ignored.test(pos)) { plugs.add(new Placement(pos, Kit.COBBLE)); blocked = true; }
+                    else if (MineFinder.isRock(state) && !ignored.test(pos)) dig.add(pos);
                     else blocked = true;
                 }
                 case POST, BEAM, TORCH -> {
@@ -252,16 +264,28 @@ public final class Trunk {
                         if (role == Role.TORCH && !state.isAir()) continue; // something else is there: no torch, no fuss
                         if (ignored.test(pos)) { blocked = true; continue; }
                         (role == Role.POST ? posts : role == Role.BEAM ? beams : torches).add(new Placement(pos, part));
-                    } else if (MineFinder.isRock(state) && !ignored.test(pos)) dig.add(pos);
+                    } else if (!state.getFluidState().isEmpty() && !ignored.test(pos)) { plugs.add(new Placement(pos, Kit.COBBLE)); blocked = true; }
+                    else if (MineFinder.isRock(state) && !ignored.test(pos)) dig.add(pos);
                     else blocked = true;
                     cost.merge(part, 1, Integer::sum);
                 }
+            }
+        }
+        // liquid just outside the slice, which would flow in once the rock between is dug
+        for (Cell cell : cells) {
+            if (cell.role() == Role.FLOOR) continue;
+            for (Direction d : Direction.values()) {
+                BlockPos n = cell.pos().relative(d);
+                if (inside.contains(n) || !level.isLoaded(n) || level.getBlockState(n).getFluidState().isEmpty()) continue;
+                Placement plug = new Placement(n, Kit.COBBLE);
+                if (ignored.test(n)) blocked = true;
+                else if (!plugs.contains(plug)) plugs.add(plug);
             }
         }
         List<Placement> builds = new ArrayList<>(floors);
         builds.addAll(posts);
         builds.addAll(beams);
         builds.addAll(torches);
-        return new Result(blocked, dig, builds, cost);
+        return new Result(blocked, dig, builds, cost, plugs);
     }
 }

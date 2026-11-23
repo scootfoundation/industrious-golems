@@ -32,8 +32,16 @@ public final class MineFinder {
 
     /** Rock that is open to the air on some side, with no liquid beside it and nothing that would fall above it. */
     public static boolean isMineable(ServerLevel level, BlockPos pos) {
+        return isMineable(level, pos, false);
+    }
+
+    /**
+     * As above; with {@code allowFall} a block with sand or gravel over it is dug too. Inside the mine that is how a falling column is cleared: the
+     * column drops one block into the hole and is dug again, until it is gone.
+     */
+    public static boolean isMineable(ServerLevel level, BlockPos pos, boolean allowFall) {
         if (!isRock(level.getBlockState(pos))) return false;
-        if (level.getBlockState(pos.above()).getBlock() instanceof FallingBlock) return false;
+        if (!allowFall && level.getBlockState(pos.above()).getBlock() instanceof FallingBlock) return false;
         boolean exposed = false;
         for (Direction dir : Direction.values()) {
             BlockPos side = pos.relative(dir);

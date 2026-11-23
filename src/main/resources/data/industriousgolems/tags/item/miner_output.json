@@ -29,6 +29,9 @@
     "minecraft:amethyst_block",
     "minecraft:amethyst_shard",
     "minecraft:quartz",
-    "minecraft:gold_nugget"
+    "minecraft:gold_nugget",
+    "minecraft:gravel",
+    "minecraft:sand",
+    "minecraft:red_sand"
   ]
 }

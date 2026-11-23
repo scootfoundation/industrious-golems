@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_cowers_from_mobs",
+  "environment": "industriousgolems:alone_miner_cowers_from_mobs",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 6000
+}

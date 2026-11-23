@@ -72,7 +72,11 @@ All golems share:
 
 - **Veins and minerals:** Ore showing in a wall, ceiling or cave beside the mine (within 5 blocks of one of its axes, never the floor) is dug before plain rock; each block dug exposes the next, so a vein is followed as far as the golem can reach it. It also digs nether quartz and gold ore, amethyst and calcite, clay, dirt, deepslate, basalt, blackstone, netherrack and dripstone. It leaves ancient debris and obsidian to the player.
 
-- **Planned, not built yet:** sealing liquids with cobblestone; clearing sand and gravel carefully and propping the ceiling; and fleeing mobs to the chest, covering its head and shaking, resuming when they are gone.
+- **Liquids:** Liquid in or beside a slice (a pool in the corridor, water or lava in a wall that would flow in once the rock between is dug, a pool under the floor) is plugged with cobblestone from the pack before anything is dug there; a plug in the corridor itself ends that arm, and the golem turns away.
+
+- **Sand and gravel:** Falling blocks (sand, red sand, gravel) are dug inside the mine. Under a column of them the golem digs the block below, the column drops one block into the hole and is dug in turn until it is gone. They are carried to the chest like other drops.
+
+- **Mobs:** The golem never fights. When a hostile mob comes within 10 blocks (a creeper: 16), it drops whatever it is doing, runs back to its chest, crouches with its arms over its head and shakes, and resumes once no hostile mob has been near for 5 seconds.
 
 ## Villagers
 

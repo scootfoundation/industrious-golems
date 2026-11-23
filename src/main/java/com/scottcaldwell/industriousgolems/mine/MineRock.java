@@ -59,7 +59,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
             .edge(State.APPROACH, State.SWING, "within reach with a clear line to the block")
             .edge(State.APPROACH, State.SEEK, "the block is already gone or no longer safe to cut, or unreachable for 8 s (ignored for 5 min)")
             .edge(State.SWING, State.SETTLE, "hit moment: the block breaks, the drops fall")
-            .edge(State.SETTLE, State.SEEK, "the swing has settled");
+            .edge(State.SETTLE, State.SEEK, "the swing has settled")
+            .anyTo(State.DONE, "a hostile mob comes near: the golem drops what it is doing to cower", State.DONE);
 
     private final Machine.Run<State> machine = GRAPH.run();
     private MineFinder.Target target;
@@ -78,6 +79,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
      * or the kit to do either, fetched from the chest. When the chest cannot supply it the golem has nothing to do.
      */
     public static java.util.stream.Stream<com.scottcaldwell.industriousgolems.needs.Job> jobs(ServerLevel level, WorkGolem golem) {
+        if (Cower.threatened(level, golem)) return Cower.jobs(level, golem);
         if (golem.isCarrying() || !EventHooks.canEntityGrief(level, golem)) return java.util.stream.Stream.empty();
         return com.scottcaldwell.industriousgolems.needs.Jobs.of(() -> {
             BlockPos chest = golem.jobSite(level);
@@ -135,6 +137,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     @Override
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
+        if (Cower.threatened(level, golem)) { done(); return; } // afraid: the cower job takes over
         switch (machine.state()) {
             case SEEK -> {
                 if (!nextTarget(level, golem)) done();
@@ -153,7 +156,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     private void approach(ServerLevel level, WorkGolem golem, long time) {
         BlockPos block = target.block();
-        if (!MineFinder.isMineable(level, block)) { // already gone, or no longer safe to cut
+        if (!MineFinder.isMineable(level, block, true)) { // already gone, or no longer safe to cut
             clearCrack(level, golem);
             target = null;
             machine.to(State.SEEK);

@@ -113,6 +113,7 @@ public class ModGameTests {
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
         strictly("miner_follows_veins", ModGameTests::minerFollowsVeins);
+        strictly("miner_cowers_from_mobs", ModGameTests::minerCowersFromMobs);
         strictly("miner_digs_hub_and_arm", ModGameTests::minerDigsHubAndArm);
         strictly("miner_waits_for_kit", ModGameTests::minerWaitsForKit);
         strictly("miner_builds_support", ModGameTests::minerBuildsSupport);
@@ -1561,17 +1562,34 @@ public class ModGameTests {
         helper.assertTrue(nextStep(helper) == null, "no floor for more than five slices ends the arm");
         for (int x = 11; x <= 13; x++) helper.setBlock(new BlockPos(x, 0, 6), Blocks.STONE);
 
-        // liquid ends an arm before it is dug
+        // liquid is plugged with cobblestone; where it is in the corridor itself the plug ends the arm
         helper.setBlock(new BlockPos(9, 2, 6), Blocks.LAVA);
-        helper.assertTrue(nextStep(helper) == null, "lava in the corridor ends the arm");
+        step = nextStep(helper);
+        helper.assertTrue(step != null && !step.digs() && step.builds().size() == 1 && step.builds().get(0).pos().equals(helper.absolutePos(new BlockPos(9, 2, 6)))
+                && step.builds().get(0).part() == Kit.COBBLE, "lava in the corridor is plugged, got " + step);
+        helper.setBlock(new BlockPos(9, 2, 6), Blocks.COBBLESTONE);
+        helper.assertTrue(nextStep(helper) == null, "and the arm ends at the plug");
         helper.setBlock(new BlockPos(9, 2, 6), Blocks.AIR);
+        helper.setBlock(new BlockPos(9, 2, 4), Blocks.WATER);
+        step = nextStep(helper);
+        helper.assertTrue(step != null && step.builds().size() == 1 && step.builds().get(0).pos().equals(helper.absolutePos(new BlockPos(9, 2, 4))),
+                "water in the wall beside the corridor is plugged before it can flow in, got " + step);
+        helper.setBlock(new BlockPos(9, 2, 4), Blocks.AIR);
 
         // rock in the way is dug, and only where it is safe to
         helper.setBlock(new BlockPos(9, 2, 6), Blocks.STONE);
         step = nextStep(helper);
         helper.assertTrue(step != null && step.digs() && step.dig().equals(helper.absolutePos(new BlockPos(9, 2, 6))), "rock in a slice is dug, got " + step);
         helper.setBlock(new BlockPos(9, 2, 6), Blocks.GRAVEL);
-        helper.assertTrue(nextStep(helper) == null, "gravel is not dug (it falls): the arm ends");
+        step = nextStep(helper);
+        helper.assertTrue(step != null && step.digs() && step.dig().equals(helper.absolutePos(new BlockPos(9, 2, 6))), "gravel in the corridor is dug, got " + step);
+        // a ceiling block with gravel over it: dug in the corridor (the column drops a block and is dug again), but not as a loose vein block
+        helper.setBlock(new BlockPos(9, 2, 6), Blocks.AIR);
+        helper.setBlock(new BlockPos(9, 3, 6), Blocks.STONE);
+        helper.setBlock(new BlockPos(9, 4, 6), Blocks.GRAVEL);
+        step = nextStep(helper);
+        helper.assertTrue(step != null && step.digs() && step.dig().equals(helper.absolutePos(new BlockPos(9, 3, 6))), "rock under gravel in the corridor is dug, got " + step);
+        helper.assertTrue(!MineFinder.isMineable(helper.getLevel(), helper.absolutePos(new BlockPos(9, 3, 6))), "though not outside it");
         helper.succeed();
     }
 
@@ -1600,6 +1618,32 @@ public class ModGameTests {
         helper.setBlock(new BlockPos(9, 1, 6), Blocks.ANCIENT_DEBRIS);
         helper.assertTrue(!MineFinder.isMineable(level, helper.absolutePos(new BlockPos(9, 1, 6))), "ancient debris is left for the player");
         helper.succeed();
+    }
+
+    /** A hostile mob near: the golem stops digging, runs to its chest and cowers; when the mob is gone it goes back to work. */
+    private static void minerCowersFromMobs(GameTestHelper helper) {
+        buildMine(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
+        stockKit(chest, 8);
+        BlockPos rock = new BlockPos(7, 1, 6);
+        helper.setBlock(rock, Blocks.STONE);
+        for (int x : new int[] {8, 9, 10}) helper.setBlock(new BlockPos(x, 1, 8), Blocks.AIR);
+        WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
+        net.minecraft.world.entity.Mob spider = helper.spawn(EntityTypes.CREEPER, new BlockPos(11, 1, 11));
+        spider.setNoAi(true);
+        boolean[] cowered = {false};
+        helper.onEachTick(() -> {
+            if (cowered[0] || spider.isRemoved()) return;
+            if (com.scottcaldwell.industriousgolems.golem.Anim.S_COWER.equals(miner.clip())) {
+                helper.assertTrue(helper.getBlockState(rock).is(Blocks.STONE), "it digs nothing while frightened");
+                cowered[0] = true;
+                spider.discard();
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(cowered[0], "the golem should cower when a hostile mob is near" + describe(helper, miner, chest));
+            helper.assertTrue(helper.getBlockState(rock).isAir(), "and get back to work once it is gone" + describe(helper, miner, chest));
+        });
     }
 
     /** The hub and the first slice of the east arm: the golem digs what is left, brings the drops home, and hangs the torches. */
