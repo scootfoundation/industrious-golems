@@ -32,8 +32,10 @@ import net.minecraft.world.phys.Vec3;
  * an empty-handed golem whose work needs a supply takes one stack of it out. It behaves like a player: walks over,
  * looks at the chest, pauses, opens it (lid animation and sound), moves the stack, closes it, looks away and leaves.
  *
- * <p>The golem's own chest (see {@link GolemChestBlock}) comes first; otherwise containers next to the job site are used,
- * deposits preferring copper chests and supplies regular ones.
+ * <p>Supplies come from the golem's own chest (see {@link GolemChestBlock}) first, then regular chests next to the job site.
+ * Deposits go to a copper chest next to the job site when there is one, so that copper golems can carry the produce on to wherever
+ * it belongs; the exception is something the golem also works with (seeds for the hay golem, saplings for the mushroom golem), which
+ * goes to its own chest where it will be fetched from again. With no copper chest nearby (or none with room) the own chest takes it.
  */
 public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> {
 
@@ -69,7 +71,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     public static Plan planDeposit(ServerLevel level, WorkGolem golem) {
         ItemStack carried = golem.carried();
         if (carried.isEmpty()) return null;
-        BlockPos pos = best(level, golem, chest -> room(chest, carried), true);
+        BlockPos pos = best(level, golem, chest -> room(chest, carried), true, isInput(golem, carried));
         return pos == null ? null : new Plan(pos, null);
     }
 
@@ -90,8 +92,23 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         return null;
     }
 
+    /** Whether the golem works with this itself (a supply or part of a kit), so that it belongs in its own chest rather than being sent on. */
+    private static boolean isInput(WorkGolem golem, ItemStack stack) {
+        for (Need need : ProfessionNeeds.of(golem).needs()) {
+            if (need.match().test(stack)) return true;
+            for (Need.Part part : need.parts()) if (part.match().test(stack)) return true;
+        }
+        return false;
+    }
+
     private static BlockPos best(ServerLevel level, WorkGolem golem, java.util.function.Predicate<Container> usable,
                                  boolean deposit) {
+        return best(level, golem, usable, deposit, true);
+    }
+
+    /** @param ownFirst for a deposit: whether the golem's own chest beats a copper chest (the stack is one it works with) */
+    private static BlockPos best(ServerLevel level, WorkGolem golem, java.util.function.Predicate<Container> usable,
+                                 boolean deposit, boolean ownFirst) {
         BlockPos site = golem.jobSite(level);
         if (site == null) return null;
         BlockPos best = null;
@@ -103,8 +120,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             Container c = HopperBlockEntity.getContainerAt(level, p);
             if (c == null || !usable.test(c)) continue;
             BlockState state = level.getBlockState(p);
-            int pref = p.equals(site) && state.getBlock() instanceof GolemChestBlock ? 3
-                    : state.is(BlockTags.COPPER_CHESTS) == deposit ? 2 : 1;
+            boolean own = p.equals(site) && state.getBlock() instanceof GolemChestBlock;
+            boolean copper = state.is(BlockTags.COPPER_CHESTS);
+            int pref = own ? (deposit && !ownFirst ? 2 : 3) : copper == deposit ? (deposit && !ownFirst ? 3 : 2) : 1;
             double dist = p.distSqr(golem.blockPosition());
             if (pref > bestPref || (pref == bestPref && dist < bestDist)) {
                 best = p.immutable();

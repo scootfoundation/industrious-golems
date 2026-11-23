@@ -112,6 +112,7 @@ public class ModGameTests {
         strictly("chest_pattern_via_place_event", ModGameTests::chestPatternViaPlaceEvent);
         strictly("chest_pattern_needs_headroom", ModGameTests::chestPatternNeedsHeadroom);
         FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, ModBlocks.STONE_CHEST.get()));
+        strictly("golem_sends_produce_to_copper_chest", ModGameTests::golemSendsProduceToCopperChest);
         strictly("golem_chests_join_into_doubles", ModGameTests::golemChestsJoinIntoDoubles);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
@@ -850,20 +851,35 @@ public class ModGameTests {
         });
     }
 
-    /** The golem's own chest takes its deliveries, not a copper chest, a plain chest or another golem's chest beside it. */
+    /** What the golem works with (seeds) goes in its own chest, not a copper chest, a plain chest or another golem's chest beside it. */
     private static void golemUsesItsOwnChest(GameTestHelper helper) {
         buildFarm(helper);
         helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get());
         helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST.weathering().unaffected());
         helper.setBlock(new BlockPos(2, 1, 4), ModBlocks.MUSHROOM_CHEST.get());
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
-        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        farmer.setCarried(new ItemStack(Items.WHEAT_SEEDS, 5));
         Container own = helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class);
         helper.succeedWhen(() -> {
-            helper.assertTrue(count(own, Items.WHEAT) == 5, "wheat goes into the golem's own chest, got " + count(own, Items.WHEAT));
+            helper.assertTrue(count(own, Items.WHEAT_SEEDS) == 5, "seeds go into the golem's own chest, got " + count(own, Items.WHEAT_SEEDS));
             for (BlockPos other : List.of(CHEST, COPPER_CHEST, new BlockPos(2, 1, 4))) {
-                helper.assertTrue(count(helper.getBlockEntity(other, ChestBlockEntity.class), Items.WHEAT) == 0, "no other chest gets any");
+                helper.assertTrue(count(helper.getBlockEntity(other, ChestBlockEntity.class), Items.WHEAT_SEEDS) == 0, "no other chest gets any");
             }
+        });
+    }
+
+    /** What the golem only produces (wheat) goes to a copper chest beside it for the copper golems to carry on, even with its own chest there; with no copper chest it keeps it. */
+    private static void golemSendsProduceToCopperChest(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get());
+        helper.setBlock(COPPER_CHEST, Blocks.COPPER_CHEST.weathering().unaffected());
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        Container own = helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class);
+        Container copper = helper.getBlockEntity(COPPER_CHEST, ChestBlockEntity.class);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(copper, Items.WHEAT) == 5, "wheat goes to the copper chest, got " + count(copper, Items.WHEAT));
+            helper.assertTrue(count(own, Items.WHEAT) == 0, "none in the golem's own chest");
         });
     }
 
