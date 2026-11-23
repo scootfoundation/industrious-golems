@@ -157,14 +157,14 @@ GOLEMS = [
         behaviour=[
             "It digs a <strong>5 &times; 5 hub room</strong> around its chest, then a <strong>3 &times; 3 trunk</strong> out of the middle of each wall in all four directions, up to <strong>64 blocks</strong> each. Everything is cut from the chest's own level up; it never digs the floor.",
             "Every fifth block of a trunk is a <strong>mineshaft support</strong> (a fence post each side, a plank beam across) and a <strong>torch</strong> goes up two blocks after it.",
-            "It builds these from <strong>fences, planks, torches and cobblestone</strong> it fetches from its chest, and carries in a pack. If the chest is short of what the next section needs it waits rather than dig an unsupported, unlit tunnel.",
+            "It builds these from <strong>fences, planks, torches and cobblestone</strong>, kept in its own four-slot inventory: <strong>right-click</strong> the golem to open it, fill the slots by hand if you like, and an empty slot shows what it is out of. It also tops them up from its chest. If the chest is short of what the next section needs it waits rather than dig an unsupported, unlit tunnel.",
             "Short gaps in the floor (up to five blocks) are bridged with cobblestone. Water or lava that would flood the tunnel is <strong>plugged with cobblestone</strong>, and a plug in the way ends that trunk. A long drop or a block it does not dig ends a trunk too, and it leaves caves it breaks into open for you to explore.",
             "Sand and gravel overhead are dug out a block at a time as they fall into the tunnel.",
             "It never fights. A <strong>hostile mob</strong> within ten blocks (a creeper: sixteen) sends it running back to its chest to cower, arms over its head, shaking, until the mob has gone.",
             "It works <strong>ore showing in the walls</strong> before plain rock, and what each block opens up shows the next, so it follows a vein as far as it can reach it. It never digs the floor, and it leaves <strong>ancient debris</strong> and obsidian for you (bare hands cannot get them).",
             "Besides stone and the usual ores it digs <strong>nether quartz and nether gold, amethyst and calcite, clay, dirt, deepslate, basalt, blackstone and dripstone</strong>. It digs bare-handed and drops what an <strong>iron pickaxe</strong> would give. It digs a dozen blocks, then collects the drops and takes them to the chest.",
         ],
-        notes=["Place the chest on the floor of where you want the mine, with room around it. Stock the chest with fences, planks and torches."],
+        notes=["Place the chest on the floor of where you want the mine, with room around it. Stock the chest with fences, planks and torches, or hand them to the golem in its inventory (right-click it)."],
         tips=[],
     ),
 ]

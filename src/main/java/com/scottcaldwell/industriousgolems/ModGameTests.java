@@ -116,6 +116,7 @@ public class ModGameTests {
         strictly("miner_cowers_from_mobs", ModGameTests::minerCowersFromMobs);
         strictly("miner_digs_hub_and_arm", ModGameTests::minerDigsHubAndArm);
         strictly("miner_waits_for_kit", ModGameTests::minerWaitsForKit);
+        strictly("miner_pack_slots", ModGameTests::minerPackSlots);
         strictly("miner_builds_support", ModGameTests::minerBuildsSupport);
         strictly("golem_meets_chest_face_on_and_opens_it", ModGameTests::golemMeetsChestFaceOn);
         strictly("lumberjack_plants_spaced_saplings", ModGameTests::lumberjackPlantsSpacedSaplings);
@@ -1676,6 +1677,23 @@ public class ModGameTests {
             helper.assertTrue(miner.packCount(Kit.FENCE.match()) == 16, "it still took the fences it could get, has " + miner.packCount(Kit.FENCE.match()) + describe(helper, miner, chest));
             helper.succeed();
         });
+    }
+
+    /** The miner's pack is four slots, one for each kind of supply, and each takes only its own; the golem's death scatters them. */
+    private static void minerPackSlots(GameTestHelper helper) {
+        WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
+        miner.packAdd(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_FENCE, 5));
+        miner.packAdd(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TORCH, 3));
+        miner.packAdd(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_FENCE, 2));
+        helper.assertTrue(miner.pack().getItem(Kit.FENCE.ordinal()).getCount() == 7, "fences share the one slot");
+        helper.assertTrue(miner.pack().getItem(Kit.TORCH.ordinal()).getCount() == 3, "the torches have a slot of their own");
+        helper.assertTrue(miner.pack().getItem(Kit.PLANKS.ordinal()).isEmpty(), "planks have none yet");
+        helper.assertTrue(!miner.packTake(Kit.TORCH.match()).isEmpty() && miner.packCount(Kit.TORCH.match()) == 2, "taking one leaves the rest");
+        var menu = new com.scottcaldwell.industriousgolems.mine.GolemPackMenu(1, helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL).getInventory(), miner);
+        helper.assertTrue(menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TORCH)), "the torch slot takes torches");
+        helper.assertTrue(!menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT)), "and nothing else");
+        helper.assertTrue(menu.getSlot(Kit.PLANKS.ordinal()).mayPlace(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BIRCH_PLANKS)), "any planks go in the plank slot");
+        helper.succeed();
     }
 
     /** A fifth slice that is open but unsupported gets its fence posts and plank beam, from the pack. */

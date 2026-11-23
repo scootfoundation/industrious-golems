@@ -7,6 +7,11 @@ import com.scottcaldwell.industriousgolems.offering.Offerings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Containers;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import com.scottcaldwell.industriousgolems.mine.GolemPackMenu;
+import com.scottcaldwell.industriousgolems.mine.Kit;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -252,7 +257,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
-        if (!pack.isEmpty()) output.store("Pack", ItemStack.CODEC.listOf(), List.copyOf(pack));
+        if (!pack.isEmpty()) output.store("Pack", ItemStack.CODEC.listOf(), pack.getItems().stream().filter(stack -> !stack.isEmpty()).map(ItemStack::copy).toList());
     }
 
     @Override
@@ -261,48 +266,56 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setChargeTicks(input.getIntOr("ChargeTicks", 0));
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
-        pack.clear();
-        input.read("Pack", ItemStack.CODEC.listOf()).ifPresent(pack::addAll);
+        pack.clearContent();
+        input.read("Pack", ItemStack.CODEC.listOf()).ifPresent(list -> list.forEach(this::packAdd));
     }
 
     // ---- the pack --------------------------------------------------------------------------------------------------
 
-    /** Building materials carried besides the stack in hand (the miner's supports and torches); empty for the other kinds. */
-    private final List<ItemStack> pack = new ArrayList<>();
+    /** Building materials carried besides the stack in hand, one slot for each of {@link Kit} (the miner's supports and torches); empty for the other kinds. */
+    private final SimpleContainer pack = new SimpleContainer(Kit.values().length);
 
-    public List<ItemStack> pack() {
+    /** The pack's slots, in the order of {@link Kit#values()}; the player fills and empties them in the golem's inventory screen. */
+    public SimpleContainer pack() {
         return pack;
     }
 
     /** How many items in the pack match. */
     public int packCount(Predicate<ItemStack> match) {
         int n = 0;
-        for (ItemStack stack : pack) if (match.test(stack)) n += stack.getCount();
+        for (int i = 0; i < pack.getContainerSize(); i++) if (match.test(pack.getItem(i))) n += pack.getItem(i).getCount();
         return n;
     }
 
-    /** Puts the stack in the pack, merging with what is there. */
+    /** Puts the stack in the slot for its kind of the kit, as much as fits. */
     public void packAdd(ItemStack stack) {
-        for (ItemStack held : pack) {
-            if (ItemStack.isSameItemSameComponents(held, stack)) {
-                held.grow(stack.getCount());
-                return;
-            }
+        for (Kit part : Kit.values()) {
+            if (!part.match().test(stack)) continue;
+            ItemStack held = pack.getItem(part.ordinal());
+            if (held.isEmpty()) pack.setItem(part.ordinal(), stack.copy());
+            else if (ItemStack.isSameItemSameComponents(held, stack)) held.setCount(Math.min(held.getMaxStackSize(), held.getCount() + stack.getCount()));
+            pack.setChanged();
+            return;
         }
-        pack.add(stack.copy());
     }
 
     /** Takes one matching item out of the pack, or returns an empty stack. */
     public ItemStack packTake(Predicate<ItemStack> match) {
-        for (int i = 0; i < pack.size(); i++) {
-            ItemStack held = pack.get(i);
-            if (!match.test(held)) continue;
+        for (int i = 0; i < pack.getContainerSize(); i++) {
+            ItemStack held = pack.getItem(i);
+            if (held.isEmpty() || !match.test(held)) continue;
             ItemStack one = held.copyWithCount(1);
-            held.shrink(1);
-            if (held.isEmpty()) pack.remove(i);
+            pack.removeItem(i, 1);
             return one;
         }
         return ItemStack.EMPTY;
+    }
+
+    /** The golem's pack falls where it dies. */
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
+        super.dropCustomDeathLoot(level, source, killedByPlayer);
+        Containers.dropContents(level, this, pack);
     }
 
     // ---- carrying -------------------------------------------------------------------------------------------------
@@ -375,7 +388,11 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (!isAlive() || player.isSecondaryUseActive()) return InteractionResult.PASS;
         ItemStack held = player.getItemInHand(hand);
-        if (!Offerings.wants(this, held)) return InteractionResult.PASS;
+        if (!Offerings.wants(this, held)) {
+            if (profession() != ModProfessions.MINER) return InteractionResult.PASS;
+            if (!level().isClientSide()) player.openMenu(new SimpleMenuProvider((id, inventory, who) -> new GolemPackMenu(id, inventory, this), getDisplayName()));
+            return InteractionResult.SUCCESS;
+        }
         if (!level().isClientSide()) {
             Offerings.offer(this, held);
             player.getInventory().setChanged();

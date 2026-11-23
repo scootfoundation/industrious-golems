@@ -171,7 +171,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
                 machine.to(State.SEEK);
                 return;
             }
-            walkTo(golem, new BlockPosTracker(target.stand()), 1);
+            walkTo(golem, new BlockPosTracker(target.stand()), 0);
             return;
         }
         holdStill(golem);

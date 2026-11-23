@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_pack_slots",
+  "environment": "industriousgolems:alone_miner_pack_slots",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 100
+}

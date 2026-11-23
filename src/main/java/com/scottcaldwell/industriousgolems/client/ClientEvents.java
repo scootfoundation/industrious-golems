@@ -37,6 +37,11 @@ public final class ClientEvents {
     }
 
     @SubscribeEvent
+    public static void registerScreens(net.neoforged.neoforge.client.event.RegisterMenuScreensEvent event) {
+        event.register(com.scottcaldwell.industriousgolems.ModMenus.GOLEM_PACK.get(), GolemPackScreen::new);
+    }
+
+    @SubscribeEvent
     public static void registerLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {
         event.registerLayerDefinition(HAY, GolemModels::hay);
         event.registerLayerDefinition(MUSHROOM, GolemModels::mushroom);

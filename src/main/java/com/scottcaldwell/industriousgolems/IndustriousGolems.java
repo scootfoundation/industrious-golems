@@ -27,6 +27,7 @@ public class IndustriousGolems {
         ModGameTests.register(modEventBus);
         ModAttachments.register(modEventBus);
         ModActivities.register(modEventBus);
+        ModMenus.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(LivingDeathEvent.class, event -> {
             if (event.getEntity() instanceof WorkGolem golem) {
                 NeedsIndicator.clearOnDeath(golem);
