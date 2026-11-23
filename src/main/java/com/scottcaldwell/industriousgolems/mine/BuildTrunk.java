@@ -14,6 +14,7 @@ import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -57,6 +58,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private BlockPos stand;
     private int stalled;
     private int progress;
+    private double nearest;
 
     public BuildTrunk() {
         super(Plan.class, 2400);
@@ -71,6 +73,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         stand = null;
         stalled = 0;
         progress = 0;
+        nearest = Double.MAX_VALUE;
         golem.setPickupSuspended(true);
     }
 
@@ -99,6 +102,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
             if (golem.packCount(current.part().match()) <= 0) { done(); return; } // short of it: the planner asks the chest for more
             if (!canPlace(level, current)) continue;
             stalled = 0;
+            nearest = Double.MAX_VALUE;
             stand = null;
             machine.to(State.APPROACH);
             return;
@@ -120,10 +124,11 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
             if (stand == null) { giveUp(golem, time); return; }
         }
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(at)));
-        boolean near = golem.getEyePosition().distanceTo(Vec3.atCenterOf(at)) <= MineFinder.REACH && clearOf(golem.blockPosition(), at);
+        boolean near = standAt(golem, Vec3.atBottomCenterOf(stand), 0.5) && golem.getEyePosition().distanceTo(Vec3.atCenterOf(at)) <= MineFinder.REACH && clearOf(golem.blockPosition(), at);
         if (!near) {
+            double distance = golem.position().distanceTo(Vec3.atCenterOf(stand));
+            if (distance < nearest - 0.25) { nearest = distance; stalled = 0; } // a long way is fine so long as it gets nearer
             if (++stalled > STALL_TICKS) { giveUp(golem, time); return; }
-            walkTo(golem, new BlockPosTracker(stand), 1);
             return;
         }
         holdStill(golem);
@@ -134,9 +139,9 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         place(level, golem);
     }
 
-    /** The golem (two blocks wide and nearly three tall) is not in the way of the block going in at {@code at}. */
+    /** The golem (one block wide, a block and a half tall) is not in the way of the block going in at {@code at}: it stands in another column, or well below it. */
     private static boolean clearOf(BlockPos standing, BlockPos at) {
-        return Math.abs(standing.getX() - at.getX()) >= 2 || Math.abs(standing.getZ() - at.getZ()) >= 2;
+        return standing.getX() != at.getX() || standing.getZ() != at.getZ() || at.getY() >= standing.getY() + 2;
     }
 
     private void giveUp(WorkGolem golem, long time) {
@@ -150,7 +155,9 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         if (++progress / 20.0F < Anim.S_MINE_HIT) return;
         ItemStack item = golem.packTake(current.part().match());
         if (!item.isEmpty() && canPlace(level, current)) {
-            BlockState state = Block.updateFromNeighbourShapes(current.part().state(item), level, current.pos());
+            BlockState base = current.part().state(item);
+            if (current.facing() != null && base.hasProperty(HorizontalDirectionalBlock.FACING)) base = base.setValue(HorizontalDirectionalBlock.FACING, current.facing());
+            BlockState state = Block.updateFromNeighbourShapes(base, level, current.pos());
             level.setBlock(current.pos(), state, 3);
             level.playSound(null, current.pos(), state.getSoundType().getPlaceSound(), SoundSource.BLOCKS, 1.0F, 0.8F);
             golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);

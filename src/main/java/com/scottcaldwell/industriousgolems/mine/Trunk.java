@@ -9,11 +9,9 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
 
 /**
  * The shape of the stone golem's mine, worked out from the world as it stands (nothing is remembered, so a mine survives a reload and
@@ -21,9 +19,10 @@ import java.util.function.ToIntFunction;
  *
  * <p>The chest stands on the floor, and the floor is the floor of the whole mine: everything is cut from the chest's own level up. Round it the golem
  * clears a hub room, 5 x 5 and four high (it stands on its chest). From the middle
- * of each wall a trunk runs out in each cardinal direction, 3 wide and 3 high, up to {@link #ARM_MAX} slices long. Every
- * {@link #SUPPORT_EVERY}th slice is a mineshaft support (a fence post each side, a plank beam across the top) and two slices on from it is a
- * torch. Missing floor is bridged with cobblestone when the gap is short ({@link #MAX_GAP}); anything else it cannot deal with (liquid, a
+ * of each wall a trunk runs out in each cardinal direction, 3 wide and 3 high, up to {@link #ARM_MAX} slices long. The first slice of an arm and every
+ * {@link #SUPPORT_EVERY}th after it is a mineshaft brace (a fence post each side, a plank beam across the top, a torch on the middle plank facing the
+ * chest). The golem digs up to the next brace's slice, builds the brace, and only then digs on, so it is never more than a brace's spacing from
+ * support. Missing floor is bridged with cobblestone when the gap is short ({@link #MAX_GAP}); anything else it cannot deal with (liquid, a
  * long drop, something that falls, a block it does not dig) ends that arm. {@link #next} says what to do about the mine next.
  */
 public final class Trunk {
@@ -36,9 +35,8 @@ public final class Trunk {
     public static final int HEIGHT = 3;
     /** The most slices in one arm. 64 is four chunks: a whole mine (two arms) stays inside the area a player nearby keeps loaded. */
     public static final int ARM_MAX = 64;
+    /** Slices between one brace and the next; slice 1 (the first block of the arm) has one. */
     public static final int SUPPORT_EVERY = 5;
-    /** A torch goes in the slice this far past each support. */
-    public static final int TORCH_AT = 2;
     /** The longest run of missing floor it will bridge. */
     public static final int MAX_GAP = 5;
     /** How far from the golem it looks for ore, and how far from the mine's axes an ore may be and still be worked. */
@@ -49,31 +47,34 @@ public final class Trunk {
 
     private Trunk() { }
 
-    /** A block to place. */
-    public record Placement(BlockPos pos, Kit part) { }
+    /** A block to place; a torch also says which way it faces (it hangs on the plank behind it). */
+    public record Placement(BlockPos pos, Kit part, Direction facing) {
+        public Placement(BlockPos pos, Kit part) {
+            this(pos, part, null);
+        }
+    }
 
     /**
-     * What to do next: dig {@code dig}, or (when it is null) place the {@code builds}. {@code cost} is everything the slice needs to be finished,
-     * so the golem does not start a slice it cannot complete.
+     * What to do next: dig {@code dig}, or (when it is null) place the {@code builds}; {@code plug} says they seal liquid, which comes before
+     * everything else.
      */
-    public record Step(BlockPos dig, List<Placement> builds, Map<Kit, Integer> cost, Direction arm, int slice) {
+    public record Step(BlockPos dig, List<Placement> builds, boolean plug, Direction arm, int slice) {
         public boolean digs() {
             return dig != null;
-        }
-
-        public boolean affordable(ToIntFunction<Kit> stock) {
-            for (Map.Entry<Kit, Integer> e : cost.entrySet()) if (stock.applyAsInt(e.getKey()) < e.getValue()) return false;
-            return true;
         }
     }
 
     private enum Role { AIR, POST, BEAM, TORCH, FLOOR }
 
-    private record Cell(BlockPos pos, Role role) { }
+    private record Cell(BlockPos pos, Role role, Direction facing) {
+        Cell(BlockPos pos, Role role) {
+            this(pos, role, null);
+        }
+    }
 
-    private record Result(boolean blocked, List<BlockPos> dig, List<Placement> builds, Map<Kit, Integer> cost, List<Placement> plugs) {
-        Result(boolean blocked, List<BlockPos> dig, List<Placement> builds, Map<Kit, Integer> cost) {
-            this(blocked, dig, builds, cost, List.of());
+    private record Result(boolean blocked, List<BlockPos> dig, List<Placement> builds, List<Placement> plugs) {
+        Result(boolean blocked, List<BlockPos> dig, List<Placement> builds) {
+            this(blocked, dig, builds, List.of());
         }
 
         boolean done() {
@@ -94,7 +95,7 @@ public final class Trunk {
      */
     public static Step next(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored) {
         BlockPos vein = vein(level, chest, from, ignored);
-        if (vein != null) return new Step(vein, List.of(), Map.of(), null, -1);
+        if (vein != null) return new Step(vein, List.of(), false, null, -1);
         Result hub = assess(level, hubCells(chest), () -> true, ignored);
         if (!hub.done()) return step(level, hub, null, 0, from);
 
@@ -144,12 +145,12 @@ public final class Trunk {
 
     private static Step step(ServerLevel level, Result result, Direction arm, int slice, BlockPos from) {
         // liquid in or beside the slice is sealed with cobblestone before anything else is done, even where it ends the arm
-        if (!result.plugs().isEmpty()) return new Step(null, result.plugs(), Map.of(Kit.COBBLE, result.plugs().size()), arm, slice);
+        if (!result.plugs().isEmpty()) return new Step(null, result.plugs(), true, arm, slice);
         if (result.blocked()) return null;
-        if (result.dig().isEmpty()) return new Step(null, result.builds(), result.cost(), arm, slice);
+        if (result.dig().isEmpty()) return new Step(null, result.builds(), false, arm, slice);
         // some of the rock may not be dug yet from where it lies (it has to be open to the air on a side): take the ones that can be
         BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p, true) && MineFinder.fistSpot(level, p, from) != null).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
-        return dig == null ? null : new Step(dig, List.of(), result.cost(), arm, slice);
+        return dig == null ? null : new Step(dig, List.of(), false, arm, slice);
     }
 
     /** The first slice of the arm that is not finished, or null if the arm is complete or has ended. */
@@ -165,6 +166,11 @@ public final class Trunk {
 
     // ---- geometry -------------------------------------------------------------------------------------------------
 
+    /** Whether slice {@code slice} (counted from 1) carries a brace: the first, then every {@link #SUPPORT_EVERY}th. */
+    public static boolean isBrace(int slice) {
+        return slice % SUPPORT_EVERY == 1;
+    }
+
     public static BlockPos sliceCentre(BlockPos chest, Direction arm, int slice) {
         return chest.relative(arm, HUB + slice);
     }
@@ -176,8 +182,7 @@ public final class Trunk {
                 cells.add(new Cell(chest.offset(dx, -1, dz), Role.FLOOR));
                 for (int h = 0; h < HUB_HEIGHT; h++) {
                     if (dx == 0 && dz == 0 && h == 0) continue; // the chest itself
-                    boolean torch = h == 0 && Math.abs(dx) == HUB && dx == dz;
-                    cells.add(new Cell(chest.offset(dx, h, dz), torch ? Role.TORCH : Role.AIR));
+                    cells.add(new Cell(chest.offset(dx, h, dz), Role.AIR));
                 }
             }
         }
@@ -187,19 +192,19 @@ public final class Trunk {
     private static List<Cell> sliceCells(BlockPos chest, Direction arm, int slice) {
         BlockPos middle = sliceCentre(chest, arm, slice);
         Direction side = arm.getClockWise();
-        boolean support = slice % SUPPORT_EVERY == 0;
-        boolean torch = slice % SUPPORT_EVERY == TORCH_AT;
-        List<Cell> cells = new ArrayList<>(12);
+        boolean support = isBrace(slice);
+        List<Cell> cells = new ArrayList<>(13);
         for (int l = -1; l <= 1; l++) {
             BlockPos column = middle.relative(side, l);
             cells.add(new Cell(column.below(), Role.FLOOR));
             for (int h = 0; h < HEIGHT; h++) {
                 Role role = Role.AIR;
                 if (support) role = h == HEIGHT - 1 ? Role.BEAM : l != 0 ? Role.POST : Role.AIR;
-                else if (torch && l == 1 && h == 0) role = Role.TORCH;
                 cells.add(new Cell(column.above(h), role));
             }
         }
+        // the torch hangs on the middle plank, on the side facing the chest
+        if (support) cells.add(new Cell(middle.relative(arm.getOpposite()).above(HEIGHT - 1), Role.TORCH, arm.getOpposite()));
         return cells;
     }
 
@@ -223,14 +228,13 @@ public final class Trunk {
     private static Result assess(ServerLevel level, List<Cell> cells, java.util.function.BooleanSupplier bridgeable, Predicate<BlockPos> ignored) {
         List<BlockPos> dig = new ArrayList<>();
         List<Placement> floors = new ArrayList<>(), posts = new ArrayList<>(), beams = new ArrayList<>(), torches = new ArrayList<>();
-        Map<Kit, Integer> cost = new EnumMap<>(Kit.class);
         List<Placement> plugs = new ArrayList<>();
         java.util.Set<BlockPos> inside = new java.util.HashSet<>();
         for (Cell cell : cells) inside.add(cell.pos());
         boolean blocked = false;
         for (Cell cell : cells) {
             BlockPos pos = cell.pos();
-            if (!level.isLoaded(pos)) return new Result(true, List.of(), List.of(), cost);
+            if (!level.isLoaded(pos)) return new Result(true, List.of(), List.of());
             BlockState state = level.getBlockState(pos);
             switch (cell.role()) {
                 case FLOOR -> {
@@ -241,7 +245,6 @@ public final class Trunk {
                         if (!bridgeable.getAsBoolean() || ignored.test(pos)) blocked = true;
                         else {
                             floors.add(new Placement(pos, Kit.COBBLE));
-                            cost.merge(Kit.COBBLE, 1, Integer::sum);
                         }
                     }
                 }
@@ -263,11 +266,10 @@ public final class Trunk {
                     if (open(level, pos, state)) {
                         if (role == Role.TORCH && !state.isAir()) continue; // something else is there: no torch, no fuss
                         if (ignored.test(pos)) { blocked = true; continue; }
-                        (role == Role.POST ? posts : role == Role.BEAM ? beams : torches).add(new Placement(pos, part));
+                        (role == Role.POST ? posts : role == Role.BEAM ? beams : torches).add(new Placement(pos, part, cell.facing()));
                     } else if (!state.getFluidState().isEmpty() && !ignored.test(pos)) { plugs.add(new Placement(pos, Kit.COBBLE)); blocked = true; }
                     else if (MineFinder.isRock(state) && !ignored.test(pos)) dig.add(pos);
                     else blocked = true;
-                    cost.merge(part, 1, Integer::sum);
                 }
             }
         }
@@ -286,6 +288,6 @@ public final class Trunk {
         builds.addAll(posts);
         builds.addAll(beams);
         builds.addAll(torches);
-        return new Result(blocked, dig, builds, cost, plugs);
+        return new Result(blocked, dig, builds, plugs);
     }
 }

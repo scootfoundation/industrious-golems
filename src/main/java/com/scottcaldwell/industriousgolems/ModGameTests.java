@@ -1533,27 +1533,21 @@ public class ModGameTests {
         return helper.getBlockState(pos).is(Blocks.TORCH);
     }
 
-    /** What the mine asks for, slice by slice: torches in the hub, the first arm's torch, a support, and where it ends. */
+    /** What the mine asks for: the brace on the arm's first slice (posts, beam, a torch hung on the middle plank facing the chest), and where it ends. */
     private static void minerTrunkPlan(GameTestHelper helper) {
         buildMine(helper);
         Trunk.Step step = nextStep(helper);
-        helper.assertTrue(step != null && !step.digs() && step.builds().size() == 2 && step.arm() == null, "the hub wants its two corner torches first, got " + step);
-        helper.setBlock(new BlockPos(8, 1, 8), Blocks.TORCH);
-        helper.setBlock(new BlockPos(4, 1, 4), Blocks.TORCH);
-
+        helper.assertTrue(step != null && !step.digs() && step.slice() == 1 && step.builds().size() == 8, "the first slice of the east arm is a brace: four posts, three planks and a torch, got " + step);
+        Trunk.Placement torch = step.builds().get(7);
+        helper.assertTrue(torch.part() == Kit.TORCH && torch.facing() == net.minecraft.core.Direction.WEST && torch.pos().equals(helper.absolutePos(new BlockPos(8, 3, 6))),
+                "the torch hangs on the middle plank, facing the chest, got " + torch);
+        for (int z : new int[] {5, 7}) for (int y = 1; y <= 2; y++) helper.setBlock(new BlockPos(9, y, z), Blocks.OAK_FENCE);
+        for (int z = 5; z <= 7; z++) helper.setBlock(new BlockPos(9, 3, z), Blocks.OAK_PLANKS);
         step = nextStep(helper);
-        helper.assertTrue(step != null && !step.digs() && step.slice() == 2 && step.builds().size() == 1
-                && step.builds().get(0).part() == Kit.TORCH && step.builds().get(0).pos().equals(helper.absolutePos(new BlockPos(10, 1, 7))),
-                "then the torch in the second slice of the east arm, got " + step);
-        helper.setBlock(new BlockPos(10, 1, 7), Blocks.TORCH);
-
-        step = nextStep(helper);
-        helper.assertTrue(step != null && step.slice() == 5 && step.builds().size() == 7 && step.cost().get(Kit.FENCE) == 4 && step.cost().get(Kit.PLANKS) == 3,
-                "the fifth slice is a support: four fence posts and three planks, got " + step);
-        helper.assertTrue(!step.affordable(kit -> 0) && step.affordable(kit -> 99), "a step is affordable when the pack holds its cost");
-        for (int z : new int[] {5, 7}) for (int y = 1; y <= 2; y++) helper.setBlock(new BlockPos(13, y, z), Blocks.OAK_FENCE);
-        for (int z = 5; z <= 7; z++) helper.setBlock(new BlockPos(13, 3, z), Blocks.OAK_PLANKS);
-        helper.assertTrue(nextStep(helper) == null, "the arena ends at the support: no floor beyond it, so the arm ends and the mine is finished");
+        helper.assertTrue(step != null && step.builds().size() == 1 && step.builds().get(0).part() == Kit.TORCH, "the torch comes last, got " + step);
+        helper.setBlock(new BlockPos(8, 3, 6), Blocks.WALL_TORCH.defaultBlockState().setValue(net.minecraft.world.level.block.WallTorchBlock.FACING, net.minecraft.core.Direction.WEST));
+        helper.assertTrue(nextStep(helper) == null, "the arena ends after the fifth slice: no floor beyond it, so the arm ends and the mine is finished");
+        helper.assertTrue(Trunk.isBrace(1) && Trunk.isBrace(6) && Trunk.isBrace(11) && !Trunk.isBrace(5), "a brace every fifth slice from the first");
 
         // a short gap in the floor is bridged with cobblestone, a long one ends the arm
         helper.setBlock(new BlockPos(11, 0, 6), Blocks.AIR);
@@ -1652,19 +1646,18 @@ public class ModGameTests {
         buildMine(helper);
         ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
         stockKit(chest, 8);
-        BlockPos[] rock = {new BlockPos(7, 1, 6), new BlockPos(7, 2, 6), new BlockPos(8, 1, 6), new BlockPos(9, 1, 6), new BlockPos(9, 2, 6), new BlockPos(9, 3, 6)};
+        BlockPos[] rock = {new BlockPos(7, 1, 6), new BlockPos(7, 2, 6), new BlockPos(8, 1, 6), new BlockPos(9, 1, 6), new BlockPos(9, 2, 6)};
         for (BlockPos pos : rock) helper.setBlock(pos, Blocks.STONE);
         WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
         helper.succeedWhen(() -> {
             for (BlockPos pos : rock) helper.assertTrue(helper.getBlockState(pos).isAir(), "the rock at " + pos + " should be dug" + describe(helper, miner, chest));
-            helper.assertTrue(isTorch(helper, new BlockPos(8, 1, 8)) && isTorch(helper, new BlockPos(4, 1, 4)), "the hub's corners get torches" + describe(helper, miner, chest));
-            helper.assertTrue(isTorch(helper, new BlockPos(10, 1, 7)), "and the east arm's second slice gets one" + describe(helper, miner, chest));
-            helper.assertTrue(count(chest, Items.COBBLESTONE) >= 6, "the rock is carried to the chest as cobblestone, got " + count(chest, Items.COBBLESTONE) + describe(helper, miner, chest));
+            helper.assertTrue(helper.getBlockState(new BlockPos(8, 3, 6)).is(Blocks.WALL_TORCH), "the arm's first brace gets its torch" + describe(helper, miner, chest));
+            helper.assertTrue(miner.packCount(Kit.COBBLE.match()) >= 6, "the rock is picked up into its pack as cobblestone, got " + miner.packCount(Kit.COBBLE.match()) + describe(helper, miner, chest));
             helper.assertTrue(helper.getBlockState(HUB.below()).is(Blocks.STONE) && helper.getBlockState(new BlockPos(6, 0, 5)).is(Blocks.STONE), "the floor stays");
         });
     }
 
-    /** Without the kit for a slice (here, no torches) the golem digs nothing rather than leave the mine unlit. */
+    /** Out of torches, the golem digs and builds what it can, then fumes at the chest where its inventory is empty. */
     private static void minerWaitsForKit(GameTestHelper helper) {
         buildMine(helper);
         ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
@@ -1672,45 +1665,52 @@ public class ModGameTests {
         BlockPos rock = new BlockPos(7, 1, 6);
         helper.setBlock(rock, Blocks.STONE);
         WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
-        helper.runAfterDelay(1500, () -> {
-            helper.assertTrue(helper.getBlockState(rock).is(Blocks.STONE), "no torches in the chest: the rock is left" + describe(helper, miner, chest));
-            helper.assertTrue(miner.packCount(Kit.FENCE.match()) == 16, "it still took the fences it could get, has " + miner.packCount(Kit.FENCE.match()) + describe(helper, miner, chest));
-            helper.succeed();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(rock).isAir(), "the rock is dug without waiting for the kit" + describe(helper, miner, chest));
+            helper.assertTrue(helper.getBlockState(new BlockPos(9, 1, 5)).is(net.minecraft.tags.BlockTags.FENCES) && helper.getBlockState(new BlockPos(9, 3, 6)).is(net.minecraft.tags.BlockTags.PLANKS),
+                    "and the posts and beam go up" + describe(helper, miner, chest));
+            helper.assertTrue(!helper.getBlockState(new BlockPos(8, 3, 6)).is(Blocks.WALL_TORCH), "no torch to hang");
+            helper.assertTrue(com.scottcaldwell.industriousgolems.golem.Anim.S_FUME.equals(miner.clip()), "out of torches it fumes" + describe(helper, miner, chest));
         });
     }
 
-    /** The miner's pack is four slots, one for each kind of supply, and each takes only its own; the golem's death scatters them. */
+    /** The miner's inventory: three slots of its own for fences, planks and torches, five general ones; each special slot takes only its kind. */
     private static void minerPackSlots(GameTestHelper helper) {
         WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
-        miner.packAdd(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_FENCE, 5));
-        miner.packAdd(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TORCH, 3));
-        miner.packAdd(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_FENCE, 2));
+        miner.packAdd(new ItemStack(Items.OAK_FENCE, 5));
+        miner.packAdd(new ItemStack(Items.TORCH, 3));
+        miner.packAdd(new ItemStack(Items.OAK_FENCE, 2));
+        miner.packAdd(new ItemStack(Items.COBBLESTONE, 30));
+        miner.packAdd(new ItemStack(Items.DIRT, 10));
         helper.assertTrue(miner.pack().getItem(Kit.FENCE.ordinal()).getCount() == 7, "fences share the one slot");
         helper.assertTrue(miner.pack().getItem(Kit.TORCH.ordinal()).getCount() == 3, "the torches have a slot of their own");
         helper.assertTrue(miner.pack().getItem(Kit.PLANKS.ordinal()).isEmpty(), "planks have none yet");
+        helper.assertTrue(miner.packCount(Kit.COBBLE.match()) == 30 && miner.packFill() == 2, "cobblestone and dirt go in the general slots");
         helper.assertTrue(!miner.packTake(Kit.TORCH.match()).isEmpty() && miner.packCount(Kit.TORCH.match()) == 2, "taking one leaves the rest");
+        helper.assertTrue(miner.hasLoot(), "dirt is loot to put away");
+        for (int i = 0; i < 2; i++) miner.packAdd(new ItemStack(Items.STONE, 64));
+        helper.assertTrue(miner.packFits(java.util.List.of(new ItemStack(Items.STONE, 64))) && !miner.packFits(java.util.List.of(new ItemStack(Items.STONE, 128))), "room for what a block might drop");
         var menu = new com.scottcaldwell.industriousgolems.mine.GolemPackMenu(1, helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL).getInventory(), miner);
-        helper.assertTrue(menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TORCH)), "the torch slot takes torches");
-        helper.assertTrue(!menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT)), "and nothing else");
-        helper.assertTrue(menu.getSlot(Kit.PLANKS.ordinal()).mayPlace(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BIRCH_PLANKS)), "any planks go in the plank slot");
+        helper.assertTrue(menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new ItemStack(Items.TORCH)) && !menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new ItemStack(Items.DIRT)), "the torch slot takes only torches");
+        helper.assertTrue(menu.getSlot(Kit.PLANKS.ordinal()).mayPlace(new ItemStack(Items.BIRCH_PLANKS)), "any planks go in the plank slot");
+        helper.assertTrue(menu.getSlot(Kit.SPECIAL).mayPlace(new ItemStack(Items.DIRT)), "the general slots take anything");
         helper.succeed();
     }
 
-    /** A fifth slice that is open but unsupported gets its fence posts and plank beam, from the pack. */
+    /** The open first slice of the arm gets its brace (fence posts, plank beam, torch), from the pack the golem fills at the chest. */
     private static void minerBuildsSupport(GameTestHelper helper) {
         buildMine(helper);
         ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
         stockKit(chest, 8);
-        helper.setBlock(new BlockPos(8, 1, 8), Blocks.TORCH);
-        helper.setBlock(new BlockPos(4, 1, 4), Blocks.TORCH);
-        helper.setBlock(new BlockPos(10, 1, 7), Blocks.TORCH);
         WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
         helper.succeedWhen(() -> {
             for (int z : new int[] {5, 7}) {
-                for (int y = 1; y <= 2; y++) helper.assertTrue(helper.getBlockState(new BlockPos(13, y, z)).is(net.minecraft.tags.BlockTags.FENCES), "a fence post at " + z + "," + y + describe(helper, miner, chest));
+                for (int y = 1; y <= 2; y++) helper.assertTrue(helper.getBlockState(new BlockPos(9, y, z)).is(net.minecraft.tags.BlockTags.FENCES), "a fence post at " + z + "," + y + describe(helper, miner, chest));
             }
-            for (int z = 5; z <= 7; z++) helper.assertTrue(helper.getBlockState(new BlockPos(13, 3, z)).is(net.minecraft.tags.BlockTags.PLANKS), "a plank beam at " + z + describe(helper, miner, chest));
-            helper.assertTrue(helper.getBlockState(new BlockPos(13, 1, 6)).isAir() && helper.getBlockState(new BlockPos(13, 2, 6)).isAir(), "the middle of the corridor stays open");
+            for (int z = 5; z <= 7; z++) helper.assertTrue(helper.getBlockState(new BlockPos(9, 3, z)).is(net.minecraft.tags.BlockTags.PLANKS), "a plank beam at " + z + describe(helper, miner, chest));
+            var torch = helper.getBlockState(new BlockPos(8, 3, 6));
+            helper.assertTrue(torch.is(Blocks.WALL_TORCH) && torch.getValue(net.minecraft.world.level.block.WallTorchBlock.FACING) == net.minecraft.core.Direction.WEST, "a torch on the middle plank facing the chest, found " + torch + " and planks " + helper.getBlockState(new BlockPos(9, 3, 6)) + describe(helper, miner, chest));
+            helper.assertTrue(helper.getBlockState(new BlockPos(9, 1, 6)).isAir() && helper.getBlockState(new BlockPos(9, 2, 6)).isAir(), "the middle of the corridor stays open");
         });
     }
 }

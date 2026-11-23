@@ -201,7 +201,7 @@ public final class ModProfessions {
                     // the mine's timber, light and fill, carried in a pack beside the hand (see mine.Kit)
                     Need.kit("kit", Items.OAK_FENCE, java.util.Arrays.stream(Kit.values()).map(k -> new Need.Part(k.match(), k.target())).toList())
             ), s -> s.is(ModTags.MINER_OUTPUT),
-                    new ProfessionNeeds.Work(MineRock::jobs, MineRock::new, List.of(BuildTrunk::new, Cower::new))),
+                    new ProfessionNeeds.Work(MineRock::jobs, MineRock::new, List.of(BuildTrunk::new, Cower::new, com.scottcaldwell.industriousgolems.mine.Fume::new))),
 
             offerings(Items.NAUTILUS_SHELL, Items.PRISMARINE_CRYSTALS, Items.ECHO_SHARD, Items.DISC_FRAGMENT_5,
 

@@ -10,6 +10,8 @@ import org.jspecify.annotations.Nullable;
 /** What the model needs to know about a work golem: the held item (from the parent), the pose its clip gives it, and how it is held. */
 public class GolemRenderState extends ArmedEntityRenderState {
     public int unhappy;
+    /** How many of the stone golem's five general slots are taken: how full its sack looks. */
+    public int packFill;
     /** Out of charge: the golem hangs its head and does not move. */
     public boolean dormant;
     /** The pose built from the golem's current animation clip. */

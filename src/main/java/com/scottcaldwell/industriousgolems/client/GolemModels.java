@@ -129,6 +129,11 @@ final class GolemModels {
                 .texOffs(24, 43).addBox(-3F, -9F, -2F, 5F, 3F, 4F, new CubeDeformation(0F))
                 .texOffs(42, 43).addBox(2F, -8F, 1F, 3F, 2F, 3F, new CubeDeformation(0F)),
                 PartPose.offset(0F, -13F, 0F));
+        // the sack on its back: where it keeps what it digs
+        p_body.addOrReplaceChild("sack", CubeListBuilder.create()
+                .texOffs(0, 96).addBox(-7F, -6F, 0F, 14F, 12F, 5F, new CubeDeformation(0F))
+                .texOffs(40, 96).addBox(-3F, -9F, 1F, 6F, 3F, 3F, new CubeDeformation(0F)),
+                PartPose.offset(0F, -8F, 6F));
         PartDefinition p_rarm = p_body.addOrReplaceChild("right_arm", CubeListBuilder.create()
                 .texOffs(0, 54).addBox(-7F, -1F, -3.5F, 7F, 10F, 7F, new CubeDeformation(0F)),
                 PartPose.offset(-12F, -13F, 0F));

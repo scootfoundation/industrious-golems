@@ -27,7 +27,7 @@ code{font:12.5px ui-monospace,monospace}
 <main>
 <h1>Golem state machines</h1>
 <p class="sub">Each box is a state and each arrow is the only way to move between two states, labelled with what triggers it. Generated from the transitions declared in the code; an undeclared transition fails the game tests.</p>
-<nav><a href="#golem">Every golem</a><a href="#chest-visit">Visit the chest (put away / fetch a supply)</a><a href="#pick-up">Pick up a lying stack</a><a href="#tend-crops">Farmer</a><a href="#fell-tree">Lumberjack</a><a href="#plant-sapling">Lumberjack</a><a href="#mine-rock">Miner</a><a href="#build-trunk">Miner</a><a href="#cower">Miner</a><a href="#herd-work">Herder</a><a href="#sneeze-hop">Mushroom golem</a></nav>
+<nav><a href="#golem">Every golem</a><a href="#chest-visit">Visit the chest (put away / fetch a supply)</a><a href="#pick-up">Pick up a lying stack</a><a href="#tend-crops">Farmer</a><a href="#fell-tree">Lumberjack</a><a href="#plant-sapling">Lumberjack</a><a href="#mine-rock">Miner</a><a href="#build-trunk">Miner</a><a href="#cower">Miner</a><a href="#fume">Miner</a><a href="#herd-work">Herder</a><a href="#sneeze-hop">Mushroom golem</a></nav>
 <section id="golem"><h2>Every golem: who is in charge</h2><p class="s">The top level, shared by all four golems. The brain's activities pick between these; the task states below say what each task does once it runs.</p>
 <div class="dia"><pre class="mermaid">%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 60, "rankSpacing": 90, "padding": 12}}}%%
 flowchart TD
@@ -157,27 +157,24 @@ flowchart TD
   classDef wild fill:#fde8e0,stroke:#c2410c,color:#1d1d1b,stroke-dasharray:4 3
 </pre></div>
 <h3>States</h3><div class="tw"><table><tr><td class="n"><code>STEP_UP</code> (start)</td><td>Walking to the spot a plant-distance from the place, facing it.</td></tr><tr><td class="n"><code>PLANT</code></td><td>Plant clip playing; the sapling leaves the hand and goes in at the planting moment.</td></tr><tr><td class="n"><code>DONE</code></td><td>Task over.</td></tr></table></div><h3>Transitions</h3><div class="tw"><table><tr><th>From</th><th>To</th><th>Trigger</th></tr><tr><td class="n"><code>STEP_UP</code></td><td class="n"><code>PLANT</code></td><td>standing on the spot with a sapling in hand</td></tr><tr><td class="n"><code>STEP_UP</code></td><td class="n"><code>DONE</code></td><td>no sapling in hand, the place is taken, no spot to stand, or no path for 30 s (the place is then ignored for 2.5 min)</td></tr><tr><td class="n"><code>PLANT</code></td><td class="n"><code>DONE</code></td><td>plant clip ends</td></tr></table></div></section>
-<section id="mine-rock"><h2>Miner: dig a batch of rock</h2><p class="s">Stone golem. Digs up to a dozen exposed blocks bare-handed, one swing each, leaving the drops lying; then the pick-up and deposit tasks carry them to the chest.</p>
+<section id="mine-rock"><h2>Miner: dig a block</h2><p class="s">Stone golem. Digs one exposed block bare-handed, leaving the drops lying; the pick-up task then takes them into its pack.</p>
 <div class="dia"><pre class="mermaid">%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 60, "rankSpacing": 90, "padding": 12}}}%%
 flowchart TD
-  SEEK([SEEK]):::first
-  APPROACH([APPROACH])
+  APPROACH([APPROACH]):::first
   SWING([SWING])
   SETTLE([SETTLE])
   DONE([DONE]):::last
-  SEEK --&gt;|"a block was found (the first one&lt;br/&gt;comes with the plan)"| APPROACH
-  SEEK --&gt;|"twelve blocks dug, or the next step&lt;br/&gt;is not digging, or the kit for it&lt;br/&gt;is short"| DONE
-  APPROACH --&gt;|"within reach with a clear line to&lt;br/&gt;the block"| SWING
-  APPROACH --&gt;|"the block is already gone or no&lt;br/&gt;longer safe to cut, or unreachable&lt;br/&gt;for 8 s (ignored for 5 min)"| SEEK
+  APPROACH --&gt;|"beside the block with a clear line&lt;br/&gt;to it"| SWING
+  APPROACH --&gt;|"the block is already gone or no&lt;br/&gt;longer safe to cut, or unreachable&lt;br/&gt;for 8 s (ignored for 5 min)"| DONE
   SWING --&gt;|"hit moment: the block breaks, the&lt;br/&gt;drops fall"| SETTLE
-  SETTLE --&gt;|"the swing has settled"| SEEK
+  SETTLE --&gt;|"the swing has settled"| DONE
   ANY0{{"any state"}}:::wild
   ANY0 -.-&gt;|"a hostile mob comes near: the golem&lt;br/&gt;drops what it is doing to cower"| DONE
   classDef first fill:#fff3d6,stroke:#c58b12,color:#1d1d1b,stroke-width:2px
   classDef last fill:#ececec,stroke:#8a8a8a,color:#1d1d1b
   classDef wild fill:#fde8e0,stroke:#c2410c,color:#1d1d1b,stroke-dasharray:4 3
 </pre></div>
-<h3>States</h3><div class="tw"><table><tr><td class="n"><code>SEEK</code> (start)</td><td>Choosing the next exposed block to dig (nearest first, skipping ones recently given up on).</td></tr><tr><td class="n"><code>APPROACH</code></td><td>Walking to a spot within reach of the block, looking at it.</td></tr><tr><td class="n"><code>SWING</code></td><td>Standing beside it: the smash clip plays and the block breaks as the fist lands.</td></tr><tr><td class="n"><code>SETTLE</code></td><td>The block is gone and the golem is settling from the blow.</td></tr><tr><td class="n"><code>DONE</code></td><td>Task over.</td></tr></table></div><h3>Transitions</h3><div class="tw"><table><tr><th>From</th><th>To</th><th>Trigger</th></tr><tr><td class="n"><code>SEEK</code></td><td class="n"><code>APPROACH</code></td><td>a block was found (the first one comes with the plan)</td></tr><tr><td class="n"><code>SEEK</code></td><td class="n"><code>DONE</code></td><td>twelve blocks dug, or the next step is not digging, or the kit for it is short</td></tr><tr><td class="n"><code>APPROACH</code></td><td class="n"><code>SWING</code></td><td>within reach with a clear line to the block</td></tr><tr><td class="n"><code>APPROACH</code></td><td class="n"><code>SEEK</code></td><td>the block is already gone or no longer safe to cut, or unreachable for 8 s (ignored for 5 min)</td></tr><tr><td class="n"><code>SWING</code></td><td class="n"><code>SETTLE</code></td><td>hit moment: the block breaks, the drops fall</td></tr><tr><td class="n"><code>SETTLE</code></td><td class="n"><code>SEEK</code></td><td>the swing has settled</td></tr><tr><td class="n">any state</td><td class="n"><code>DONE</code></td><td>a hostile mob comes near: the golem drops what it is doing to cower</td></tr></table></div></section>
+<h3>States</h3><div class="tw"><table><tr><td class="n"><code>APPROACH</code> (start)</td><td>Walking to the open floor beside the block, looking at it.</td></tr><tr><td class="n"><code>SWING</code></td><td>Beside it: the smash clip plays and the block breaks as the fist lands.</td></tr><tr><td class="n"><code>SETTLE</code></td><td>The block is gone and the golem is settling from the blow.</td></tr><tr><td class="n"><code>DONE</code></td><td>Task over.</td></tr></table></div><h3>Transitions</h3><div class="tw"><table><tr><th>From</th><th>To</th><th>Trigger</th></tr><tr><td class="n"><code>APPROACH</code></td><td class="n"><code>SWING</code></td><td>beside the block with a clear line to it</td></tr><tr><td class="n"><code>APPROACH</code></td><td class="n"><code>DONE</code></td><td>the block is already gone or no longer safe to cut, or unreachable for 8 s (ignored for 5 min)</td></tr><tr><td class="n"><code>SWING</code></td><td class="n"><code>SETTLE</code></td><td>hit moment: the block breaks, the drops fall</td></tr><tr><td class="n"><code>SETTLE</code></td><td class="n"><code>DONE</code></td><td>the swing has settled</td></tr><tr><td class="n">any state</td><td class="n"><code>DONE</code></td><td>a hostile mob comes near: the golem drops what it is doing to cower</td></tr></table></div></section>
 <section id="build-trunk"><h2>Miner: finish a slice of the mine</h2><p class="s">Stone golem. Places what a slice needs from its pack: cobblestone over missing floor and into liquid that would flood the tunnel, a support's fence posts and plank beam, a torch.</p>
 <div class="dia"><pre class="mermaid">%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 60, "rankSpacing": 90, "padding": 12}}}%%
 flowchart TD
@@ -213,6 +210,22 @@ flowchart TD
   classDef wild fill:#fde8e0,stroke:#c2410c,color:#1d1d1b,stroke-dasharray:4 3
 </pre></div>
 <h3>States</h3><div class="tw"><table><tr><td class="n"><code>RUN</code> (start)</td><td>Running back to the chest.</td></tr><tr><td class="n"><code>COWER</code></td><td>Crouched by the chest, arms over its head, shaking. Waiting for the mob to go.</td></tr><tr><td class="n"><code>DONE</code></td><td>Task over.</td></tr></table></div><h3>Transitions</h3><div class="tw"><table><tr><th>From</th><th>To</th><th>Trigger</th></tr><tr><td class="n"><code>RUN</code></td><td class="n"><code>COWER</code></td><td>next to the chest (or no way there for 20 s: it cowers where it is)</td></tr><tr><td class="n"><code>RUN</code></td><td class="n"><code>DONE</code></td><td>the chest is gone</td></tr><tr><td class="n"><code>COWER</code></td><td class="n"><code>DONE</code></td><td>no hostile mob has been near for 5 s</td></tr></table></div></section>
+<section id="fume"><h2>Miner: fume at the chest</h2><p class="s">Stone golem. The mine has work it cannot do for want of supplies or room: it goes to the chest and throws a tantrum.</p>
+<div class="dia"><pre class="mermaid">%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 60, "rankSpacing": 90, "padding": 12}}}%%
+flowchart TD
+  RUN([RUN]):::first
+  FUME([FUME])
+  DONE([DONE]):::last
+  RUN --&gt;|"next to the chest (or no nearer for&lt;br/&gt;8 s: it fumes where it is)"| FUME
+  RUN --&gt;|"the chest is gone"| DONE
+  FUME --&gt;|"the outburst is over (it looks&lt;br/&gt;again, and fumes again if it is&lt;br/&gt;still stuck)"| DONE
+  ANY0{{"any state"}}:::wild
+  ANY0 -.-&gt;|"a hostile mob comes near: the golem&lt;br/&gt;cowers instead"| DONE
+  classDef first fill:#fff3d6,stroke:#c58b12,color:#1d1d1b,stroke-width:2px
+  classDef last fill:#ececec,stroke:#8a8a8a,color:#1d1d1b
+  classDef wild fill:#fde8e0,stroke:#c2410c,color:#1d1d1b,stroke-dasharray:4 3
+</pre></div>
+<h3>States</h3><div class="tw"><table><tr><td class="n"><code>RUN</code> (start)</td><td>Walking back to the chest.</td></tr><tr><td class="n"><code>FUME</code></td><td>By the chest, stamping and shaking its head.</td></tr><tr><td class="n"><code>DONE</code></td><td>Task over.</td></tr></table></div><h3>Transitions</h3><div class="tw"><table><tr><th>From</th><th>To</th><th>Trigger</th></tr><tr><td class="n"><code>RUN</code></td><td class="n"><code>FUME</code></td><td>next to the chest (or no nearer for 8 s: it fumes where it is)</td></tr><tr><td class="n"><code>RUN</code></td><td class="n"><code>DONE</code></td><td>the chest is gone</td></tr><tr><td class="n"><code>FUME</code></td><td class="n"><code>DONE</code></td><td>the outburst is over (it looks again, and fumes again if it is still stuck)</td></tr><tr><td class="n">any state</td><td class="n"><code>DONE</code></td><td>a hostile mob comes near: the golem cowers instead</td></tr></table></div></section>
 <section id="herd-work"><h2>Herder: cull, shear, milk, feed</h2><p class="s">Terracotta golem. Walks to an animal in a pen, stands where the clip wants it (the animal is held where the arms go), and plays the clip for the job; the deed itself lands at a moment in the clip.</p>
 <div class="dia"><pre class="mermaid">%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 60, "rankSpacing": 90, "padding": 12}}}%%
 flowchart TD

@@ -511,6 +511,16 @@ public final class StoneAnims {
             P.offX += 0.25 * sh;
         });
 
+        // ---- fuming: out of something it needs. Stamping from foot to foot, fists pumping, head shaking ----
+        add("fume", 1.0, true, 0, (P, t, c) -> {
+            double st = Math.sin(S2 * t * 2), no = Math.sin(S2 * t * 3);
+            sPose(P, pose("th", 0.18, "hy", 0.55 * no, "hx", 0.15, "by", 0.12 * st, "bz", 0.04 * st,
+                    "rp", 0.5 + 0.5 * Math.max(0, st), "lp", 0.5 + 0.5 * Math.max(0, -st), "rs", -0.15, "ls", -0.15, "rf", -0.9, "lf", -0.9,
+                    "rl", 0.5 * Math.max(0, st), "ll", 0.5 * Math.max(0, -st)));
+            sGround(P, 0, 0, 1, 1, false);
+            P.offY += -0.04 * Math.abs(st);
+        });
+
         // ---- the chest ----
         add("open-lid", 3.6, false, 0, (P, t, c) -> {
             Arm o = openWith(t - 0.3, true);

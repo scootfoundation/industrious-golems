@@ -4,6 +4,7 @@ import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
 import com.scottcaldwell.industriousgolems.golem.Stand;
+import com.scottcaldwell.industriousgolems.mine.Kit;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.item.ItemEntity;
 import com.scottcaldwell.industriousgolems.needs.Need;
@@ -83,7 +84,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (!job.needsSupply()) continue;
             Need need = needs.need(job.supply());
             if (need == null) continue;
-            BlockPos pos = best(level, golem, chest -> need.isKit() ? kitSlot(need, golem, chest) >= 0 : slotWith(need, job.accepts(), chest) >= 0, false);
+            BlockPos pos = best(level, golem, chest -> need.isKit() ? packVisitUseful(need, golem, chest) : slotWith(need, job.accepts(), chest) >= 0, false);
             if (pos != null) return new Plan(pos, need.id(), job.accepts());
         }
         return null;
@@ -326,7 +327,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** Takes one stack of the supply (at most what the need allows) from the chest into the hand. */
     private static void take(Need need, Predicate<ItemStack> accepts, WorkGolem golem, Container chest) {
         if (need == null) return;
-        if (need.isKit()) { fillPack(need, golem, chest); return; }
+        if (need.isKit()) { depositLoot(golem, chest); fillPack(need, golem, chest); return; }
         if (golem.isCarrying()) return;
         int slot = slotWith(need, accepts, chest);
         if (slot < 0) return;
@@ -345,12 +346,43 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 ItemStack in = chest.getItem(i);
                 if (in.isEmpty() || !part.match().test(in)) continue;
                 int n = Math.min(want, in.getCount());
-                golem.packAdd(in.copyWithCount(n));
-                in.shrink(n);
+                int took = n - golem.packAdd(in.copyWithCount(n)).getCount(); // as much as the pack takes
+                if (took <= 0) continue;
+                in.shrink(took);
                 if (in.isEmpty()) chest.setItem(i, ItemStack.EMPTY);
-                want -= n;
+                want -= took;
             }
         }
+    }
+
+    /** Puts what the golem has dug in the chest, everything in its general slots but the cobblestone it keeps for building; what the chest cannot take stays. */
+    private static void depositLoot(WorkGolem golem, Container chest) {
+        int keep = Kit.RESERVE;
+        for (int i = Kit.SPECIAL; i < WorkGolem.PACK_SIZE; i++) {
+            ItemStack held = golem.pack().getItem(i);
+            if (held.isEmpty()) continue;
+            int kept = 0;
+            if (Kit.COBBLE.match().test(held)) {
+                kept = Math.min(keep, held.getCount());
+                keep -= kept;
+            }
+            if (kept >= held.getCount()) continue;
+            ItemStack rest = insert(chest, held.copyWithCount(held.getCount() - kept));
+            int left = kept + rest.getCount();
+            golem.pack().setItem(i, left <= 0 ? ItemStack.EMPTY : held.copyWithCount(left));
+        }
+    }
+
+    /** Whether a visit to this chest would do the golem any good: its diggings would go in, or it has something of the kit that the pack is short of. */
+    private static boolean packVisitUseful(Need need, WorkGolem golem, Container chest) {
+        if (kitSlot(need, golem, chest) >= 0) return true;
+        for (int i = Kit.SPECIAL; i < WorkGolem.PACK_SIZE; i++) {
+            ItemStack held = golem.pack().getItem(i);
+            if (held.isEmpty()) continue;
+            boolean cobble = Kit.COBBLE.match().test(held);
+            if ((!cobble || golem.packCount(Kit.COBBLE.match()) > Kit.RESERVE) && room(chest, held.copyWithCount(1))) return true;
+        }
+        return false;
     }
 
     /** Inserts into the container, merging into matching stacks first; returns whatever did not fit. */

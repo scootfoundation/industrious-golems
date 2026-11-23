@@ -13,10 +13,10 @@ import net.minecraft.world.item.ItemStack;
 public class GolemPackScreen extends AbstractContainerScreen<GolemPackMenu> {
 
     private static final int PANEL = 0xFFC6C6C6, LIGHT = 0xFFFFFFFF, DARK = 0xFF555555, WELL = 0xFF8B8B8B;
-    private static final String[] LABELS = {"Posts", "Beams", "Torches", "Cobble"};
+    private static final String[] LABELS = {"Posts", "Beams", "Torches"};
 
     public GolemPackScreen(GolemPackMenu menu, Inventory inventory, Component title) {
-        super(menu, inventory, title, 176, 144);
+        super(menu, inventory, title, 176, 168);
         inventoryLabelY = 1000; // the player's inventory carries no label
     }
 
@@ -28,11 +28,11 @@ public class GolemPackScreen extends AbstractContainerScreen<GolemPackMenu> {
         graphics.fill(x, y, x + imageWidth - 2, y + imageHeight - 2, LIGHT);
         graphics.fill(x + 2, y + 2, x + imageWidth - 2, y + imageHeight - 2, PANEL);
         for (Slot slot : menu.slots) well(graphics, x + slot.x, y + slot.y);
-        for (Kit part : Kit.values()) {
-            String label = LABELS[part.ordinal()];
-            int width = font.width(label);
-            graphics.text(font, label, x + GolemPackMenu.x(part) + 8 - width / 2, y + GolemPackMenu.KIT_Y + 20, 0xFF404040, false);
+        for (int i = 0; i < Kit.SPECIAL; i++) {
+            String label = LABELS[i];
+            graphics.text(font, label, x + GolemPackMenu.x(i, Kit.SPECIAL) + 8 - font.width(label) / 2, y + GolemPackMenu.KIT_Y + 19, 0xFF404040, false);
         }
+        graphics.text(font, "Carrying", x + 8, y + GolemPackMenu.GENERAL_Y - 10, 0xFF404040, false);
     }
 
     private static void well(GuiGraphicsExtractor graphics, int x, int y) {
@@ -45,7 +45,7 @@ public class GolemPackScreen extends AbstractContainerScreen<GolemPackMenu> {
     @Override
     protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY) {
         super.extractSlot(graphics, slot, mouseX, mouseY);
-        if (slot.index < Kit.values().length && !slot.hasItem()) {
+        if (slot.index < Kit.SPECIAL && !slot.hasItem()) {
             graphics.fakeItem(new ItemStack(Kit.values()[slot.index].icon()), slot.x, slot.y);
             graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0xA08B8B8B);
         }

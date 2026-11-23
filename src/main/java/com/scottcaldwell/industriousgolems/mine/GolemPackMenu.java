@@ -11,20 +11,20 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * The stone golem's inventory: one slot for each of {@link Kit} (fence posts, plank beams, torches, cobblestone) over the player's own. A slot takes
- * only its kind, so an empty one shows plainly what the golem is out of.
+ * The stone golem's inventory: a slot each for fence posts, plank beams and torches (each takes only its kind, so an empty one shows plainly what the
+ * golem is out of), then five general slots for what it digs, over the player's own.
  */
 public class GolemPackMenu extends AbstractContainerMenu {
 
-    public static final int KIT_X = 44 - 18 / 2 + 9, KIT_Y = 20, PLAYER_Y = 62;
-    private static final int KIT_SLOTS = Kit.values().length;
+    public static final int KIT_Y = 18, GENERAL_Y = 50, PLAYER_Y = 84;
+    private static final int KIT_SLOTS = Kit.SPECIAL, SLOTS = WorkGolem.PACK_SIZE;
 
     private final Container pack;
     private final WorkGolem golem;
 
     /** The client's copy: a container of its own, kept in step with the golem's by the menu. */
     public GolemPackMenu(int id, Inventory inventory) {
-        this(id, inventory, new SimpleContainer(KIT_SLOTS), null);
+        this(id, inventory, new SimpleContainer(SLOTS), null);
     }
 
     public GolemPackMenu(int id, Inventory inventory, WorkGolem golem) {
@@ -36,19 +36,21 @@ public class GolemPackMenu extends AbstractContainerMenu {
         this.pack = pack;
         this.golem = golem;
         for (Kit part : Kit.values()) {
-            addSlot(new Slot(pack, part.ordinal(), x(part), KIT_Y) {
+            if (!part.special()) continue;
+            addSlot(new Slot(pack, part.ordinal(), x(part.ordinal(), KIT_SLOTS), KIT_Y) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
                     return part.match().test(stack);
                 }
             });
         }
+        for (int i = KIT_SLOTS; i < SLOTS; i++) addSlot(new Slot(pack, i, x(i - KIT_SLOTS, SLOTS - KIT_SLOTS), GENERAL_Y));
         addStandardInventorySlots(inventory, 8, PLAYER_Y);
     }
 
-    /** Left edge of a kit slot: the four centred across the panel. */
-    public static int x(Kit part) {
-        return 8 + (176 - 16 - 4 * 18) / 2 + part.ordinal() * 18 + 0;
+    /** Left edge of slot {@code i} of a row of {@code n}, centred across the panel. */
+    public static int x(int i, int n) {
+        return (176 - n * 18) / 2 + i * 18 + 1;
     }
 
     @Override
@@ -62,7 +64,7 @@ public class GolemPackMenu extends AbstractContainerMenu {
         if (slot == null || !slot.hasItem()) return ItemStack.EMPTY;
         ItemStack stack = slot.getItem();
         ItemStack before = stack.copy();
-        boolean moved = index < KIT_SLOTS ? moveItemStackTo(stack, KIT_SLOTS, slots.size(), true) : moveItemStackTo(stack, 0, KIT_SLOTS, false);
+        boolean moved = index < SLOTS ? moveItemStackTo(stack, SLOTS, slots.size(), true) : (Kit.specialSlot(stack) >= 0 && moveItemStackTo(stack, Kit.specialSlot(stack), Kit.specialSlot(stack) + 1, false)) || moveItemStackTo(stack, KIT_SLOTS, SLOTS, false);
         if (!moved) return ItemStack.EMPTY;
         if (stack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY);
         else slot.setChanged();

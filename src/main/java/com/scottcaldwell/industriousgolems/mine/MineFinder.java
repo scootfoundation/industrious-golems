@@ -111,6 +111,6 @@ public final class MineFinder {
 
     private static boolean isOpen(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty();
+        return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty() && !state.hasBlockEntity(); // never in the chest's own cell
     }
 }

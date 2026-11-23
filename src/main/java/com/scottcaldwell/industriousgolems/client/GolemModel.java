@@ -16,6 +16,8 @@ import org.joml.Vector3f;
 public class GolemModel extends EntityModel<GolemRenderState> implements ArmedModel<GolemRenderState>, HeadedModel {
 
     private final ModelPart body;
+    /** The stone golem's sack, null for the others. */
+    private final ModelPart sack;
     private final ModelPart head;
     private final ModelPart rightArm;
     private final ModelPart leftArm;
@@ -45,6 +47,7 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         this.leftArm = body.getChild("left_arm");
         this.rightLeg = root.getChild("right_leg");
         this.leftLeg = root.getChild("left_leg");
+        this.sack = body.hasChild("sack") ? body.getChild("sack") : null;
         this.hips = root.hasChild("hips") ? root.getChild("hips") : null;
         this.cap = head.hasChild("cap") ? head.getChild("cap") : null;
         this.rightFore = rightArm.hasChild("right_forearm") ? rightArm.getChild("right_forearm") : null;
@@ -79,6 +82,13 @@ public class GolemModel extends EntityModel<GolemRenderState> implements ArmedMo
         apply(leftLeg, p.lleg);
         apply(hips, p.hips);
         apply(cap, p.cap);
+        if (sack != null) { // slack when empty, bulging when full
+            float full = Math.min(5, state.packFill) / 5.0F;
+            sack.resetPose();
+            sack.xScale = 0.8F + 0.25F * full;
+            sack.yScale = 0.55F + 0.55F * full;
+            sack.zScale = 0.45F + 0.75F * full;
+        }
         apply(rightFore, p.rfore);
         apply(leftFore, p.lfore);
     }

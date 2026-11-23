@@ -20,6 +20,8 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
 
     /** How far from the job site stacks are collected: past the lumberjack's tree search (16) and the canopy that drops leaves around it. */
     public static final int RADIUS = 24;
+    /** The stone golem picks up only what lies within this many blocks of it; its mine is long, and it takes the diggings as it goes. */
+    public static final int MINER_RADIUS = 5;
     private static final double REACH_SQR = 1.2 * 1.2;
     /** Walking this long without getting hold of the stack means it cannot be reached. */
     private static final int GIVE_UP_TICKS = 240;
@@ -56,12 +58,15 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     /** The nearest stack worth taking, or null. Needs a free hand. */
     public static Plan plan(ServerLevel level, WorkGolem golem) {
         if (golem.isCarrying() && !golem.canTake(golem.carried())) return null; // a full stack: off to the chest
-        BlockPos at = golem.jobSite(level);
+        boolean miner = golem.profession() == com.scottcaldwell.industriousgolems.ModProfessions.MINER;
+        BlockPos at = miner ? golem.blockPosition() : golem.jobSite(level);
         if (at == null) return null;
         TaskState state = golem.getData(ModAttachments.TASK);
         ItemEntity best = null;
-        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(RADIUS, 4, RADIUS),
-                i -> golem.wantsToPickUp(level, i.getItem()) && !state.ignores(i.getId(), level.getGameTime()))) {
+        int radius = miner ? MINER_RADIUS : RADIUS;
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(radius, miner ? 3 : 4, radius),
+                i -> golem.wantsToPickUp(level, i.getItem()) && !state.ignores(i.getId(), level.getGameTime())
+                        && !(miner && (i.isInLiquid() || golem.distanceTo(i) > MINER_RADIUS)))) {
             if (best == null || golem.distanceToSqr(item) < golem.distanceToSqr(best)) best = item;
         }
         return best == null ? null : new Plan(best.getId());
@@ -123,7 +128,12 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         holdStill(golem);
         timer++;
         if (machine.is(State.CROUCH) && timer >= Math.round(spec.grab() * 20)) {
-            if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && golem.canTake(item.getItem())) golem.pickUp(item);
+            if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && golem.canTake(item.getItem())) {
+                golem.pickUp(item);
+                if (golem.profession() == com.scottcaldwell.industriousgolems.ModProfessions.MINER) { // one scoop takes what lies about it too
+                    for (ItemEntity near : level.getEntitiesOfClass(ItemEntity.class, item.getBoundingBox().inflate(1.5), i -> golem.wantsToPickUp(level, i.getItem()))) golem.pickUp(near);
+                }
+            }
             machine.to(State.RISE);
         }
         if (timer >= Math.round(spec.len() * 20)) done();

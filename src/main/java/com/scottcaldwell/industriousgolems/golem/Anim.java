@@ -59,7 +59,7 @@ public final class Anim {
                         double dist, double landX, double landZ) { }
 
     // ---- stone golem (miner) ----
-    public static final String S_MINE = "mine-block", S_COWER = "cower";
+    public static final String S_MINE = "mine-block", S_COWER = "cower", S_FUME = "fume";
     public static final float S_MINE_LEN = 7.0F, S_MINE_HIT = 3.55F, S_RECEIVE_LEN = 7.0F;
 
     // ---- terracotta golem (herder) ----

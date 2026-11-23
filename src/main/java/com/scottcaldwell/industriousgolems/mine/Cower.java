@@ -25,7 +25,7 @@ public class Cower extends TaskRunner<Cower.Plan> {
     public static final double FEAR = 10.0, FEAR_CREEPER = 16.0;
     /** How long no mob has been near before it dares to get on with its work. */
     private static final int CALM_TICKS = 100;
-    private static final int STALL_TICKS = 400;
+    private static final int STALL_TICKS = 160;
 
     public record Plan() { }
 
@@ -44,6 +44,7 @@ public class Cower extends TaskRunner<Cower.Plan> {
     private final Machine.Run<State> machine = GRAPH.run();
     private int calm;
     private int stalled;
+    private double nearest;
 
     public Cower() {
         super(Plan.class, 12000);
@@ -67,6 +68,7 @@ public class Cower extends TaskRunner<Cower.Plan> {
         machine.reset();
         calm = 0;
         stalled = 0;
+        nearest = Double.MAX_VALUE;
         golem.setPickupSuspended(true);
     }
 
@@ -76,7 +78,9 @@ public class Cower extends TaskRunner<Cower.Plan> {
             case RUN -> {
                 BlockPos chest = golem.jobSite(level);
                 if (chest == null) { machine.to(State.DONE); finish(); return; }
-                if (golem.position().distanceTo(Vec3.atCenterOf(chest)) <= 2.2 || ++stalled > STALL_TICKS) {
+                double distance = golem.position().distanceTo(Vec3.atCenterOf(chest));
+                if (distance < nearest - 0.25) { nearest = distance; stalled = 0; } // a long run is fine so long as it gets nearer
+                if (distance <= 2.2 || ++stalled > STALL_TICKS) {
                     holdStill(golem);
                     golem.playClip(Anim.S_COWER);
                     machine.to(State.COWER);

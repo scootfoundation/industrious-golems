@@ -60,6 +60,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     private static final EntityDataAccessor<Integer> UNHAPPY = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
     /** Index into the profession's offerings of what the golem craves now, or -1. */
+    /** How many of the miner's five general slots are taken, shown by how full the sack on its back looks. */
+    private static final EntityDataAccessor<Integer> PACK_FILL = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CRAVING = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
     /** Charge left, in whole seconds (rounded up), for the client. */
     private static final EntityDataAccessor<Integer> CHARGE = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.INT);
@@ -92,12 +94,13 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setDropChance(EquipmentSlot.MAINHAND, 2.0F); // above 1: always dropped, even when it was not a player that killed it
     }
 
-    public static AttributeSupplier.Builder createAttributes(double speed) {
+    /** @param range how far it can path to a target: the miner works up to 66 blocks from its chest */
+    public static AttributeSupplier.Builder createAttributes(double speed, double range) {
         return Mob.createMobAttributes()
                 .add(Attributes.MOVEMENT_SPEED, speed)
                 .add(Attributes.MAX_HEALTH, 20.0)
                 .add(Attributes.STEP_HEIGHT, 1.0)
-                .add(Attributes.FOLLOW_RANGE, 48.0);
+                .add(Attributes.FOLLOW_RANGE, range);
     }
 
     /** The profession of this golem's kind. Safe to call from the constructor chain (reads the entity type only). */
@@ -160,6 +163,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(UNHAPPY, 0);
+        builder.define(PACK_FILL, 0);
         builder.define(CRAVING, -1);
         builder.define(CHARGE, 0);
         builder.define(CLIP, "");
@@ -257,7 +261,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
-        if (!pack.isEmpty()) output.store("Pack", ItemStack.CODEC.listOf(), pack.getItems().stream().filter(stack -> !stack.isEmpty()).map(ItemStack::copy).toList());
+        if (!pack.isEmpty()) output.store("Pack", ItemStack.OPTIONAL_CODEC.listOf(), pack.getItems().stream().map(ItemStack::copy).toList());
     }
 
     @Override
@@ -267,15 +271,26 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
         pack.clearContent();
-        input.read("Pack", ItemStack.CODEC.listOf()).ifPresent(list -> list.forEach(this::packAdd));
+        input.read("Pack", ItemStack.OPTIONAL_CODEC.listOf()).ifPresent(list -> {
+            for (int i = 0; i < list.size() && i < PACK_SIZE; i++) pack.setItem(i, list.get(i));
+        });
     }
 
     // ---- the pack --------------------------------------------------------------------------------------------------
 
-    /** Building materials carried besides the stack in hand, one slot for each of {@link Kit} (the miner's supports and torches); empty for the other kinds. */
-    private final SimpleContainer pack = new SimpleContainer(Kit.values().length);
+    /**
+     * The miner's inventory: a slot each for fence posts, plank beams and torches (see {@link Kit}), then general slots for whatever it digs and
+     * the cobblestone it builds with; empty for the other kinds, who carry one stack in the hand.
+     */
+    private final SimpleContainer pack = new SimpleContainer(PACK_SIZE) {
+        @Override
+        public void setChanged() {
+            super.setChanged();
+            if (!level().isClientSide()) entityData.set(PACK_FILL, packFill());
+        }
+    };
+    public static final int PACK_SIZE = 8;
 
-    /** The pack's slots, in the order of {@link Kit#values()}; the player fills and empties them in the golem's inventory screen. */
     public SimpleContainer pack() {
         return pack;
     }
@@ -287,16 +302,58 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         return n;
     }
 
-    /** Puts the stack in the slot for its kind of the kit, as much as fits. */
-    public void packAdd(ItemStack stack) {
-        for (Kit part : Kit.values()) {
-            if (!part.match().test(stack)) continue;
-            ItemStack held = pack.getItem(part.ordinal());
-            if (held.isEmpty()) pack.setItem(part.ordinal(), stack.copy());
-            else if (ItemStack.isSameItemSameComponents(held, stack)) held.setCount(Math.min(held.getMaxStackSize(), held.getCount() + stack.getCount()));
-            pack.setChanged();
-            return;
+    /** Puts the stack in the pack: in its special slot if it has one, otherwise into the general slots. Returns what did not fit. */
+    public ItemStack packAdd(ItemStack stack) {
+        ItemStack rest = stack.copy();
+        int special = Kit.specialSlot(rest);
+        if (special >= 0) return mergeInto(rest, special, special + 1);
+        return mergeInto(rest, Kit.SPECIAL, PACK_SIZE);
+    }
+
+    private ItemStack mergeInto(ItemStack rest, int from, int to) {
+        for (int pass = 0; pass < 2 && !rest.isEmpty(); pass++) {
+            for (int i = from; i < to && !rest.isEmpty(); i++) {
+                ItemStack held = pack.getItem(i);
+                if (pass == 0 && !held.isEmpty() && ItemStack.isSameItemSameComponents(held, rest)) {
+                    int n = Math.min(rest.getCount(), held.getMaxStackSize() - held.getCount());
+                    held.grow(n);
+                    rest.shrink(n);
+                } else if (pass == 1 && held.isEmpty()) {
+                    int n = Math.min(rest.getCount(), rest.getMaxStackSize());
+                    pack.setItem(i, rest.copyWithCount(n));
+                    rest.shrink(n);
+                }
+            }
         }
+        pack.setChanged();
+        return rest;
+    }
+
+    /** Whether all of these would fit in the pack together. */
+    public boolean packFits(java.util.List<ItemStack> stacks) {
+        SimpleContainer trial = new SimpleContainer(PACK_SIZE);
+        for (int i = 0; i < PACK_SIZE; i++) trial.setItem(i, pack.getItem(i).copy());
+        for (ItemStack stack : stacks) {
+            ItemStack rest = stack.copy();
+            int special = Kit.specialSlot(rest);
+            int from = special >= 0 ? special : Kit.SPECIAL, to = special >= 0 ? special + 1 : PACK_SIZE;
+            for (int pass = 0; pass < 2 && !rest.isEmpty(); pass++) {
+                for (int i = from; i < to && !rest.isEmpty(); i++) {
+                    ItemStack held = trial.getItem(i);
+                    if (pass == 0 && !held.isEmpty() && ItemStack.isSameItemSameComponents(held, rest)) {
+                        int n = Math.min(rest.getCount(), held.getMaxStackSize() - held.getCount());
+                        held.grow(n);
+                        rest.shrink(n);
+                    } else if (pass == 1 && held.isEmpty()) {
+                        int n = Math.min(rest.getCount(), rest.getMaxStackSize());
+                        trial.setItem(i, rest.copyWithCount(n));
+                        rest.shrink(n);
+                    }
+                }
+            }
+            if (!rest.isEmpty()) return false;
+        }
+        return true;
     }
 
     /** Takes one matching item out of the pack, or returns an empty stack. */
@@ -309,6 +366,30 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
             return one;
         }
         return ItemStack.EMPTY;
+    }
+
+    /** Whether the general slots hold anything worth putting in the chest: the diggings, and cobblestone beyond what it keeps for building. */
+    public boolean hasLoot() {
+        int cobble = 0;
+        for (int i = Kit.SPECIAL; i < PACK_SIZE; i++) {
+            ItemStack held = pack.getItem(i);
+            if (held.isEmpty()) continue;
+            if (Kit.COBBLE.match().test(held)) cobble += held.getCount();
+            else return true;
+        }
+        return cobble > Kit.RESERVE;
+    }
+
+    /** What the client draws the sack from. */
+    public int syncedPackFill() {
+        return entityData.get(PACK_FILL);
+    }
+
+    /** How many of the pack's general slots are taken, out of {@code PACK_SIZE - Kit.SPECIAL}: how full the sack on its back looks. */
+    public int packFill() {
+        int n = 0;
+        for (int i = Kit.SPECIAL; i < PACK_SIZE; i++) if (!pack.getItem(i).isEmpty()) n++;
+        return n;
     }
 
     /** The golem's pack falls where it dies. */
@@ -345,6 +426,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     /** Whether the hand has room for this stack: empty, or already holding the same thing short of a full stack. */
     public boolean canTake(ItemStack stack) {
+        if (profession() == ModProfessions.MINER) return packFits(java.util.List.of(stack.copyWithCount(1)));
         ItemStack held = carried();
         return held.isEmpty() || (ItemStack.isSameItemSameComponents(held, stack) && held.getCount() < held.getMaxStackSize());
     }
@@ -370,6 +452,15 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     public void pickUp(ItemEntity item) {
         if (item.isRemoved() || item.getItem().isEmpty() || !canTake(item.getItem())) return;
         ItemStack lying = item.getItem();
+        if (profession() == ModProfessions.MINER) { // into the pack, as much as fits
+            onItemPickup(item);
+            ItemStack rest = packAdd(lying);
+            int took = lying.getCount() - rest.getCount();
+            take(item, took);
+            lying.setCount(rest.getCount());
+            if (lying.isEmpty()) item.discard();
+            return;
+        }
         int n = isCarrying() ? Math.min(lying.getCount(), carried().getMaxStackSize() - carried().getCount()) : lying.getCount();
         onItemPickup(item);
         if (isCarrying()) {
