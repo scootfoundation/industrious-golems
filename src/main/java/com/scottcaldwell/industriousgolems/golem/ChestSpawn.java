@@ -19,12 +19,12 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 
 /**
- * Builds a golem the way vanilla builds a copper golem: a body block with a carved pumpkin or jack o'lantern placed on
- * top. The pumpkin goes and the body block becomes the golem's chest, with the golem standing on it already bound to
- * it as its job site. No chest is needed to start; the pattern makes one.
+ * Builds a golem the way vanilla builds its golems: a pattern of blocks with a carved pumpkin or jack o'lantern placed on
+ * top. The pumpkin and all but the lowest block go, the lowest becomes the golem's chest, and the golem stands on it already
+ * bound to it as its job site. No chest is needed to start; the pattern makes one.
  *
- * <p>Each golem has its own body block (see {@link ModProfessions.Profession#bodyBlock()}): hay bale for the hay golem,
- * red mushroom block for the mushroom golem, terracotta for the terracotta golem.
+ * <p>Each golem has its own pattern (see {@link ModProfessions.Profession#pattern()}): hay bale under a fence for the hay golem,
+ * a red mushroom block for the mushroom golem, two terracotta for the terracotta golem, a T of smooth stone for the stone golem.
  */
 public final class ChestSpawn {
 
@@ -43,29 +43,30 @@ public final class ChestSpawn {
 
     /** Builds the golem if the pumpkin at {@code pumpkin} sits on a body block; returns it, or null. */
     public static WorkGolem build(ServerLevel level, BlockPos pumpkin, BlockState pumpkinState) {
-        BlockPos base = pumpkin.below();
-        BlockState baseState = level.getBlockState(base);
         for (ModProfessions.Profession profession : ModProfessions.all()) {
-            if (profession.bodyBlock().test(baseState)) return build(level, profession, pumpkin, pumpkinState);
+            GolemPattern.Match match = profession.pattern().match(level, pumpkin);
+            if (match != null) return build(level, profession, match, pumpkin, pumpkinState);
         }
         return null;
     }
 
-    private static WorkGolem build(ServerLevel level, ModProfessions.Profession profession, BlockPos pumpkin,
-                                   BlockState pumpkinState) {
+    private static WorkGolem build(ServerLevel level, ModProfessions.Profession profession, GolemPattern.Match match,
+                                   BlockPos pumpkin, BlockState pumpkinState) {
         // the golem stands taller than the pumpkin's block: it needs the space above as well
         if (!level.getBlockState(pumpkin.above()).getCollisionShape(level, pumpkin.above()).isEmpty()) return null;
         WorkGolem golem = ModEntities.typeOf(profession).create(level, EntitySpawnReason.TRIGGERED);
         if (golem == null) return null;
 
-        BlockPos base = pumpkin.below();
+        BlockPos base = match.chest();
         Direction facing = pumpkinState.hasProperty(CarvedPumpkinBlock.FACING)
                 ? pumpkinState.getValue(CarvedPumpkinBlock.FACING) : Direction.NORTH;
-        BlockState oldBase = level.getBlockState(base);
 
         level.setBlock(pumpkin, Blocks.AIR.defaultBlockState(), 2);
         level.levelEvent(2001, pumpkin, Block.getId(pumpkinState));
-        level.levelEvent(2001, base, Block.getId(oldBase));
+        for (BlockPos used : match.blocks()) {
+            level.levelEvent(2001, used, Block.getId(level.getBlockState(used)));
+            if (!used.equals(base)) level.setBlock(used, Blocks.AIR.defaultBlockState(), 2);
+        }
         level.setBlock(base, profession.chest().get().defaultBlockState().setValue(ChestBlock.FACING, facing), 3);
 
         golem.snapTo(base.getX() + 0.5, base.getY() + CHEST_HEIGHT, base.getZ() + 0.5, facing.toYRot(), 0.0F);
@@ -80,6 +81,9 @@ public final class ChestSpawn {
             CriteriaTriggers.SUMMONED_ENTITY.trigger(player, golem);
         }
         level.updateNeighborsAt(pumpkin, Blocks.AIR);
+        for (BlockPos used : match.blocks()) {
+            if (!used.equals(base)) level.updateNeighborsAt(used, Blocks.AIR);
+        }
         level.updateNeighborsAt(base, level.getBlockState(base).getBlock());
         return golem;
     }

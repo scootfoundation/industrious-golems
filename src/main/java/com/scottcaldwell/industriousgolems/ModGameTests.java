@@ -89,10 +89,11 @@ public class ModGameTests {
         strictly("golem_dormant_until_offered", ModGameTests::golemDormantUntilOffered);
         strictly("golem_offering_rules", ModGameTests::golemOfferingRules);
         strictly("golem_charge_runs_out", ModGameTests::golemChargeRunsOut);
-        FUNCTIONS.register("hay_chest_pattern", () -> h -> chestPattern(h, ModProfessions.FARMER, Blocks.HAY_BLOCK.defaultBlockState(), ModBlocks.HAY_CHEST.get()));
-        FUNCTIONS.register("mushroom_chest_pattern", () -> h -> chestPattern(h, ModProfessions.LUMBERJACK, Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(), ModBlocks.MUSHROOM_CHEST.get()));
-        FUNCTIONS.register("terracotta_chest_pattern", () -> h -> chestPattern(h, ModProfessions.HERDER, Blocks.TERRACOTTA.defaultBlockState(), ModBlocks.TERRACOTTA_CHEST.get()));
+        FUNCTIONS.register("hay_chest_pattern", () -> h -> chestPattern(h, ModProfessions.FARMER, ModBlocks.HAY_CHEST.get()));
+        FUNCTIONS.register("mushroom_chest_pattern", () -> h -> chestPattern(h, ModProfessions.LUMBERJACK, ModBlocks.MUSHROOM_CHEST.get()));
+        FUNCTIONS.register("terracotta_chest_pattern", () -> h -> chestPattern(h, ModProfessions.HERDER, ModBlocks.TERRACOTTA_CHEST.get()));
         strictly("chest_pattern_needs_matching_body", ModGameTests::chestPatternNeedsMatchingBody);
+        strictly("chest_pattern_needs_whole_shape", ModGameTests::chestPatternNeedsWholeShape);
         strictly("golem_death_drops_carried_stack", ModGameTests::golemDeathDropsCarriedStack);
         strictly("golem_state_survives_save_and_load", ModGameTests::golemStateSurvivesSaveAndLoad);
         strictly("golem_picks_up_only_what_it_works_with", ModGameTests::golemPicksUpOnlyWhatItWorksWith);
@@ -105,7 +106,7 @@ public class ModGameTests {
         strictly("herder_accepts_any_sherd", ModGameTests::herderAcceptsAnySherd);
         strictly("chest_pattern_via_place_event", ModGameTests::chestPatternViaPlaceEvent);
         strictly("chest_pattern_needs_headroom", ModGameTests::chestPatternNeedsHeadroom);
-        FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, Blocks.SMOOTH_STONE.defaultBlockState(), ModBlocks.STONE_CHEST.get()));
+        FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, ModBlocks.STONE_CHEST.get()));
         strictly("miner_digs_and_delivers", ModGameTests::minerDigsAndDelivers);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_ignores_unreachable_rock", ModGameTests::minerIgnoresUnreachableRock);
@@ -629,21 +630,46 @@ public class ModGameTests {
 
     // ---- the chest spawn pattern ----------------------------------------------------------------------------------
 
-    /** A body block with a carved pumpkin on top becomes the golem standing on its chest, bound to it and ready to be woken. */
-    private static void chestPattern(GameTestHelper helper, ModProfessions.Profession profession,
-                                     BlockState body,
-                                     Block chest) {
-        BlockPos base = new BlockPos(3, 1, 3);
-        BlockPos top = base.above();
-        helper.setBlock(base, body);
+    /**
+     * Lays the golem's pattern below {@code top} (everything under the pumpkin, nothing else) and returns where its chest will be:
+     * the hay golem is a hay bale under a fence, the mushroom golem a red mushroom block, the terracotta golem two terracotta, the stone
+     * golem a T of smooth stone.
+     */
+    private static BlockPos layPattern(GameTestHelper helper, ModProfessions.Profession profession, BlockPos top) {
+        if (profession == ModProfessions.FARMER) {
+            helper.setBlock(top.below(), Blocks.OAK_FENCE);
+            helper.setBlock(top.below(2), Blocks.HAY_BLOCK);
+            return top.below(2);
+        }
+        if (profession == ModProfessions.LUMBERJACK) {
+            helper.setBlock(top.below(), Blocks.RED_MUSHROOM_BLOCK);
+            return top.below();
+        }
+        if (profession == ModProfessions.HERDER) {
+            helper.setBlock(top.below(), Blocks.DYED_TERRACOTTA.red()); // (any kind, and they need not match)
+            helper.setBlock(top.below(2), Blocks.TERRACOTTA);
+            return top.below(2);
+        }
+        BlockPos middle = top.below();
+        for (BlockPos at : List.of(middle, middle.east(), middle.west(), middle.below())) helper.setBlock(at, Blocks.SMOOTH_STONE);
+        return middle.below();
+    }
+
+    /** The golem's pattern with a carved pumpkin on top becomes the golem standing on its chest, bound to it and ready to be woken. */
+    private static void chestPattern(GameTestHelper helper, ModProfessions.Profession profession, Block chest) {
+        BlockPos top = new BlockPos(3, 3, 3);
+        BlockPos base = layPattern(helper, profession, top);
         var pumpkin = Blocks.CARVED_PUMPKIN.defaultBlockState()
                 .setValue(CarvedPumpkinBlock.FACING, Direction.SOUTH);
         helper.setBlock(top, pumpkin);
         WorkGolem golem = ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin);
         helper.assertTrue(golem != null, "the pattern should spawn a golem");
         helper.assertTrue(golem.profession() == profession, "the right kind of golem");
-        helper.assertTrue(helper.getBlockState(base).is(chest), "the body block should become the golem's chest");
+        helper.assertTrue(helper.getBlockState(base).is(chest), "the lowest block should become the golem's chest");
         helper.assertTrue(helper.getBlockState(top).isAir(), "the pumpkin should be gone");
+        for (BlockPos at : BlockPos.betweenClosed(top.offset(-1, -2, -1), top.offset(1, -1, 1))) {
+            helper.assertTrue(at.equals(base) || helper.getBlockState(at).isAir(), "the rest of the pattern should be used up at " + at);
+        }
         helper.assertTrue(golem.getBrain().getMemory(MemoryModuleType.JOB_SITE)
                 .filter(site -> site.pos().equals(helper.absolutePos(base))).isPresent(), "the chest should be its job site");
         helper.assertTrue(!golem.isCharged(), "it starts dormant, waiting for what it craves");
@@ -655,6 +681,30 @@ public class ModGameTests {
             helper.assertTrue(golem.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE), "it keeps its chest as job site");
         });
         helper.succeedWhen(() -> helper.assertTrue(golem.isCharged(), "charged"));
+    }
+
+    /** Part of a pattern is not enough: each golem's shape must be all there. */
+    private static void chestPatternNeedsWholeShape(GameTestHelper helper) {
+        BlockPos top = new BlockPos(3, 3, 3);
+        BlockState pumpkin = Blocks.CARVED_PUMPKIN.defaultBlockState();
+        helper.setBlock(top, pumpkin);
+        // hay without its fence, fence without hay
+        helper.setBlock(top.below(), Blocks.HAY_BLOCK);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin) == null, "hay alone builds nothing");
+        helper.setBlock(top.below(), Blocks.OAK_FENCE);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin) == null, "a fence alone builds nothing");
+        // one terracotta
+        helper.setBlock(top.below(), Blocks.TERRACOTTA);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin) == null, "one terracotta builds nothing");
+        // a T of stone missing an arm, then missing its foot, then a stack
+        helper.setBlock(top.below(), Blocks.SMOOTH_STONE);
+        helper.setBlock(top.below(2), Blocks.SMOOTH_STONE);
+        helper.setBlock(top.below().east(), Blocks.SMOOTH_STONE);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin) == null, "a T with one arm builds nothing");
+        helper.setBlock(top.below().east(), Blocks.AIR);
+        helper.setBlock(top.below().east(), Blocks.AIR);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(top), pumpkin) == null, "a stack of stone is not a T");
+        helper.succeed();
     }
 
     /** A pumpkin on any other block, or a body block of another golem under the wrong pumpkin, builds nothing. */
@@ -1276,13 +1326,14 @@ public class ModGameTests {
     private static void chestPatternViaPlaceEvent(GameTestHelper helper) {
         BlockPos base = AT;
         helper.setBlock(base, Blocks.HAY_BLOCK);
+        helper.setBlock(base.above(), Blocks.BIRCH_FENCE);
         BlockState pumpkin = Blocks.JACK_O_LANTERN.defaultBlockState();
-        helper.setBlock(base.above(), pumpkin);
+        helper.setBlock(base.above(2), pumpkin);
         var player = helper.makeMockServerPlayerInLevel();
-        BlockSnapshot snapshot = BlockSnapshot.create(helper.getLevel().dimension(), helper.getLevel(), helper.absolutePos(base.above()));
+        BlockSnapshot snapshot = BlockSnapshot.create(helper.getLevel().dimension(), helper.getLevel(), helper.absolutePos(base.above(2)));
         NeoForge.EVENT_BUS.post(new BlockEvent.EntityPlaceEvent(snapshot, Blocks.HAY_BLOCK.defaultBlockState(), player));
         helper.assertTrue(helper.getBlockState(base).is(ModBlocks.HAY_CHEST.get()), "the hay bale becomes the hay chest");
-        helper.assertTrue(helper.getBlockState(base.above()).isAir(), "the pumpkin is used up");
+        helper.assertTrue(helper.getBlockState(base.above(2)).isAir() && helper.getBlockState(base.above()).isAir(), "the pumpkin and fence are used up");
         helper.assertEntityPresent(ModEntities.FARMER_GOLEM.get(), base.above());
         helper.succeed();
     }
@@ -1291,11 +1342,12 @@ public class ModGameTests {
     private static void chestPatternNeedsHeadroom(GameTestHelper helper) {
         BlockPos base = AT;
         helper.setBlock(base, Blocks.HAY_BLOCK);
+        helper.setBlock(base.above(), Blocks.OAK_FENCE);
         BlockState pumpkin = Blocks.CARVED_PUMPKIN.defaultBlockState();
-        helper.setBlock(base.above(), pumpkin);
-        helper.setBlock(base.above(2), Blocks.STONE);
-        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(base.above()), pumpkin) == null, "no room, no golem");
-        helper.assertTrue(helper.getBlockState(base).is(Blocks.HAY_BLOCK) && helper.getBlockState(base.above()).is(Blocks.CARVED_PUMPKIN),
+        helper.setBlock(base.above(2), pumpkin);
+        helper.setBlock(base.above(3), Blocks.STONE);
+        helper.assertTrue(ChestSpawn.build(helper.getLevel(), helper.absolutePos(base.above(2)), pumpkin) == null, "no room, no golem");
+        helper.assertTrue(helper.getBlockState(base).is(Blocks.HAY_BLOCK) && helper.getBlockState(base.above(2)).is(Blocks.CARVED_PUMPKIN),
                 "the blocks are left as they were");
         helper.succeed();
     }
@@ -1326,13 +1378,17 @@ public class ModGameTests {
             helper.assertTrue(profession.chest().get() instanceof GolemChestBlock, id + " chest is a golem chest");
             bodies.add(profession.chest().get());
         }
-        // a body block builds exactly one golem
-        for (BlockState body : List.of(Blocks.HAY_BLOCK.defaultBlockState(), Blocks.RED_MUSHROOM_BLOCK.defaultBlockState(),
-                Blocks.TERRACOTTA.defaultBlockState(), Blocks.DYED_TERRACOTTA.red().defaultBlockState(), Blocks.SMOOTH_STONE.defaultBlockState())) {
-            long matches = ModProfessions.all().stream().filter(p -> p.bodyBlock().test(body)).count();
-            helper.assertTrue(matches == 1, body.getBlock() + " should build exactly one golem, builds " + matches);
+        // a pattern builds exactly one golem
+        BlockPos top = new BlockPos(3, 3, 3);
+        for (ModProfessions.Profession profession : ModProfessions.all()) {
+            for (BlockPos at : BlockPos.betweenClosed(top.offset(-1, -2, -1), top.offset(1, -1, 1))) helper.setBlock(at, Blocks.AIR);
+            layPattern(helper, profession, top);
+            long matches = ModProfessions.all().stream().filter(p -> p.pattern().match(helper.getLevel(), helper.absolutePos(top)) != null).count();
+            helper.assertTrue(matches == 1, profession.id() + "'s pattern should build exactly one golem, builds " + matches);
         }
-        helper.assertTrue(ModProfessions.all().stream().noneMatch(p -> p.bodyBlock().test(Blocks.STONE.defaultBlockState())), "stone builds nothing");
+        for (BlockPos at : BlockPos.betweenClosed(top.offset(-1, -2, -1), top.offset(1, -1, 1))) helper.setBlock(at, Blocks.AIR);
+        helper.setBlock(top.below(), Blocks.STONE);
+        helper.assertTrue(ModProfessions.all().stream().noneMatch(p -> p.pattern().match(helper.getLevel(), helper.absolutePos(top)) != null), "stone builds nothing");
         helper.assertTrue(bodies.stream().distinct().count() == ModProfessions.all().size(), "each golem has a chest of its own");
         helper.succeed();
     }

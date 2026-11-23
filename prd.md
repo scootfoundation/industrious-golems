@@ -30,7 +30,7 @@ Scaling generates the gameplay. More golems need more offerings, and offerings a
 
 All golems share:
 
-- **Built like a copper golem:** place the golem's body block and put a carved pumpkin or jack o'lantern on top. The pumpkin goes, the body block becomes the golem's **chest**, and the golem stands on it. No chest is needed to start; the pattern creates one. The golem is bound to that chest as its job site and starts dormant, ready to work as soon as it is given what it craves. Spawn eggs stay in the creative tab.
+- **Built like a vanilla golem:** each golem has its own pattern of blocks, with a carved pumpkin or jack o'lantern placed on top last. The pumpkin and all but the lowest block go, the lowest block becomes the golem's **chest**, and the golem stands on it. No chest is needed to start; the pattern creates one. The golem is bound to that chest as its job site and starts dormant, ready to work as soon as it is given what it craves. Spawn eggs stay in the creative tab.
 - **The chest** is a 27-slot chest of the golem's own design. It is the golem's job site and the place it deposits output and restocks supplies, and it is preferred over any other nearby chest. It is craftable (vanilla chest + the old job site block + the body block) so a chest can be re-placed or moved. Chests never join into double chests.
 - Claim the nearest unclaimed job site of their kind (within 48 blocks) and stay near it. A golem's own chest is its job site; the vanilla block it used to use (composter, fletching table, loom) still counts as a fallback.
 - Work bare-handed, day and night, but only while **charged**. A golem starts dormant (head hanging, standing still) and does nothing until a player gives it what it currently craves.
@@ -40,7 +40,7 @@ All golems share:
 
 ### Hay golem (farmer)
 
-- **Job site:** Hay chest. **Built from:** hay bale + pumpkin.
+- **Job site:** Hay chest. **Built from:** pumpkin on a fence (any kind) on a hay bale.
 - **Consumes:** Villager-plantable seeds and crops (wheat seeds, carrots, potatoes, beetroot seeds, ...).
 - **Wants:** Slimeball, glow ink sac, pufferfish, cobweb, rabbit's foot, cactus flower, pointed dripstone, glow berries.
 - **Produces:** Wheat, carrots, potatoes, beetroot, melon, pumpkins and sweet berries from crops the player has planted on pre-tilled soil within range.
@@ -56,7 +56,7 @@ All golems share:
 
 ### Terracotta golem (herder)
 
-- **Job site:** Terracotta chest. **Built from:** terracotta (plain or coloured) + pumpkin.
+- **Job site:** Terracotta chest. **Built from:** pumpkin on two terracotta (plain or coloured, need not match).
 - **Consumes:** Buckets (turned into milk), animal feed.
 - **Wants:** Turtle scute, sea pickle, cocoa beans, mangrove propagule, powder snow bucket, any pottery sherd, shroomlight, big dripleaf.
 - **Produces:** Wool, milk, meat and hides, kept to a target herd size.
@@ -64,7 +64,7 @@ All golems share:
 
 ### Stone golem (miner)
 
-- **Job site:** Stone chest (mossy stone bricks with an iron latch), placed at the level the player wants to mine. **Built from:** smooth stone + pumpkin (the chest is craftable from a chest, a stonecutter and smooth stone).
+- **Job site:** Stone chest (mossy stone bricks with an iron latch), placed at the level the player wants to mine. **Built from:** pumpkin on a T of smooth stone, like an iron golem: a row of three with one more under the middle (the chest is craftable from a chest, a stonecutter and smooth stone).
 - **Consumes:** Nothing: it digs bare-handed.
 - **Wants:** Nautilus shell, prismarine crystals, echo shard, disc fragment 5, chorus fruit, phantom membrane, ghast tear, breeze rod.
 - **Produces:** Cobblestone, cobbled deepslate, granite, diorite, andesite, tuff and the ores (coal, raw iron, raw copper, raw gold, redstone, lapis, diamond, emerald), as an iron pickaxe would drop them.

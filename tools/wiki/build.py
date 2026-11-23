@@ -79,7 +79,7 @@ def wiki(text, item=None, page_name=None):
 GOLEMS = [
     dict(
         id="hay", slug="hay-golem", title="Hay Golem", role="Farmer", tagline="A slow, patient scarecrow that tends your crops.",
-        texture="hay_golem", chest="hay", job="Hay Chest", body="hay_block", job_vanilla="composter",
+        texture="hay_golem", chest="hay", job="Hay Chest", body="hay_block", build="a <b>carved pumpkin</b> on a <b>fence</b> (any kind) on a <b>hay bale</b>", job_vanilla="composter",
         recipe=["chest", "composter", "hay_block"],
         consumes=[("wheat_seeds", "Seeds, carrots, potatoes and the other plantable crops")],
         produces=["wheat", "carrot", "potato", "beetroot", "melon_slice", "pumpkin", "sweet_berries"],
@@ -101,7 +101,7 @@ GOLEMS = [
     ),
     dict(
         id="mushroom", slug="mushroom-golem", title="Mushroom Golem", role="Lumberjack", tagline="Fells trees and replants the grove as it goes.",
-        texture="mushroom_golem", chest="mushroom", job="Mushroom Chest", body="red_mushroom_block", job_vanilla="fletching_table",
+        texture="mushroom_golem", chest="mushroom", job="Mushroom Chest", body="red_mushroom_block", build="a <b>carved pumpkin</b> on a <b>red mushroom block</b>", job_vanilla="fletching_table",
         recipe=["chest", "fletching_table", "red_mushroom_block"],
         consumes=[("oak_sapling", "Saplings, a few at a time")],
         produces=["oak_log", "oak_sapling", "stick", "apple"],
@@ -126,7 +126,7 @@ GOLEMS = [
     ),
     dict(
         id="terracotta", slug="terracotta-golem", title="Terracotta Golem", role="Herder", tagline="Shears, milks and keeps your pens at a sensible size.",
-        texture="terracotta_golem", chest="terracotta", job="Terracotta Chest", body="terracotta", job_vanilla="loom",
+        texture="terracotta_golem", chest="terracotta", job="Terracotta Chest", body="terracotta", build="a <b>carved pumpkin</b> on two <b>terracotta</b> (any kind, plain or coloured)", job_vanilla="loom",
         recipe=["chest", "loom", "terracotta"],
         consumes=[("bucket", "Buckets (each milking turns one into milk)"), ("wheat", "Animal feed")],
         produces=["white_wool", "milk_bucket", "beef", "porkchop", "chicken", "mutton", "leather", "feather", "egg"],
@@ -147,7 +147,7 @@ GOLEMS = [
     ),
     dict(
         id="stone", slug="stone-golem", title="Stone Golem", role="Miner", tagline="Quarries stone and ore, one block at a time.",
-        texture="stone_golem", chest="stone", job="Stone Chest", body="smooth_stone", job_vanilla="stonecutter",
+        texture="stone_golem", chest="stone", job="Stone Chest", body="smooth_stone", build="a <b>carved pumpkin</b> on a <b>T of smooth stone</b>, like an iron golem", job_vanilla="stonecutter",
         recipe=["chest", "stonecutter", "smooth_stone"],
         consumes=[],
         produces=["cobblestone", "granite", "diorite", "andesite", "tuff", "cobbled_deepslate", "coal", "raw_iron", "raw_copper", "raw_gold", "redstone", "lapis_lazuli", "diamond", "emerald"],
@@ -167,8 +167,8 @@ GOLEMS = [
     ),
 ]
 
-BUILD_HOWTO = ("Place the golem's body block, then put a <strong>carved pumpkin</strong> or <strong>jack o'lantern</strong> on top. "
-               "The pumpkin is consumed, the body block becomes the golem's chest, and the golem stands on it. "
+BUILD_HOWTO = ("Each golem is built from its own pattern of blocks with a <strong>carved pumpkin</strong> or <strong>jack o'lantern</strong> placed on top "
+               "(see each golem's page). The pumpkin and all but the lowest block are consumed, the lowest block becomes the golem's chest, and the golem stands on it. "
                "You do not need a chest first: the pattern makes one. The golem is bound to that chest and starts <em>dormant</em>.")
 
 
@@ -291,7 +291,7 @@ def golem_page(g):
   <table>
     <tr><th>Role</th><td>%(role)s</td></tr>
     <tr><th>Job site</th><td>%(job)s (or a vanilla %(jobv)s)</td></tr>
-    <tr><th>Built from</th><td>%(bodylink)s + %(pumpkin)s</td></tr>
+    <tr><th>Built from</th><td>%(build)s</td></tr>
     <tr><th>Uses</th><td>%(uses_text)s</td></tr>
     <tr><th>Charge</th><td>45 minutes per offering</td></tr>
   </table>
@@ -326,7 +326,7 @@ Supplies come out of the chest the same way.</p>
 </article>
 """ % dict(
         title=g["title"], role=g["role"], slug=g["slug"], job=g["job"], jobv=wiki(name(g["job_vanilla"]).lower(), g["job_vanilla"]),
-        bodylink=wiki(name(g["body"]).lower(), g["body"]), pumpkin=wiki("carved pumpkin", "carved_pumpkin"),
+        build=g["build"],
         uses_text=uses_text, summary=summary, howto=BUILD_HOWTO, crafting=crafting(g),
         offer=offer, behaviour=behaviour, made=made,
         usesblock=("<h3>It uses</h3><div class=\"invgrid\">%s</div>" % uses) if uses else "", notes=notes, others=others)
