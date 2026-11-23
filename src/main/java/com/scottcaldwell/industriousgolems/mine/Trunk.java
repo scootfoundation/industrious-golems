@@ -88,7 +88,7 @@ public final class Trunk {
 
     /**
      * The next thing to do, or null when there is nothing: the mine is finished (every arm at its length, or ended), or something stops it.
-     * The hub comes first, then the arms, taken one at a time, the deepest first, so the golem keeps going down an arm instead of walking between them.
+     * The hub comes first, then the arms, taken a section at a time, the least advanced first, except that a golem already inside an arm carries on down it.
      *
      * @param from    where the golem is, to take the nearest of equal choices
      * @param ignored blocks it has given up on for now
@@ -99,16 +99,20 @@ public final class Trunk {
         Result hub = assess(level, hubCells(chest), () -> true, ignored);
         if (!hub.done()) return step(level, hub, null, 0, from);
 
-        // one arm at a time: the deepest one carries on (so the golem keeps going down it, and returns to it after a trip to the chest);
-        // arms equally deep (all of them, at the start) go to the nearest
+        // no changing arm without a reason: while the golem is inside an arm it carries on down that one. Back at the hub (after a trip to the
+        // chest) the arms are taken a section at a time, the least advanced first, the nearest of equals, so the mine grows as a plus.
         Frontier best = null;
+        int bestSection = Integer.MAX_VALUE;
         double bestDistance = Double.MAX_VALUE;
         for (Direction arm : ARMS) {
             Frontier front = frontier(level, chest, arm, ignored);
             if (front == null) continue;
+            if (insideArm(chest, arm, from)) { best = front; break; }
+            int section = (front.slice() - 1) / SUPPORT_EVERY;
             double distance = sliceCentre(chest, arm, front.slice()).distSqr(from);
-            if (best == null || front.slice() > best.slice() || (front.slice() == best.slice() && distance < bestDistance)) {
+            if (section < bestSection || (section == bestSection && distance < bestDistance)) {
                 best = front;
+                bestSection = section;
                 bestDistance = distance;
             }
         }
@@ -150,6 +154,13 @@ public final class Trunk {
         // some of the rock may not be dug yet from where it lies (it has to be open to the air on a side): take the ones that can be
         BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p, true) && MineFinder.fistSpot(level, p, from) != null).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
         return dig == null ? null : new Step(dig, List.of(), false, arm, slice);
+    }
+
+    /** Whether {@code pos} is in the arm's trunk, past the hub (so the golem is out in it rather than around the chest). */
+    private static boolean insideArm(BlockPos chest, Direction arm, BlockPos pos) {
+        int along = (pos.getX() - chest.getX()) * arm.getStepX() + (pos.getZ() - chest.getZ()) * arm.getStepZ();
+        int across = Math.abs((pos.getX() - chest.getX()) * arm.getStepZ() - (pos.getZ() - chest.getZ()) * arm.getStepX());
+        return along > HUB && across <= 1 && pos.getY() >= chest.getY() - 1 && pos.getY() <= chest.getY() + HEIGHT;
     }
 
     /** The first slice of the arm that is not finished, or null if the arm is complete or has ended. */
