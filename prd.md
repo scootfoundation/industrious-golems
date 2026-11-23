@@ -60,7 +60,7 @@ All golems share:
 - **Consumes:** Buckets (turned into milk), animal feed.
 - **Wants:** Turtle scute, sea pickle, cocoa beans, mangrove propagule, powder snow bucket, any pottery sherd, shroomlight, big dripleaf.
 - **Produces:** Wool, milk, meat and hides, kept to a target herd size.
-- **Behaviour:** Manages enclosed pens (up to 64 floor blocks) within 16 blocks of its chest. Shears sheep, milks cows (each cow at most every 5 minutes), breeds a pen with more than 4 floor blocks per animal using feed from the chest, and culls one below 3.5 floor blocks per animal, never below two adults of a species.
+- **Behaviour:** Manages enclosed pens (up to 64 floor blocks) within 16 blocks of its chest. Shears sheep, milks cows (each cow at most every 5 minutes), culls a pen below 3.5 floor blocks per animal (never below two adults of a species) and keeps breeding with feed from the chest until one animal fewer would not be crowded, so a pen at capacity is bred and culled continuously; it always breeds a pen of fewer than three animals.
 
 ### Stone golem (miner)
 

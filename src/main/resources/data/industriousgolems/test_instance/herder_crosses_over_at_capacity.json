@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:alone_herder_crosses_over",
+  "function": "industriousgolems:herder_crosses_over_at_capacity",
+  "max_ticks": 200,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

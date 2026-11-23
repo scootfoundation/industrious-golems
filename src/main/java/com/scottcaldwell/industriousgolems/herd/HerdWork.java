@@ -43,13 +43,15 @@ import java.util.stream.Stream;
 public class HerdWork extends TaskRunner<HerdPlan> {
 
     /**
-     * Cull above one animal per this many pen cells; breed below one per {@link #BREED_BELOW_CELLS_PER_ANIMAL}. The gap between them
-     * is what stops it breeding a calf only to cull it again: in a 16-cell pen it breeds up to four and culls from five.
+     * A pen holds one animal per this many cells: it culls above that, and keeps breeding while one animal fewer would still not be
+     * over it. So at the pen's capacity plus one it does both, which is the point: a farm that breeds and culls continuously. In a
+     * 16-cell pen (capacity four) it breeds up to five and culls from five.
      */
-    static final double CULL_ABOVE_CELLS_PER_ANIMAL = 3.5;
-    static final double BREED_BELOW_CELLS_PER_ANIMAL = 4.0;
+    static final double CELLS_PER_ANIMAL = 3.5;
     /** Never cull a species down to fewer adults than this. */
     static final int MIN_ADULTS = 2;
+    /** Below this many animals it always breeds, however small the pen. */
+    static final int ALWAYS_BREED_BELOW = 3;
     static final long MILK_COOLDOWN = 6000;
     private static final double REACH_SQR = 4.0 * 4.0;
     private static final int APPROACH_TICKS = 400;
@@ -116,7 +118,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         List<Job> jobs = new ArrayList<>();
 
         // too crowded: cull the most numerous species, but always keep a breeding pair
-        if (bareHanded && total * CULL_ABOVE_CELLS_PER_ANIMAL > cells) {
+        if (bareHanded && total * CELLS_PER_ANIMAL > cells) {
             List<Animal> crowded = null;
             for (List<Animal> species : adults.values()) {
                 if (species.size() > MIN_ADULTS && (crowded == null || species.size() > crowded.size())) crowded = species;
@@ -147,8 +149,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             if (cow != null) jobs.add(bucket ? Job.now(new HerdPlan(HerdPlan.Action.MILK, cow.getId())) : Job.needing("bucket"));
         }
 
-        // room to grow: feed a pair of the least common species that can breed
-        if ((feed || bareHanded) && total * BREED_BELOW_CELLS_PER_ANIMAL < cells) {
+        // room to grow (or nearly none to spare, so culling and breeding overlap): feed a pair of the least common species that can breed
+        if ((feed || bareHanded) && (total < ALWAYS_BREED_BELOW || (total - 1) * CELLS_PER_ANIMAL <= cells)) {
             List<List<Animal>> species = new ArrayList<>(adults.values());
             species.sort(Comparator.comparingInt(List::size));
             for (List<Animal> group : species) {

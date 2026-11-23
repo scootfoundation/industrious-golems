@@ -76,6 +76,7 @@ public class ModGameTests {
         strictly("herder_culls_crowded_pen", ModGameTests::herderCullsCrowdedPen);
         strictly("herder_breeds_sparse_pen", ModGameTests::herderBreedsSparsePen);
         strictly("herder_breeds_without_bucket", ModGameTests::herderBreedsWithoutBucket);
+        strictly("herder_crosses_over_at_capacity", ModGameTests::herderCrossesOverAtCapacity);
         herderMatrix("herder_matrix_fresh_wheat", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.WHEAT, 16)}, false, true, null);
         herderMatrix("herder_matrix_fresh_bucket", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.BUCKET, 1)}, true, false, null);
         herderMatrix("herder_matrix_fresh_bucket_and_wheat", Pen.FRESH, () -> new ItemStack[]{new ItemStack(Items.BUCKET, 1), new ItemStack(Items.WHEAT, 16)}, true, true, null);
@@ -413,6 +414,32 @@ public class ModGameTests {
     }
 
     /** The supplies the herder's jobs would need, as the dispatcher sees them. */
+    /**
+     * What a bare-handed herder offers to do in the 16-cell pen (capacity four) at each head count: breed below capacity, cull above it, both at
+     * one over (the crossover that keeps the pen producing), and never cull the last pair.
+     */
+    private static void herderCrossesOverAtCapacity(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        var pigs = new java.util.ArrayList<net.minecraft.world.entity.animal.pig.Pig>();
+        helper.runAfterDelay(2, () -> {
+            for (int count = 2; count <= 6; count++) {
+                while (pigs.size() < count) pigs.add(helper.spawn(EntityTypes.PIG, new BlockPos(4 + pigs.size() % 4, 1, 4 + pigs.size() / 4)));
+                boolean cull = false, breed = false;
+                for (var job : HerdWork.jobs(helper.getLevel(), herder).toList()) {
+                    if (job.plan() instanceof com.scottcaldwell.industriousgolems.herd.HerdPlan p && p.action() == com.scottcaldwell.industriousgolems.herd.HerdPlan.Action.CULL) cull = true;
+                    if (job.needsSupply() && job.supply().equals("feed")) breed = true;
+                }
+                boolean wantCull = count > 4, wantBreed = count <= 5;
+                helper.assertTrue(cull == wantCull, count + " pigs in 16 cells: cull should be " + wantCull);
+                var pens = HerdPen.find(helper.getLevel(), herder.jobSite(helper.getLevel()));
+                helper.assertTrue(breed == wantBreed, count + " pigs in 16 cells: breed should be " + wantBreed + " (pens: "
+                        + pens.stream().map(p -> p.animals.size() + "/" + p.cells.size()).toList() + ")");
+            }
+            helper.succeed();
+        });
+    }
+
     private static List<String> suppliesWanted(GameTestHelper helper, WorkGolem golem) {
         return HerdWork.jobs(helper.getLevel(), golem).filter(com.scottcaldwell.industriousgolems.needs.Job::needsSupply)
                 .map(com.scottcaldwell.industriousgolems.needs.Job::supply).toList();
