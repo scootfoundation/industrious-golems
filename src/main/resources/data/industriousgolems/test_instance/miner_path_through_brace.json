@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_path_through_brace",
+  "environment": "industriousgolems:alone_miner_path_through_brace",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 6000
+}

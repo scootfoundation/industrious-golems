@@ -118,6 +118,7 @@ public class ModGameTests {
         strictly("miner_waits_for_kit", ModGameTests::minerWaitsForKit);
         strictly("miner_pack_slots", ModGameTests::minerPackSlots);
         strictly("miner_builds_support", ModGameTests::minerBuildsSupport);
+        strictly("miner_path_through_brace", ModGameTests::minerPathThroughBrace);
         strictly("golem_meets_chest_face_on_and_opens_it", ModGameTests::golemMeetsChestFaceOn);
         strictly("lumberjack_plants_spaced_saplings", ModGameTests::lumberjackPlantsSpacedSaplings);
         strictly("lumberjack_fells_branches", ModGameTests::lumberjackFellsBranchingTree);
@@ -1711,6 +1712,27 @@ public class ModGameTests {
             var torch = helper.getBlockState(new BlockPos(8, 3, 6));
             helper.assertTrue(torch.is(Blocks.WALL_TORCH) && torch.getValue(net.minecraft.world.level.block.WallTorchBlock.FACING) == net.minecraft.core.Direction.WEST, "a torch on the middle plank facing the chest, found " + torch + " and planks " + helper.getBlockState(new BlockPos(9, 3, 6)) + describe(helper, miner, chest));
             helper.assertTrue(helper.getBlockState(new BlockPos(9, 1, 6)).isAir() && helper.getBlockState(new BlockPos(9, 2, 6)).isAir(), "the middle of the corridor stays open");
+        });
+    }
+
+    /** With the first brace up, the golem goes on through it and digs the slice behind. */
+    private static void minerPathThroughBrace(GameTestHelper helper) {
+        buildMine(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
+        stockKit(chest, 8);
+        for (int z : new int[] {5, 7}) {
+            for (int y = 1; y <= 2; y++) helper.setBlock(new BlockPos(9, y, z), Blocks.OAK_FENCE);
+        }
+        for (int z = 5; z <= 7; z++) helper.setBlock(new BlockPos(9, 3, z), Blocks.OAK_PLANKS);
+        helper.setBlock(new BlockPos(8, 3, 6), Blocks.WALL_TORCH.defaultBlockState().setValue(net.minecraft.world.level.block.WallTorchBlock.FACING, net.minecraft.core.Direction.WEST));
+        for (int x = 10; x <= 12; x++) {
+            for (int z = 5; z <= 7; z++) {
+                for (int y = 1; y <= 3; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+            }
+        }
+        WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(new BlockPos(10, 1, 6)).isAir() && helper.getBlockState(new BlockPos(11, 1, 6)).isAir(), "the golem walks between the brace's posts and digs the slice behind it" + describe(helper, miner, chest));
         });
     }
 }

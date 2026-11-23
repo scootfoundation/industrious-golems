@@ -38,7 +38,7 @@ public final class ModEntities {
 
     /** The stone golem. */
     public static final DeferredHolder<EntityType<?>, EntityType<WorkGolem>> MINER_GOLEM =
-            define(ModProfessions.MINER, "stone_golem", 1.0F, 1.5F);
+            define(ModProfessions.MINER, "stone_golem", 0.95F, 1.5F); // under a block wide: path-finding gives a mob of a block or more a 2x2 footprint, which will not fit the lane between a brace's posts
 
     private ModEntities() { }
 
