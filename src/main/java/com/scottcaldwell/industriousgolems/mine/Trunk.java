@@ -88,7 +88,7 @@ public final class Trunk {
 
     /**
      * The next thing to do, or null when there is nothing: the mine is finished (every arm at its length, or ended), or something stops it.
-     * The hub comes first, then the arms, taken a section at a time and the least advanced first, so the mine grows as a plus.
+     * The hub comes first, then the arms, taken one at a time, the deepest first, so the golem keeps going down an arm instead of walking between them.
      *
      * @param from    where the golem is, to take the nearest of equal choices
      * @param ignored blocks it has given up on for now
@@ -99,17 +99,16 @@ public final class Trunk {
         Result hub = assess(level, hubCells(chest), () -> true, ignored);
         if (!hub.done()) return step(level, hub, null, 0, from);
 
+        // one arm at a time: the deepest one carries on (so the golem keeps going down it, and returns to it after a trip to the chest);
+        // arms equally deep (all of them, at the start) go to the nearest
         Frontier best = null;
-        int bestSection = Integer.MAX_VALUE;
         double bestDistance = Double.MAX_VALUE;
         for (Direction arm : ARMS) {
             Frontier front = frontier(level, chest, arm, ignored);
             if (front == null) continue;
-            int section = (front.slice() - 1) / SUPPORT_EVERY;
             double distance = sliceCentre(chest, arm, front.slice()).distSqr(from);
-            if (section < bestSection || (section == bestSection && distance < bestDistance)) {
+            if (best == null || front.slice() > best.slice() || (front.slice() == best.slice() && distance < bestDistance)) {
                 best = front;
-                bestSection = section;
                 bestDistance = distance;
             }
         }
