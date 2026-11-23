@@ -41,6 +41,9 @@ public final class Trunk {
     public static final int TORCH_AT = 2;
     /** The longest run of missing floor it will bridge. */
     public static final int MAX_GAP = 5;
+    /** How far from the golem it looks for ore, and how far from the mine's axes an ore may be and still be worked. */
+    private static final int VEIN_SCAN = 6;
+    public static final int VEIN_BAND = 5;
 
     private static final Direction[] ARMS = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
 
@@ -86,6 +89,8 @@ public final class Trunk {
      * @param ignored blocks it has given up on for now
      */
     public static Step next(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored) {
+        BlockPos vein = vein(level, chest, from, ignored);
+        if (vein != null) return new Step(vein, List.of(), Map.of(), null, -1);
         Result hub = assess(level, hubCells(chest), () -> true, ignored);
         if (!hub.done()) return step(level, hub, null, 0, from);
 
@@ -104,6 +109,28 @@ public final class Trunk {
             }
         }
         return best == null ? null : step(level, best.result(), best.arm(), best.slice(), from);
+    }
+
+    /**
+     * Ore showing in a wall, ceiling or cave the golem is working near: dug before the plain rock, and what it opens up shows the next block of the
+     * vein, so a vein is followed as far as the golem can reach it from where it can stand. Never the floor, which it walks on. Only ore within
+     * {@link #VEIN_BAND} of one of the mine's axes, so it does not wander off after every ore in sight.
+     */
+    private static BlockPos vein(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored) {
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (BlockPos pos : BlockPos.betweenClosed(from.offset(-VEIN_SCAN, -3, -VEIN_SCAN), from.offset(VEIN_SCAN, 4, VEIN_SCAN))) {
+            int dx = pos.getX() - chest.getX(), dz = pos.getZ() - chest.getZ(), dy = pos.getY() - chest.getY();
+            if (dy < 0 || dy > HEIGHT + 1 || Math.min(Math.abs(dx), Math.abs(dz)) > VEIN_BAND || Math.max(Math.abs(dx), Math.abs(dz)) > HUB + ARM_MAX + VEIN_BAND) continue;
+            if (!level.isLoaded(pos) || !level.getBlockState(pos).is(com.scottcaldwell.industriousgolems.ModTags.MINER_ORES) || ignored.test(pos)) continue;
+            if (!MineFinder.isMineable(level, pos)) continue;
+            double distance = pos.distSqr(from);
+            if (distance < bestDistance) {
+                best = pos.immutable();
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     /** Whether any arm still has work (or the hub does): false once the mine is as big as it will get. */

@@ -13,6 +13,22 @@
     "minecraft:redstone",
     "minecraft:lapis_lazuli",
     "minecraft:diamond",
-    "minecraft:emerald"
+    "minecraft:emerald",
+    "minecraft:dirt",
+    "minecraft:coarse_dirt",
+    "minecraft:rooted_dirt",
+    "minecraft:clay_ball",
+    "minecraft:mud",
+    "minecraft:calcite",
+    "minecraft:smooth_basalt",
+    "minecraft:basalt",
+    "minecraft:blackstone",
+    "minecraft:netherrack",
+    "minecraft:dripstone_block",
+    "minecraft:pointed_dripstone",
+    "minecraft:amethyst_block",
+    "minecraft:amethyst_shard",
+    "minecraft:quartz",
+    "minecraft:gold_nugget"
   ]
 }

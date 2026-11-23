@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_follows_veins",
+  "environment": "industriousgolems:alone_miner_follows_veins",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 200
+}

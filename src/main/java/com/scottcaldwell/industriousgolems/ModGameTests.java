@@ -112,6 +112,7 @@ public class ModGameTests {
         FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, ModBlocks.STONE_CHEST.get()));
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
+        strictly("miner_follows_veins", ModGameTests::minerFollowsVeins);
         strictly("miner_digs_hub_and_arm", ModGameTests::minerDigsHubAndArm);
         strictly("miner_waits_for_kit", ModGameTests::minerWaitsForKit);
         strictly("miner_builds_support", ModGameTests::minerBuildsSupport);
@@ -413,7 +414,6 @@ public class ModGameTests {
         });
     }
 
-    /** The supplies the herder's jobs would need, as the dispatcher sees them. */
     /**
      * What a bare-handed herder offers to do in the 16-cell pen (capacity four) at each head count: breed below capacity, cull above it, both at
      * one over (the crossover that keeps the pen producing), and never cull the last pair.
@@ -440,6 +440,7 @@ public class ModGameTests {
         });
     }
 
+    /** The supplies the herder's jobs would need, as the dispatcher sees them. */
     private static List<String> suppliesWanted(GameTestHelper helper, WorkGolem golem) {
         return HerdWork.jobs(helper.getLevel(), golem).filter(com.scottcaldwell.industriousgolems.needs.Job::needsSupply)
                 .map(com.scottcaldwell.industriousgolems.needs.Job::supply).toList();
@@ -1571,6 +1572,33 @@ public class ModGameTests {
         helper.assertTrue(step != null && step.digs() && step.dig().equals(helper.absolutePos(new BlockPos(9, 2, 6))), "rock in a slice is dug, got " + step);
         helper.setBlock(new BlockPos(9, 2, 6), Blocks.GRAVEL);
         helper.assertTrue(nextStep(helper) == null, "gravel is not dug (it falls): the arm ends");
+        helper.succeed();
+    }
+
+    /** Ore showing beside the corridor is dug before anything else, and the vein is followed as each block opens the next. The floor is left. */
+    private static void minerFollowsVeins(GameTestHelper helper) {
+        buildMine(helper);
+        BlockPos[] vein = {new BlockPos(9, 1, 4), new BlockPos(9, 1, 3), new BlockPos(9, 1, 2)};
+        for (BlockPos pos : vein) helper.setBlock(pos, Blocks.DIAMOND_ORE);
+        for (int i = 0; i < vein.length; i++) {
+            Trunk.Step step = nextStep(helper);
+            helper.assertTrue(step != null && step.digs() && step.dig().equals(helper.absolutePos(vein[i])), "vein block " + i + " is dug next, got " + step);
+            helper.setBlock(vein[i], Blocks.AIR);
+        }
+        helper.setBlock(new BlockPos(9, 0, 6), Blocks.DIAMOND_ORE);
+        Trunk.Step step = nextStep(helper);
+        helper.assertTrue(step != null && !(step.digs() && step.dig().equals(helper.absolutePos(new BlockPos(9, 0, 6)))), "ore in the floor is left, got " + step);
+        helper.setBlock(new BlockPos(9, 0, 6), Blocks.STONE);
+        helper.setBlock(new BlockPos(12, 1, 0), Blocks.DIAMOND_ORE);
+        step = nextStep(helper);
+        helper.assertTrue(step != null && !(step.digs() && step.dig().equals(helper.absolutePos(new BlockPos(12, 1, 0)))), "ore far from the mine's axes is not chased, got " + step);
+        var level = helper.getLevel();
+        for (var block : new net.minecraft.world.level.block.Block[] {Blocks.DIRT, Blocks.CLAY, Blocks.CALCITE, Blocks.AMETHYST_CLUSTER, Blocks.NETHER_QUARTZ_ORE, Blocks.DEEPSLATE_GOLD_ORE, Blocks.BASALT}) {
+            helper.setBlock(new BlockPos(9, 1, 6), block);
+            helper.assertTrue(MineFinder.isMineable(level, helper.absolutePos(new BlockPos(9, 1, 6))), block + " is dug");
+        }
+        helper.setBlock(new BlockPos(9, 1, 6), Blocks.ANCIENT_DEBRIS);
+        helper.assertTrue(!MineFinder.isMineable(level, helper.absolutePos(new BlockPos(9, 1, 6))), "ancient debris is left for the player");
         helper.succeed();
     }
 
