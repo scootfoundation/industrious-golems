@@ -83,7 +83,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (!job.needsSupply()) continue;
             Need need = needs.need(job.supply());
             if (need == null) continue;
-            BlockPos pos = best(level, golem, chest -> slotWith(need, job.accepts(), chest) >= 0, false);
+            BlockPos pos = best(level, golem, chest -> need.isKit() ? kitSlot(need, golem, chest) >= 0 : slotWith(need, job.accepts(), chest) >= 0, false);
             if (pos != null) return new Plan(pos, need.id(), job.accepts());
         }
         return null;
@@ -112,6 +112,18 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             }
         }
         return best;
+    }
+
+    /** A slot of the chest holding something of the kit that the golem's pack is still short of, or -1. */
+    private static int kitSlot(Need need, WorkGolem golem, Container chest) {
+        for (Need.Part part : need.parts()) {
+            if (golem.packCount(part.match()) >= part.target()) continue;
+            for (int i = 0; i < chest.getContainerSize(); i++) {
+                ItemStack s = chest.getItem(i);
+                if (!s.isEmpty() && part.match().test(s)) return i;
+            }
+        }
+        return -1;
     }
 
     private static int slotWith(Need need, Predicate<ItemStack> accepts, Container chest) {
@@ -313,7 +325,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     /** Takes one stack of the supply (at most what the need allows) from the chest into the hand. */
     private static void take(Need need, Predicate<ItemStack> accepts, WorkGolem golem, Container chest) {
-        if (need == null || golem.isCarrying()) return;
+        if (need == null) return;
+        if (need.isKit()) { fillPack(need, golem, chest); return; }
+        if (golem.isCarrying()) return;
         int slot = slotWith(need, accepts, chest);
         if (slot < 0) return;
         ItemStack in = chest.getItem(slot);
@@ -321,6 +335,22 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         golem.setCarried(in.copyWithCount(n));
         in.shrink(n);
         if (in.isEmpty()) chest.setItem(slot, ItemStack.EMPTY);
+    }
+
+    /** Tops the pack up from the chest, each kind of the kit to its target. */
+    private static void fillPack(Need need, WorkGolem golem, Container chest) {
+        for (Need.Part part : need.parts()) {
+            int want = part.target() - golem.packCount(part.match());
+            for (int i = 0; i < chest.getContainerSize() && want > 0; i++) {
+                ItemStack in = chest.getItem(i);
+                if (in.isEmpty() || !part.match().test(in)) continue;
+                int n = Math.min(want, in.getCount());
+                golem.packAdd(in.copyWithCount(n));
+                in.shrink(n);
+                if (in.isEmpty()) chest.setItem(i, ItemStack.EMPTY);
+                want -= n;
+            }
+        }
     }
 
     /** Inserts into the container, merging into matching stacks first; returns whatever did not fit. */

@@ -9,28 +9,16 @@ import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Finds the next rock for the stone golem to mine: plain stone or ore around its chest that is already exposed to the
- * air (so it digs inward from the faces it can see rather than boring through the ground), never below the chest's
- * own level (so it cuts a tunnel or quarry face, not a pit it could fall into), and never where the cut would let a
- * liquid in or bring sand down.
+ * What the stone golem may dig and where it can stand to do it. Which block comes next is {@link Trunk}'s decision; this says whether a
+ * block is safe to cut (open to the air on a side, never where the cut would let a liquid in or bring sand down).
  */
 public final class MineFinder {
 
-    /** How far from the chest, sideways, the golem digs. */
-    public static final int RADIUS = 7;
-    /** How many blocks above the chest's level it digs; the floor it walks on is never touched. */
-    public static final int HEIGHT = 2;
     /** Furthest the golem can mine from where it stands, measured from its eyes. */
     public static final double REACH = 5.0;
-    /** An ore counts as this many blocks (squared) closer than it is, so a vein is worked before plain rock. */
-    private static final double ORE_BONUS = 36.0;
-    private static final int CANDIDATES = 10;
 
     private MineFinder() { }
 
@@ -40,27 +28,6 @@ public final class MineFinder {
     /** Whether the golem digs this kind of block at all. */
     public static boolean isRock(BlockState state) {
         return state.is(ModTags.MINER_STONE) || state.is(ModTags.MINER_ORES);
-    }
-
-    public static Target find(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored) {
-        List<BlockPos> candidates = new ArrayList<>();
-        for (BlockPos pos : BlockPos.betweenClosed(chest.offset(-RADIUS, 0, -RADIUS), chest.offset(RADIUS, HEIGHT, RADIUS))) {
-            if (!ignored.test(pos) && isMineable(level, pos)) candidates.add(pos.immutable());
-        }
-        candidates.sort(Comparator.comparingDouble(p -> score(level, p, from)));
-
-        int tried = 0;
-        for (BlockPos block : candidates) {
-            if (++tried > CANDIDATES) break;
-            BlockPos stand = standingSpot(level, block, from);
-            if (stand != null) return new Target(block, stand);
-        }
-        return null;
-    }
-
-    private static double score(ServerLevel level, BlockPos pos, BlockPos from) {
-        double distance = pos.distSqr(from);
-        return level.getBlockState(pos).is(ModTags.MINER_ORES) ? distance - ORE_BONUS : distance;
     }
 
     /** Rock that is open to the air on some side, with no liquid beside it and nothing that would fall above it. */
@@ -79,11 +46,16 @@ public final class MineFinder {
     }
 
     /** The closest open floor within reach of the block, with room to stand; null when there is none. */
-    static BlockPos standingSpot(ServerLevel level, BlockPos block, BlockPos from) {
+    public static BlockPos standingSpot(ServerLevel level, BlockPos block, BlockPos from) {
+        return standingSpot(level, block, from, pos -> true);
+    }
+
+    /** As above, among the spots {@code allowed} lets it stand on. */
+    public static BlockPos standingSpot(ServerLevel level, BlockPos block, BlockPos from, Predicate<BlockPos> allowed) {
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.betweenClosed(block.offset(-2, -3, -2), block.offset(2, 0, 2))) {
-            if (!canStandAt(level, pos)) continue;
+            if (!canStandAt(level, pos) || !allowed.test(pos)) continue;
             if (Vec3.atCenterOf(pos).distanceTo(Vec3.atCenterOf(block)) > REACH - 1.5) continue;
             double distance = pos.distSqr(from);
             if (distance < bestDistance) {

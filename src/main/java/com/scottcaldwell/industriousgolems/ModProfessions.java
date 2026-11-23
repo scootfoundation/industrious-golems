@@ -6,6 +6,8 @@ import com.scottcaldwell.industriousgolems.herd.HerdWork;
 import com.scottcaldwell.industriousgolems.lumber.FellTree;
 import com.scottcaldwell.industriousgolems.lumber.LumberWork;
 import com.scottcaldwell.industriousgolems.lumber.PlantSapling;
+import com.scottcaldwell.industriousgolems.mine.BuildTrunk;
+import com.scottcaldwell.industriousgolems.mine.Kit;
 import com.scottcaldwell.industriousgolems.mine.MineRock;
 import com.scottcaldwell.industriousgolems.needs.Need;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
@@ -98,8 +100,11 @@ public final class ModProfessions {
             holder -> holder.is(PoiTypes.MASON) || holder.is(ModBlocks.STONE_CHEST_POI.getKey()),
             0.35,
             SoundEvents.VILLAGER_WORK_MASON,
-            new ProfessionNeeds(List.of(), s -> s.is(ModTags.MINER_OUTPUT),
-                    new ProfessionNeeds.Work(MineRock::jobs, MineRock::new)),
+            new ProfessionNeeds(List.of(
+                    // the mine's timber, light and fill, carried in a pack beside the hand (see mine.Kit)
+                    Need.kit("kit", Items.OAK_FENCE, java.util.Arrays.stream(Kit.values()).map(k -> new Need.Part(k.match(), k.target())).toList())
+            ), s -> s.is(ModTags.MINER_OUTPUT),
+                    new ProfessionNeeds.Work(MineRock::jobs, MineRock::new, List.of(BuildTrunk::new))),
             offerings(Items.NAUTILUS_SHELL, Items.PRISMARINE_CRYSTALS, Items.ECHO_SHARD, Items.DISC_FRAGMENT_5,
                     Items.CHORUS_FRUIT, Items.PHANTOM_MEMBRANE, Items.GHAST_TEAR, Items.BREEZE_ROD),
             ModBlocks.STONE_CHEST::get,

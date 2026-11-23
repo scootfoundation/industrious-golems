@@ -65,10 +65,12 @@ All golems share:
 ### Stone golem (miner)
 
 - **Job site:** Stone chest (mossy stone bricks with an iron latch), placed at the level the player wants to mine. **Built from:** pumpkin on a T of smooth stone, like an iron golem: a row of three with one more under the middle (the chest is craftable from a chest, a stonecutter and smooth stone).
-- **Consumes:** Nothing: it digs bare-handed.
+- **Consumes:** Fences, planks (any wood), torches and cobblestone, kept in a pack of up to 16 fences, 12 planks, 8 torches and 16 cobblestone, topped up from the chest in one visit. It digs bare-handed.
 - **Wants:** Nautilus shell, prismarine crystals, echo shard, disc fragment 5, chorus fruit, phantom membrane, ghast tear, breeze rod.
 - **Produces:** Cobblestone, cobbled deepslate, granite, diorite, andesite, tuff and the ores (coal, raw iron, raw copper, raw gold, redstone, lapis, diamond, emerald), as an iron pickaxe would drop them.
-- **Behaviour:** Digs rock that is already exposed to air within 7 blocks of its chest, working inward from the faces it can see, never below the chest's level and at most 2 blocks above it. Prefers ore to plain stone. Will not open onto liquid or bring sand or gravel down. Digs a batch of 12 blocks, then collects the drops and carries them to the chest.
+- **Behaviour:** The chest sits on the floor of the mine; everything is cut from its level up. The golem digs a 5 x 5 hub room, 4 high, around the chest, then a 3 x 3 trunk from the middle of each wall in each cardinal direction, up to 64 slices each (four chunks, so a whole mine stays inside what a nearby player keeps loaded). Arms are worked a section of five slices at a time, least advanced first, so the mine grows as a plus. Every fifth slice is a support (a fence post each side two high, a plank beam across) and the slice two on from it has a torch on the floor; the hub's corners are torched. Missing floor is bridged with cobblestone when the gap is at most five slices. It never starts a slice whose kit it cannot carry, and waits (idles) when the chest cannot supply it. A trunk ends at liquid, a falling block over or in the way, a long drop, or a block it does not dig; it leaves caves it opens into alone. Where it is now: planned from the world, nothing remembered. It digs a batch of up to 12 blocks, then carries the drops to the chest.
+
+- **Planned, not built yet:** following ore veins out of the trunk walls and a wider set of minerals (nether ores, amethyst and geodes, gravel, clay, dirt and sand, deepslate variants, dripstone and tuff; not ancient debris or obsidian); sealing liquids with cobblestone; clearing sand and gravel carefully and propping the ceiling; and fleeing mobs to the chest, covering its head and shaking, resuming when they are gone.
 
 ## Villagers
 

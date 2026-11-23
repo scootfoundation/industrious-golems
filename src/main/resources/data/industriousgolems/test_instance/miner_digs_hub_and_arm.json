@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_digs_hub_and_arm",
+  "environment": "industriousgolems:alone_miner_digs_hub_and_arm",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 9000
+}

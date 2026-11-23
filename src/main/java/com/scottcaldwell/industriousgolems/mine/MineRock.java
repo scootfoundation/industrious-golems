@@ -26,10 +26,10 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 
 /**
- * Digs rock a block at a time: walk to a spot within reach of an exposed block, look at it, hammer at it (the crack
- * grows with each swing) and break it, then take the next one, for a dozen blocks before the work is carried off. The
- * rock yields what an iron pickaxe would get from it, so ore drops as ore but nothing harder than iron is touched.
- * While it digs the golem leaves the drops lying; it gathers them afterwards, a stack at a time (see PickUp).
+ * Digs the next rock of the mine (see {@link Trunk} for which) a block at a time: walk to a spot within reach, look at it, hammer at it (the crack
+ * grows with each swing) and break it, then take the next, for a dozen blocks before the work is carried off. The rock yields what an iron
+ * pickaxe would get from it. While it digs the golem leaves the drops lying; it gathers them afterwards, a stack at a time (see PickUp). The
+ * golem does not start a slice it cannot finish: when the pack is short of the supports and torches for it, it asks the chest for the kit.
  */
 public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
@@ -55,7 +55,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
             .state(State.SETTLE, "The block is gone and the golem is settling from the blow.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.SEEK, State.APPROACH, "a block was found (the first one comes with the plan)")
-            .edge(State.SEEK, State.DONE, "twelve blocks dug, or no rock left in reach of the chest")
+            .edge(State.SEEK, State.DONE, "twelve blocks dug, or the next step is not digging, or the kit for it is short")
             .edge(State.APPROACH, State.SWING, "within reach with a clear line to the block")
             .edge(State.APPROACH, State.SEEK, "the block is already gone or no longer safe to cut, or unreachable for 8 s (ignored for 5 min)")
             .edge(State.SWING, State.SETTLE, "hit moment: the block breaks, the drops fall")
@@ -73,21 +73,46 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     // ---- choosing work ----------------------------------------------------------------------------------------
 
-    /** Rock to dig, when the golem has a free hand and may break blocks, once what lies about is carried off. It needs no supplies. */
+    /**
+     * The next thing the mine needs, once what lies about is carried off: rock to dig (this runner), blocks to place (see {@link BuildTrunk}),
+     * or the kit to do either, fetched from the chest. When the chest cannot supply it the golem has nothing to do.
+     */
     public static java.util.stream.Stream<com.scottcaldwell.industriousgolems.needs.Job> jobs(ServerLevel level, WorkGolem golem) {
         if (golem.isCarrying() || !EventHooks.canEntityGrief(level, golem)) return java.util.stream.Stream.empty();
         return com.scottcaldwell.industriousgolems.needs.Jobs.of(() -> {
-            MineFinder.Target target = findTarget(level, golem);
-            return target == null ? null : com.scottcaldwell.industriousgolems.needs.Job.whenTidy(new MinePlan(target));
+            BlockPos chest = golem.jobSite(level);
+            if (chest == null) return null;
+            Trunk.Step step = next(level, golem, chest);
+            if (step == null) return null;
+            if (!step.affordable(part -> golem.packCount(part.match()))) return com.scottcaldwell.industriousgolems.needs.Job.needing("kit");
+            if (!step.digs()) return com.scottcaldwell.industriousgolems.needs.Job.whenTidy(new BuildTrunk.Plan(step.builds()));
+            BlockPos stand = MineFinder.standingSpot(level, step.dig(), golem.blockPosition());
+            if (stand == null) { // nowhere to stand to cut it: leave it for a while
+                golem.getData(ModAttachments.TASK).ignoreBlock(step.dig(), level.getGameTime() + IGNORE_TICKS);
+                return null;
+            }
+            return com.scottcaldwell.industriousgolems.needs.Job.whenTidy(new MinePlan(new MineFinder.Target(step.dig(), stand)));
         });
     }
 
+    private static Trunk.Step next(ServerLevel level, WorkGolem golem, BlockPos chest) {
+        TaskState state = golem.getData(ModAttachments.TASK);
+        long now = level.getGameTime();
+        return Trunk.next(level, chest, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
+    }
+
+    /** The next block of the batch, or null when the next step is not digging (or cannot be afforded). */
     private static MineFinder.Target findTarget(ServerLevel level, WorkGolem golem) {
         BlockPos chest = golem.jobSite(level);
         if (chest == null) return null;
-        TaskState state = golem.getData(ModAttachments.TASK);
-        long now = level.getGameTime();
-        return MineFinder.find(level, chest, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
+        Trunk.Step step = next(level, golem, chest);
+        if (step == null || !step.digs() || !step.affordable(part -> golem.packCount(part.match()))) return null;
+        BlockPos stand = MineFinder.standingSpot(level, step.dig(), golem.blockPosition());
+        if (stand == null) {
+            golem.getData(ModAttachments.TASK).ignoreBlock(step.dig(), level.getGameTime() + IGNORE_TICKS);
+            return null;
+        }
+        return new MineFinder.Target(step.dig(), stand);
     }
 
     // ---- the job ------------------------------------------------------------------------------------------------

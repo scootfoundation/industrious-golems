@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_builds_support",
+  "environment": "industriousgolems:alone_miner_builds_support",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 6000
+}

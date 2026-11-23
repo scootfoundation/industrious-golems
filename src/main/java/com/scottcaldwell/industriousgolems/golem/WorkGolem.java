@@ -40,6 +40,10 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+
 /**
  * A work golem: a golem that holds a job. Which job (farmer, lumberjack, herder or miner) is fixed by its entity type, see
  * {@link ModEntities}. It claims a job site (its chest) and does its work bare-handed, carrying one stack at a time
@@ -248,6 +252,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
+        if (!pack.isEmpty()) output.store("Pack", ItemStack.CODEC.listOf(), List.copyOf(pack));
     }
 
     @Override
@@ -256,6 +261,48 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setChargeTicks(input.getIntOr("ChargeTicks", 0));
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
+        pack.clear();
+        input.read("Pack", ItemStack.CODEC.listOf()).ifPresent(pack::addAll);
+    }
+
+    // ---- the pack --------------------------------------------------------------------------------------------------
+
+    /** Building materials carried besides the stack in hand (the miner's supports and torches); empty for the other kinds. */
+    private final List<ItemStack> pack = new ArrayList<>();
+
+    public List<ItemStack> pack() {
+        return pack;
+    }
+
+    /** How many items in the pack match. */
+    public int packCount(Predicate<ItemStack> match) {
+        int n = 0;
+        for (ItemStack stack : pack) if (match.test(stack)) n += stack.getCount();
+        return n;
+    }
+
+    /** Puts the stack in the pack, merging with what is there. */
+    public void packAdd(ItemStack stack) {
+        for (ItemStack held : pack) {
+            if (ItemStack.isSameItemSameComponents(held, stack)) {
+                held.grow(stack.getCount());
+                return;
+            }
+        }
+        pack.add(stack.copy());
+    }
+
+    /** Takes one matching item out of the pack, or returns an empty stack. */
+    public ItemStack packTake(Predicate<ItemStack> match) {
+        for (int i = 0; i < pack.size(); i++) {
+            ItemStack held = pack.get(i);
+            if (!match.test(held)) continue;
+            ItemStack one = held.copyWithCount(1);
+            held.shrink(1);
+            if (held.isEmpty()) pack.remove(i);
+            return one;
+        }
+        return ItemStack.EMPTY;
     }
 
     // ---- carrying -------------------------------------------------------------------------------------------------

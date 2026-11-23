@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_waits_for_kit",
+  "environment": "industriousgolems:alone_miner_waits_for_kit",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 2500
+}
