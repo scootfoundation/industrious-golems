@@ -13,10 +13,9 @@ import net.minecraft.world.item.ItemStack;
 public class GolemPackScreen extends AbstractContainerScreen<GolemPackMenu> {
 
     private static final int PANEL = 0xFFC6C6C6, LIGHT = 0xFFFFFFFF, DARK = 0xFF555555, WELL = 0xFF8B8B8B;
-    private static final String[] LABELS = {"Posts", "Beams", "Torches"};
 
     public GolemPackScreen(GolemPackMenu menu, Inventory inventory, Component title) {
-        super(menu, inventory, title, 176, 168);
+        super(menu, inventory, title, 176, GolemPackMenu.HEIGHT);
         inventoryLabelY = 1000; // the player's inventory carries no label
     }
 
@@ -28,11 +27,6 @@ public class GolemPackScreen extends AbstractContainerScreen<GolemPackMenu> {
         graphics.fill(x, y, x + imageWidth - 2, y + imageHeight - 2, LIGHT);
         graphics.fill(x + 2, y + 2, x + imageWidth - 2, y + imageHeight - 2, PANEL);
         for (Slot slot : menu.slots) well(graphics, x + slot.x, y + slot.y);
-        for (int i = 0; i < Kit.SPECIAL; i++) {
-            String label = LABELS[i];
-            graphics.text(font, label, x + GolemPackMenu.x(i, Kit.SPECIAL) + 8 - font.width(label) / 2, y + GolemPackMenu.KIT_Y + 19, 0xFF404040, false);
-        }
-        graphics.text(font, "Carrying", x + 8, y + GolemPackMenu.GENERAL_Y - 10, 0xFF404040, false);
     }
 
     private static void well(GuiGraphicsExtractor graphics, int x, int y) {

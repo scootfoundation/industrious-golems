@@ -16,7 +16,7 @@ import net.minecraft.world.item.ItemStack;
  */
 public class GolemPackMenu extends AbstractContainerMenu {
 
-    public static final int KIT_Y = 18, GENERAL_Y = 50, PLAYER_Y = 84;
+    public static final int ROW_Y = 20, PLAYER_Y = 48, HEIGHT = 132;
     private static final int KIT_SLOTS = Kit.SPECIAL, SLOTS = WorkGolem.PACK_SIZE;
 
     private final Container pack;
@@ -37,20 +37,20 @@ public class GolemPackMenu extends AbstractContainerMenu {
         this.golem = golem;
         for (Kit part : Kit.values()) {
             if (!part.special()) continue;
-            addSlot(new Slot(pack, part.ordinal(), x(part.ordinal(), KIT_SLOTS), KIT_Y) {
+            addSlot(new Slot(pack, part.ordinal(), x(part.ordinal()), ROW_Y) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
                     return part.match().test(stack);
                 }
             });
         }
-        for (int i = KIT_SLOTS; i < SLOTS; i++) addSlot(new Slot(pack, i, x(i - KIT_SLOTS, SLOTS - KIT_SLOTS), GENERAL_Y));
+        for (int i = KIT_SLOTS; i < SLOTS; i++) addSlot(new Slot(pack, i, x(i), ROW_Y));
         addStandardInventorySlots(inventory, 8, PLAYER_Y);
     }
 
-    /** Left edge of slot {@code i} of a row of {@code n}, centred across the panel. */
-    public static int x(int i, int n) {
-        return (176 - n * 18) / 2 + i * 18 + 1;
+    /** Left edge of slot {@code i} of the one row: the three of its own, a small gap, then the five general ones, centred across the panel. */
+    public static int x(int i) {
+        return 12 + i * 18 + (i >= KIT_SLOTS ? 8 : 0);
     }
 
     @Override
