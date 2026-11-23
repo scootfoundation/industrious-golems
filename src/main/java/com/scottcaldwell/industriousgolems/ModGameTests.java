@@ -42,8 +42,10 @@ import net.minecraft.world.level.block.CarvedPumpkinBlock;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -110,6 +112,7 @@ public class ModGameTests {
         strictly("chest_pattern_via_place_event", ModGameTests::chestPatternViaPlaceEvent);
         strictly("chest_pattern_needs_headroom", ModGameTests::chestPatternNeedsHeadroom);
         FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, ModBlocks.STONE_CHEST.get()));
+        strictly("golem_chests_join_into_doubles", ModGameTests::golemChestsJoinIntoDoubles);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
         strictly("miner_follows_veins", ModGameTests::minerFollowsVeins);
@@ -716,6 +719,27 @@ public class ModGameTests {
             helper.assertTrue(golem.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE), "it keeps its chest as job site");
         });
         helper.succeedWhen(() -> helper.assertTrue(golem.isCharged(), "charged"));
+    }
+
+    /** Two chests of the same kind side by side are one 54-slot double chest; a chest of another kind does not join them. */
+    private static void golemChestsJoinIntoDoubles(GameTestHelper helper) {
+        Block[] kinds = {ModBlocks.HAY_CHEST.get(), ModBlocks.MUSHROOM_CHEST.get(), ModBlocks.TERRACOTTA_CHEST.get(), ModBlocks.STONE_CHEST.get()};
+        for (int i = 0; i < kinds.length; i++) {
+            Block kind = kinds[i];
+            BlockPos first = new BlockPos(1 + i * 2, 2, 1);
+            BlockState right = kind.defaultBlockState().setValue(ChestBlock.FACING, Direction.SOUTH).setValue(ChestBlock.TYPE, ChestType.RIGHT);
+            BlockPos second = first.relative(ChestBlock.getConnectedDirection(right));
+            BlockState left = right.setValue(ChestBlock.TYPE, ChestType.LEFT);
+            helper.setBlock(first, right);
+            helper.setBlock(second, left);
+            helper.assertTrue(((ChestBlock) kind).chestCanConnectTo(left), "a " + kind + " joins another of its kind");
+            Container whole = ChestBlock.getContainer((ChestBlock) kind, helper.getBlockState(first), helper.getLevel(), helper.absolutePos(first), true);
+            helper.assertTrue(whole != null && whole.getContainerSize() == 54, "the pair of " + kind + " should be a 54 slot double chest");
+            for (Block other : kinds) {
+                if (other != kind) helper.assertTrue(!((ChestBlock) kind).chestCanConnectTo(other.defaultBlockState()), kind + " does not join " + other);
+            }
+        }
+        helper.succeed();
     }
 
     /** Part of a pattern is not enough: each golem's shape must be all there. */

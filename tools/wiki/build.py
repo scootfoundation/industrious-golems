@@ -304,7 +304,7 @@ def golem_page(g):
 
 <h2 id="building">Building a %(title)s</h2>
 <p>%(howto)s</p>
-<p>The chest is also craftable, so you can move or replace it. It has 27 slots and never joins into a double chest.</p>
+<p>The chest is also craftable, so you can move or replace it. It has 27 slots; place two of the same kind side by side and they join into a 54-slot double chest.</p>
 %(crafting)s
 
 <h2 id="offerings">Waking it up</h2>
@@ -359,7 +359,7 @@ Villagers, trading and iron golems are left exactly as they are.</p>
 <p>%(howto)s</p>
 <h3>The chest</h3>
 <p>Each golem has its own <strong>27-slot chest</strong>, which is its job site. It deposits what it produces there and restocks its supplies from it. The chest is craftable
-(a %(chest)s, the golem's old job block and its body block) so you can move one, and it never joins into a double chest.</p>
+(a %(chest)s, the golem's old job block and its body block) so you can move one. Two of the same kind side by side join into a <strong>54-slot double chest</strong>, which the golem uses just the same.</p>
 <h3>Charge and offerings</h3>
 <p>Golems work bare-handed, day and night, but only while <strong>charged</strong>. A new golem is dormant until you give it something it craves: right-click it with the item.
 Each kind has <strong>eight offerings</strong>, uncommon finds from different biomes, structures and mobs, and it craves one at a time. One offering is worth <strong>45 minutes</strong>
