@@ -299,22 +299,40 @@ def build_landscape(vanilla, img):
     stone_t = np.array(vanilla.texture("block/stone"))
     ore_tex = {n: np.array(vanilla.texture("block/%s_ore" % n)) for n in ("coal", "iron", "copper", "lapis", "gold", "redstone", "diamond")}
 
-    def rock(h, depth0, depth1, y_off, margin=0, bottom=0):
-        """Stone rows y_off..y_off+h-1 (texture phase kept so rows line up with the tiled CSS), with ores that get more common
-        and richer as depth goes from depth0 to depth1 (0..1)."""
+    def tri(y, lo, peak, hi):
+        """a triangular distribution: 0 outside lo..hi, 1 at the peak"""
+        if y <= lo or y >= hi:
+            return 0.0
+        return (y - lo) / (peak - lo) if y < peak else (hi - y) / (hi - peak)
+
+    def ore_weights(y):
+        """how common each ore is at world height y, roughly as the game generates them (sea level is 63, the bottom is -64)"""
+        return {
+            "coal": 0.7 if y >= 0 else max(0.0, 0.7 * (1 + y / 12.0)),
+            "iron": tri(y, -24, 16, 56),
+            "copper": 0.7 * tri(y, -16, 48, 112),
+            "gold": 0.35 * tri(y, -64, -16, 32),
+            "lapis": 0.3 * tri(y, -64, 0, 64) + (0.1 if -64 <= y <= 64 else 0.0),
+            "redstone": (0.25 if -64 <= y <= 15 else 0.0) + 0.7 * tri(y, -64, -58, -32),
+            "diamond": 0.25 * tri(y, -70, -62, 16),
+        }
+
+    def rock(h, world_y, y_off=0, margin=0, bottom=0):
+        """Stone rows y_off..y_off+h-1 (texture phase kept so rows line up with the tiled CSS), with ores scattered by world
+        height: world_y(row) is the game height a row of 16-pixel blocks stands for."""
         g = random.Random(h + int(y_off))
         area = np.zeros((h, W, 4), np.uint8)
         for y in range(h):
             for x in range(W):
                 area[y, x] = stone_t[(y + y_off) % 16, x % 16]
         for by in range(margin // 16, (h - bottom) // 16):
-            f = depth0 + (depth1 - depth0) * (by * 16 / max(1, h))
             for bx in range(W // 16):
-                if g.random() > 0.012 + 0.09 * f * f:      # rare near the surface, common far down
+                wy = world_y(by, g)
+                weights = ore_weights(wy)
+                total = sum(weights.values())
+                if g.random() > min(0.22, 0.035 * total * (1 + (64 - wy) / 45.0)):   # deeper rock is richer overall
                     continue
-                weights = {"coal": 1.0 - 0.6 * f, "iron": 0.7, "copper": 0.6 * (1 - f) + 0.2, "lapis": 0.7 * f, "gold": 0.6 * f,
-                           "redstone": 0.9 * f, "diamond": 0.5 * f * f}
-                r_ = g.random() * sum(weights.values())
+                r_ = g.random() * total
                 for n, wgt in weights.items():
                     r_ -= wgt
                     if r_ <= 0:
@@ -322,7 +340,8 @@ def build_landscape(vanilla, img):
                 area[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = ore_tex[n]
         return area
 
-    stone = rock(H, 0.0, 1.0, 0, margin=DIRT_END + 60)
+    # one block row stands for 3 blocks of height: the surface is at 64, the strip ends near -50, the tile below is the bottom of the world
+    stone = rock(H, lambda row, g: 64 - (row * 16 - GROUND) / 16.0 * 3, margin=DIRT_END + 60)
     # ---- dirt that dithers into stone over a ragged band
     grass_dark, grass_mid, grass_lit = (74, 128, 40), (104, 166, 56), (150, 206, 84)
     for x in range(W):
@@ -366,7 +385,7 @@ def build_landscape(vanilla, img):
     out.resize((W * 3, H * 3), Image.NEAREST).save(img / "landscape.png")
     # the endless stone below the strip: one tall tile, as rich in ores as the strip's bottom, repeated by the CSS
     TILE = 480
-    Image.fromarray(rock(TILE, 1.0, 1.0, 0, margin=40, bottom=40), "RGBA").resize((W * 3, TILE * 3), Image.NEAREST).save(img / "underground.png")
+    Image.fromarray(rock(TILE, lambda row, g: g.uniform(-62, -46), margin=40, bottom=40), "RGBA").resize((W * 3, TILE * 3), Image.NEAREST).save(img / "underground.png")
     if (img / "stone.png").exists():
         (img / "stone.png").unlink()
 
