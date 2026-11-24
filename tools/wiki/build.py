@@ -226,63 +226,135 @@ def build_extras(vanilla):
 
 
 def build_landscape(vanilla, img):
-    """The page background: sky, then grass with flowers, then dirt, then stone (with a few ores).
-    One 16-block-wide strip that tiles sideways; the stone texture is tiled below it by the CSS."""
+    """The page background, painted pixel by pixel in game pixels (the CSS shows it at 3x): a sky that pales to a hazy
+    horizon with clouds and far hills, uneven grass with flowers, dirt that dithers into stone, and stone with ores that
+    darkens with depth. It tiles sideways; below it the CSS tiles the (darkened) stone texture, which lines up because
+    the strip is a whole number of 16-pixel texture rows tall."""
+    import math
     import random
-    rnd = random.Random(7)
-    B = 16                      # block size in game pixels (drawn 3x by the CSS)
-    W, SKY, DIRT, STONE = 16, 9, 5, 7
-    H = SKY + 1 + DIRT + STONE
-    out = Image.new("RGBA", (W * B, H * B))
-    # sky: vanilla's daytime blue, a little lighter toward the horizon
-    px = out.load()
-    for y in range(SKY * B):
-        t = y / (SKY * B)
-        c = (int(96 + 60 * t), int(150 + 55 * t), int(235 + 15 * t), 255)
-        for x in range(W * B):
-            px[x, y] = c
-    # clouds: flat white blocks, each a row of puffs
-    for cx, cy, n in ((1, 2, 3), (8, 1, 4), (12, 4, 2), (4, 5, 2)):
-        for i in range(n):
-            for j in range(1 + (i % 2 == 0)):
-                out.paste((255, 255, 255, 235), (((cx + i) % W) * B, (cy - j) * B, ((cx + i) % W + 1) * B, (cy - j + 1) * B))
-    def tint(im, rgb):
-        t = Image.new("RGBA", im.size, rgb + (255,))
-        from PIL import ImageChops
-        m = ImageChops.multiply(im.convert("RGB"), t.convert("RGB")).convert("RGBA")
-        m.putalpha(im.getchannel("A"))
-        return m
-    GRASS = (121, 192, 90)
-    dirt_t = vanilla.texture("block/dirt")
-    side = dirt_t.copy()
-    side.alpha_composite(tint(vanilla.texture("block/grass_block_side_overlay"), GRASS))
-    stone_t = vanilla.texture("block/stone")
-    ores = [vanilla.texture("block/%s" % n) for n in ("coal_ore", "iron_ore", "coal_ore", "copper_ore", "gold_ore")]
-    plants = [vanilla.texture("block/%s" % n) for n in ("dandelion", "poppy", "azure_bluet", "cornflower", "oxeye_daisy", "allium", "pink_tulip", "red_tulip")]
-    grass_plant = tint(vanilla.texture("block/short_grass"), GRASS)
-    # row SKY-1 holds the plants standing on the grass; the surface row is SKY
+    import numpy as np
+    rnd = random.Random(11)
+    W, H = 320, 304
+    GROUND = 118
+    DIRT_END = GROUND + 64
+    a = np.zeros((H, W, 4), np.uint8)
+    a[..., 3] = 255
+
+    def wave(x, seed, terms=4):
+        """a smooth function of x that repeats every W pixels, about -1..1"""
+        g = random.Random(seed)
+        v = 0.0
+        for k in range(1, terms + 1):
+            v += math.sin(2 * math.pi * (g.randint(1, 5) * k) * x / W + g.random() * 6.28) / k
+        return v / 1.8
+
+    def mix(c1, c2, t):
+        return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
+    # ---- sky: deep blue at the top, pale at the horizon, with a 4x4 ordered dither between the bands
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    top, hor = (84, 138, 232), (186, 220, 248)
+    for y in range(GROUND + 6):
+        t = min(1.0, (y / (GROUND - 10)) ** 1.5)
+        for x in range(W):
+            tt = min(1.0, max(0.0, t + (bayer[y % 4][x % 4] / 16 - 0.5) * 0.09))
+            a[y, x, :3] = mix(top, hor, tt)
+    # ---- clouds: soft white puffs with a pale blue underside
+    def cloud(cx, cy, w, h):
+        for dx in range(-w, w + 1):
+            hh = int(h * math.sqrt(max(0.0, 1 - (dx / (w + 0.5)) ** 2)) + rnd.random() * 1.5)
+            for dy in range(-hh, 2):
+                x, y = (cx + dx) % W, cy + dy
+                if 0 <= y < GROUND:
+                    a[y, x, :3] = (232, 242, 252) if dy >= 0 else (255, 255, 255)
+    for cx, cy, w, h in ((30, 40, 22, 6), (70, 30, 12, 4), (120, 58, 26, 7), (175, 26, 18, 5), (215, 50, 30, 8), (270, 36, 14, 4), (300, 64, 16, 5)):
+        cloud(cx, cy, w, h)
+        cloud(cx - w // 2, cy - 3, w // 2, h - 1)
+        cloud(cx + w // 2, cy - 2, w // 2, h - 2)
+    # ---- far hills and trees, faded into the sky haze
+    for layer, (base, amp, col, seed) in enumerate(((GROUND - 20, 16, (150, 196, 200), 3), (GROUND - 9, 11, (112, 168, 118), 5))):
+        for x in range(W):
+            top_y = int(base - amp * (0.55 + 0.45 * wave(x, seed)))
+            for y in range(top_y, GROUND + 6):
+                a[y, x, :3] = col
+        g = random.Random(seed * 7)
+        for _ in range(26):
+            x = g.randrange(W)
+            top_y = int(base - amp * (0.55 + 0.45 * wave(x, seed)))
+            h = g.randint(5, 9)
+            tcol = mix(col, (60, 120, 60), 0.35)
+            for dy in range(h):
+                for dx in range(-2, 3):
+                    if abs(dx) + dy // 2 <= 3 and dy >= 2:
+                        a[top_y - h + dy + 2, (x + dx) % W, :3] = tcol
+            a[top_y - 2:top_y + 1, x, :3] = mix(col, (70, 50, 30), 0.5)
+    # ---- the ground surface: a few pixels of rise and fall
+    surf = [GROUND + int(round(2.4 * wave(x, 9, 3))) for x in range(W)]
+    dirt_t = np.array(vanilla.texture("block/dirt"))
+    stone_t = np.array(vanilla.texture("block/stone"))
+    ores = [np.array(vanilla.texture("block/%s" % n)) for n in ("coal_ore", "iron_ore", "copper_ore", "gold_ore", "coal_ore", "coal_ore")]
+    # a stone area: texture rows keep their phase so the CSS tile continues them
+    stone = np.zeros((H, W, 4), np.uint8)
+    for y in range(H):
+        for x in range(W):
+            stone[y, x] = stone_t[y % 16, x % 16]
+    for _ in range(20):  # ore veins of a few pixels' worth: whole ore blocks, on the 16-grid like the real thing
+        bx, by = rnd.randrange(W // 16) * 16, (rnd.randrange((DIRT_END + 10) // 16, H // 16)) * 16
+        o = rnd.choice(ores)
+        stone[by:by + 16, bx:bx + 16] = o
+    # ---- dirt that dithers into stone over a ragged band, then stone darkening with depth
+    grass_dark, grass_mid, grass_lit = (74, 128, 40), (104, 166, 56), (150, 206, 84)
     for x in range(W):
+        thick = 4 + int(2.5 * (1 + wave(x, 21, 3))) + rnd.randint(0, 1)  # the grass lip hangs lower in places
+        for y in range(surf[x], H):
+            d = y - surf[x]
+            if d < thick:
+                c = grass_lit if d == 0 else grass_mid if d < thick - 1 else grass_dark
+                n = rnd.randint(-8, 8)
+                a[y, x, :3] = tuple(max(0, min(255, v + n)) for v in c)
+                continue
+            dr = dirt_t[y % 16, x % 16]
+            st = stone[y, x]
+            band_start = DIRT_END + int(9 * wave(x, 33, 3))
+            t = (y - band_start) / 26.0
+            use_stone = t > 0 and rnd.random() < min(1.0, t * 1.15)
+            px = st if use_stone else dr
+            shade = 1.0
+            if y > DIRT_END + 20:
+                shade = max(0.78, 1.0 - (y - DIRT_END - 20) / 260.0)   # darker with depth, ending at the CSS tile's shade
+            if y >= H - 16:
+                shade = 0.78
+            a[y, x, :3] = (np.array(px[:3]) * shade).astype(np.uint8)
+    # ---- the grass top: blades and tiny pixel flowers standing on the surface
+    flowers = [((255, 215, 40), (255, 245, 150)), ((220, 50, 40), (255, 120, 90)), ((250, 250, 250), (255, 235, 90)),
+               ((120, 150, 255), (200, 215, 255)), ((236, 120, 190), (255, 190, 225)), ((250, 150, 40), (255, 210, 120))]
+    x = 0
+    while x < W:
+        s = surf[x]
         r_ = rnd.random()
-        if r_ < 0.35:
-            p = rnd.choice(plants)
-        elif r_ < 0.75:
-            p = grass_plant
-        else:
-            continue
-        out.alpha_composite(p, (x * B, (SKY - 1) * B))
-    for x in range(W):
-        out.alpha_composite(side, (x * B, SKY * B))
-    for row in range(DIRT):
-        for x in range(W):
-            out.alpha_composite(dirt_t, (x * B, (SKY + 1 + row) * B))
-    for row in range(STONE):
-        for x in range(W):
-            t = ores[rnd.randrange(len(ores))] if rnd.random() < 0.08 else stone_t
-            out.alpha_composite(t, (x * B, (SKY + 1 + DIRT + row) * B))
-    out.resize((W * B * 3, H * B * 3), Image.NEAREST).save(img / "landscape.png")
-    st = stone_t.copy()
-    st.alpha_composite(Image.new("RGBA", st.size, (0, 0, 0, 0)))
-    st.resize((B * 3, B * 3), Image.NEAREST).save(img / "stone.png")
+        if r_ < 0.55:
+            h = rnd.randint(1, 3)
+            for dy in range(1, h + 1):
+                a[s - dy, x, :3] = grass_lit if dy == h else grass_mid
+        x += 1
+    for x in range(3, W - 3, 1):
+        if rnd.random() < 0.075:
+            s = surf[x]
+            head, mid = rnd.choice(flowers)
+            h = rnd.randint(3, 6)
+            for dy in range(1, h + 1):
+                a[s - dy, x, :3] = grass_dark
+            a[s - h - 1, x, :3] = mid
+            for dx, dy in ((-1, -h - 1), (1, -h - 1), (0, -h - 2), (0, -h)):
+                if dy == -h:
+                    continue
+                a[s + dy, (x + dx) % W, :3] = head
+    out = Image.fromarray(a, "RGBA")
+    out.resize((W * 3, H * 3), Image.NEAREST).save(img / "landscape.png")
+    st = Image.fromarray(stone_t, "RGBA")
+    dark = Image.new("RGBA", st.size, (0, 0, 0, 56))
+    st.alpha_composite(dark)
+    st.resize((48, 48), Image.NEAREST).save(img / "stone.png")
 
 
 # ------------------------------------------------------------------ pages
