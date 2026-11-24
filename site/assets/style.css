@@ -22,7 +22,7 @@
 html { scroll-padding-top: 1rem; }
 body {
   margin: 0; color: #262626; font: 400 18px/1.6 var(--font);
-  background: url("img/landscape.png") repeat-x 50% 0, #7d7d7d url("img/underground.png") repeat 50% 0; image-rendering: pixelated;
+  background: linear-gradient(#0000006b, #0000006b), url("img/landscape.png") repeat-x 50% 0, #7d7d7d url("img/underground.png") repeat 50% 0; image-rendering: pixelated;
 }
 img { image-rendering: pixelated; max-width: 100%; }
 a { color: var(--link); text-decoration: none; }
@@ -127,6 +127,24 @@ strong { font-weight: 700; }
 .cardname { font-family: var(--font); font-weight: 700; font-size: 1.1rem; }
 .card.small .view { height: 130px; }
 .card .lore { font-size: 0.9rem; }
+
+/* ---- the home page */
+.intro { font: 700 clamp(1.6rem, 3.4vw, 2.3rem)/1.2 var(--font); margin: 0.4rem 0 0.8rem; color: #222; text-wrap: balance; }
+.home .lead { max-width: 62ch; color: #3a3a3a; margin: 0 0 1.6rem; }
+.gcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.4rem; margin: 0 0 1rem; }
+.gcard { display: flex; flex-direction: column; gap: 0.25rem; color: #222 !important; text-decoration: none !important; }
+.gcard .view { height: 290px; margin-bottom: 0.45rem; }
+.gcard .view img { max-height: 100%; }
+.gcard:hover .view { border-color: #fff; box-shadow: 0 0 0 var(--px) #fff; }
+.gname { font: 700 1.3rem/1.2 var(--font); }
+.grole { font: 600 0.8rem/1.2 var(--font); letter-spacing: 0.08em; text-transform: uppercase; color: #4f7a2a; }
+.gtag { color: #444; font-size: 0.98rem; line-height: 1.4; }
+.steps { list-style: none; padding: 0; margin: 1rem 0 1.4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.4rem; counter-reset: step; }
+.steps li { display: flex; flex-direction: column; gap: 0.3rem; margin: 0; padding-top: 0.2rem; counter-increment: step; }
+.steps li::before { content: counter(step); font: 700 1.4rem/1 var(--pixel); color: #4f7a2a; }
+.steps b { font-size: 1.1rem; }
+.steps span { color: #444; }
+.more { color: #555; }
 
 /* ---- the "what each golem does" rows */
 .rows { display: flex; flex-direction: column; gap: 0.8rem; }
