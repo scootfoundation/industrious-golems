@@ -228,15 +228,17 @@ def build_extras(vanilla):
 def build_landscape(vanilla, img):
     """The page background, painted pixel by pixel in game pixels (the CSS shows it at 3x): a sky that pales to a hazy
     horizon with clouds and far hills, uneven grass with flowers, dirt that dithers into stone, and stone with ores that
-    darkens with depth. It tiles sideways; below it the CSS tiles the (darkened) stone texture, which lines up because
+    turns to deepslate with more ores. It tiles sideways; below it the CSS tiles the deepslate texture, which lines up because
     the strip is a whole number of 16-pixel texture rows tall."""
     import math
     import random
     import numpy as np
     rnd = random.Random(11)
-    W, H = 320, 304
+    W, H = 320, 560
     GROUND = 118
     DIRT_END = GROUND + 64
+    STONE_ORES = DIRT_END + 70   # no ores near the surface
+    DEEP_START = 400             # where stone starts turning to deepslate
     a = np.zeros((H, W, 4), np.uint8)
     a[..., 3] = 255
 
@@ -292,17 +294,23 @@ def build_landscape(vanilla, img):
     surf = [GROUND + int(round(2.4 * wave(x, 9, 3))) for x in range(W)]
     dirt_t = np.array(vanilla.texture("block/dirt"))
     stone_t = np.array(vanilla.texture("block/stone"))
-    ores = [np.array(vanilla.texture("block/%s" % n)) for n in ("coal_ore", "iron_ore", "copper_ore", "gold_ore", "coal_ore", "coal_ore")]
-    # a stone area: texture rows keep their phase so the CSS tile continues them
+    deep_t = np.array(vanilla.texture("block/deepslate"))
+    # two rock areas; texture rows keep their phase so the CSS tile (deepslate) continues them
     stone = np.zeros((H, W, 4), np.uint8)
+    deep = np.zeros((H, W, 4), np.uint8)
     for y in range(H):
         for x in range(W):
             stone[y, x] = stone_t[y % 16, x % 16]
-    for _ in range(20):  # ore veins of a few pixels' worth: whole ore blocks, on the 16-grid like the real thing
-        bx, by = rnd.randrange(W // 16) * 16, (rnd.randrange((DIRT_END + 10) // 16, H // 16)) * 16
-        o = rnd.choice(ores)
-        stone[by:by + 16, bx:bx + 16] = o
-    # ---- dirt that dithers into stone over a ragged band, then stone darkening with depth
+            deep[y, x] = deep_t[y % 16, x % 16]
+    def scatter(area, names, count, y0, y1):  # whole ore blocks, on the 16-grid like the real thing
+        tex = [np.array(vanilla.texture("block/%s" % n)) for n in names]
+        for _ in range(count):
+            bx, by = rnd.randrange(W // 16) * 16, rnd.randrange(y0 // 16, y1 // 16) * 16
+            area[by:by + 16, bx:bx + 16] = rnd.choice(tex)
+    scatter(stone, ("coal_ore", "coal_ore", "iron_ore", "copper_ore", "lapis_ore", "gold_ore"), 14, STONE_ORES, DEEP_START - 16)
+    scatter(deep, ("deepslate_coal_ore", "deepslate_iron_ore", "deepslate_redstone_ore", "deepslate_redstone_ore", "deepslate_lapis_ore",
+                   "deepslate_gold_ore", "deepslate_diamond_ore"), 12, DEEP_START + 48, H - 16)
+    # ---- dirt that dithers into stone over a ragged band, stone that dithers into deepslate further down
     grass_dark, grass_mid, grass_lit = (74, 128, 40), (104, 166, 56), (150, 206, 84)
     for x in range(W):
         thick = 4 + int(2.5 * (1 + wave(x, 21, 3))) + rnd.randint(0, 1)  # the grass lip hangs lower in places
@@ -313,18 +321,17 @@ def build_landscape(vanilla, img):
                 n = rnd.randint(-8, 8)
                 a[y, x, :3] = tuple(max(0, min(255, v + n)) for v in c)
                 continue
-            dr = dirt_t[y % 16, x % 16]
-            st = stone[y, x]
             band_start = DIRT_END + int(9 * wave(x, 33, 3))
             t = (y - band_start) / 26.0
             use_stone = t > 0 and rnd.random() < min(1.0, t * 1.15)
-            px = st if use_stone else dr
-            shade = 1.0
-            if y > DIRT_END + 20:
-                shade = max(0.78, 1.0 - (y - DIRT_END - 20) / 260.0)   # darker with depth, ending at the CSS tile's shade
-            if y >= H - 16:
-                shade = 0.78
-            a[y, x, :3] = (np.array(px[:3]) * shade).astype(np.uint8)
+            px = stone[y, x] if use_stone else dirt_t[y % 16, x % 16]
+            if y > DIRT_END + 20:   # stone darkens a little with depth
+                px = (np.array(px[:3]) * max(0.84, 1.0 - (y - DIRT_END - 20) / 400.0)).astype(np.uint8)
+            deep_start = DEEP_START + int(10 * wave(x, 57, 3))
+            t2 = (y - deep_start) / 40.0
+            if t2 > 0 and rnd.random() < min(1.0, t2 * 1.2):
+                px = deep[y, x]
+            a[y, x, :3] = px[:3]
     # ---- the grass top: blades and tiny pixel flowers standing on the surface
     flowers = [((255, 215, 40), (255, 245, 150)), ((220, 50, 40), (255, 120, 90)), ((250, 250, 250), (255, 235, 90)),
                ((120, 150, 255), (200, 215, 255)), ((236, 120, 190), (255, 190, 225)), ((250, 150, 40), (255, 210, 120))]
@@ -351,10 +358,7 @@ def build_landscape(vanilla, img):
                 a[s + dy, (x + dx) % W, :3] = head
     out = Image.fromarray(a, "RGBA")
     out.resize((W * 3, H * 3), Image.NEAREST).save(img / "landscape.png")
-    st = Image.fromarray(stone_t, "RGBA")
-    dark = Image.new("RGBA", st.size, (0, 0, 0, 56))
-    st.alpha_composite(dark)
-    st.resize((48, 48), Image.NEAREST).save(img / "stone.png")
+    Image.fromarray(deep_t, "RGBA").resize((48, 48), Image.NEAREST).save(img / "stone.png")
 
 
 # ------------------------------------------------------------------ pages
