@@ -330,7 +330,7 @@ def build_landscape(vanilla, img):
                 wy = world_y(by, g)
                 weights = ore_weights(wy)
                 total = sum(weights.values())
-                if g.random() > min(0.22, 0.035 * total * (1 + (64 - wy) / 45.0)):   # deeper rock is richer overall
+                if g.random() > min(0.09, 0.015 * total * (1 + (64 - wy) / 60.0)):   # deeper rock is richer overall
                     continue
                 r_ = g.random() * total
                 for n, wgt in weights.items():
