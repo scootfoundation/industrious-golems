@@ -320,22 +320,22 @@ def build_landscape(vanilla, img):
                     if r_ <= 0:
                         break
                 area[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = ore_tex[n]
-        # caves: a wandering tunnel of overlapping blobs, dark with a ghost of the back wall
+        # caves: clusters of whole blocks, each shaded like the dark back wall of a cave (grown by a random walk on the block grid)
+        cols, rows = W // 16, h // 16
         for _ in range(caves):
-            cx, cy = g.randrange(W), g.randint(margin + 24, h - bottom - 24)
-            n_seg, ang = g.randint(6, 11), g.uniform(-0.35, 0.35)
-            mask = np.zeros((h, W), bool)
-            for _s in range(n_seg):
-                rad = g.uniform(8, 14)
-                for yy in range(int(cy - rad - 2), int(cy + rad + 3)):
-                    for xx in range(int(cx - rad - 2), int(cx + rad + 3)):
-                        if 0 <= yy < h and (xx - cx) ** 2 + ((yy - cy) * 1.9) ** 2 <= (rad + g.uniform(-1.2, 1.2)) ** 2:
-                            mask[yy, xx % W] = True
-                cx += g.uniform(5, 9)
-                cy += math.sin(ang * _s + g.random()) * 3 - (3 if cy > h - bottom - 30 else 0)
-                cy = min(max(cy, margin + 16), h - bottom - 16)
-            for yy, xx in zip(*np.nonzero(mask)):
-                area[yy, xx, :3] = (area[yy, xx, :3] * 0.3 + np.array((10, 9, 14)) * 0.7).astype(np.uint8)
+            cell = (g.randrange(cols), g.randint((margin + 16) // 16, (h - bottom - 32) // 16))
+            blocks = {cell}
+            for _s in range(g.randint(5, 12)):
+                bx, by = g.choice(sorted(blocks))
+                dx, dy = g.choice(((1, 0), (-1, 0), (1, 0), (-1, 0), (0, 1), (0, -1)))
+                nb = ((bx + dx) % cols, by + dy)
+                if (margin + 16) // 16 <= nb[1] < (h - bottom) // 16:
+                    blocks.add(nb)
+            for bx, by in blocks:
+                sl = (slice(by * 16, by * 16 + 16), slice(bx * 16, bx * 16 + 16))
+                dark = (stone_t[(np.arange(by * 16, by * 16 + 16) + y_off) % 16][:, np.arange(16)]).astype(np.float32)
+                dark[..., :3] = dark[..., :3] * 0.42
+                area[sl] = dark.astype(np.uint8)
         return area
 
     stone = rock(H, 0.0, 1.0, 0, 14, margin=DIRT_END + 60)
