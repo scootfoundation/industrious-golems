@@ -356,25 +356,18 @@ def build_landscape(vanilla, img):
             o[:-1] |= m[1:]
             return o
         area[..., :3][mask] = np.clip(wall[mask], 0, 255).astype(np.uint8)
-        # the edge is ragged, like the grass lip over dirt: inside, a lit lip of stone that breaks up over a few pixels;
-        # outside, the stone darkens towards the cave the same way
-        inner, cur = [], mask
-        for _k in range(4):
-            edge = cur & grow(~cur)
-            inner.append(edge)
-            cur = cur & ~edge
+        # the edge is ragged like the grass over dirt, but dithers outwards: the cave is solid right up to its edge, and the stone
+        # around it is darkened (and torch-lit) in a band that breaks up over a few pixels
         outer, cur = [], mask
-        for _k in range(3):
+        for _k in range(5):
             nxt = grow(cur)
             outer.append(nxt & ~cur)
             cur = nxt
         for k, edge in enumerate(outer):
-            pick = edge & (np.random.RandomState(k + 3).rand(h, W) < 1.0 - 0.28 * k)
-            area[..., :3][pick] = (plain[..., :3][pick].astype(np.float32) * (0.30 + 0.22 * k)).astype(np.uint8)
-        for k, edge in enumerate(inner):
-            pick = edge & (np.random.RandomState(k + 9).rand(h, W) < 1.0 - 0.27 * k)
-            lip = plain[..., :3][pick].astype(np.float32) * (0.55 + 0.9 * light[pick][:, None]) * (1.0, 0.92, 0.8) + 14 + 50 * light[pick][:, None]
-            area[..., :3][pick] = np.clip(lip, 0, 255).astype(np.uint8)
+            pick = edge & (np.random.RandomState(k + 3).rand(h, W) < 1.0 - 0.2 * k)
+            l = light[pick][:, None]
+            col = plain[..., :3][pick].astype(np.float32) * (0.28 + 0.14 * k + 0.9 * l) * (cool * (1 - l) + warm * l)
+            area[..., :3][pick] = np.clip(col, 0, 255).astype(np.uint8)
         out_im = Image.fromarray(area, "RGBA")
         torch_im = vanilla.texture("block/torch")
         for bx, by in torches:
