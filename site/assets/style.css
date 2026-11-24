@@ -140,7 +140,7 @@ strong { font-weight: 700; }
 .cell .craft-title { display: block; font-size: 0.95rem; margin-bottom: 0.3rem; }
 .mcpanel { display: inline-block; max-width: calc(100% - 2 * var(--px)); margin: 0.5rem var(--px) 1rem 0; }
 .mcpanel.wide { display: block; }
-.mcpanel .invgrid { margin: 0; }
+.mcpanel .invgrid, .mcpanel .hotbar { margin: 0; }
 .entries { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.5rem 1.2rem; }
 .entry { display: flex; align-items: center; gap: 0.7rem; color: var(--text); }
 .entry-text { display: flex; flex-direction: column; line-height: 1.25; }

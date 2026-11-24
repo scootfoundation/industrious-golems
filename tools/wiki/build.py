@@ -72,7 +72,7 @@ def slot(item, label=False, hint=None):
 
 def panel(title, inner, cls=""):
     """An inventory screen: the grey bevelled panel with its title, like the crafting table, around a row or grid of slots."""
-    return '<div class="mcpanel %s"><div class="craft-title">%s</div>%s</div>' % (cls, title, inner)
+    return '<div class="mcpanel %s">%s%s</div>' % (cls, '<div class="craft-title">%s</div>' % title if title else "", inner)
 
 
 def wiki(text, item=None, page_name=None):
@@ -416,14 +416,14 @@ def crafting(g):
     cells = [slot(i) for i in g["recipe"]] + ['<span class="invslot blank"><img src="{root}assets/items/_empty.png" alt=""></span>'] * (9 - len(g["recipe"]))
     result = ('<span class="invslot"><img src="{root}assets/items/%s_chest.png" alt="%s">'
               '<span class="tip"><b>%s</b></span></span>' % (g["id"], g["job"], g["job"]))
-    return ('<div class="crafting"><div class="craft-title">Crafting</div><div class="craft-body">'
+    return ('<div class="crafting"><div class="craft-body">'
             '<div class="grid3">%s</div><img class="arrow" src="{root}assets/img/arrow.png" alt="makes">%s</div></div>' % ("".join(cells), result))
 
 
 def golem_page(g):
-    offer = panel("Offerings", '<div class="entries">%s</div>' % "".join(slot(i, label=True, hint="Found: " + h) for i, h in g["offerings"]), "wide")
-    made = panel("Produces", '<div class="invgrid">%s</div>' % "".join(slot(i) for i in g["produces"]))
-    uses = panel("Supplies", '<div class="entries">%s</div>' % "".join(slot(i, label=True, hint=t) for i, t in g["consumes"]), "wide")
+    offer = panel("", '<div class="hotbar">%s</div>' % "".join(slot(i) for i, _ in g["offerings"]))
+    made = panel("", '<div class="invgrid">%s</div>' % "".join(slot(i) for i in g["produces"]))
+    uses = panel("", '<div class="invgrid">%s</div>' % "".join(slot(i) for i, _ in g["consumes"]))
     uses_text = "; ".join(t for _, t in g["consumes"]) or "Nothing: it digs bare-handed."
     behaviour = "".join("<li>%s</li>" % t for t in g["behaviour"])
     notes = "".join("<li>%s</li>" % t for t in g["notes"])
@@ -458,7 +458,7 @@ def golem_page(g):
 <p>A golem starts <em>dormant</em>: head hanging, standing still, holding out the thing it wants in its off hand. Right-click it with that item
 to give it an <strong>offering</strong>. Each offering is worth <strong>45 minutes</strong> of work and it stores at most two (90 minutes).
 It then asks for something different, so no single item will do. The clock runs only while the golem is loaded and has a job site.</p>
-<p>These are the eight items it can ask for, and where each is found. They are deliberately unrelated to its job, so keeping a large operation going means going out exploring.</p>
+<p>These are the eight items it can ask for: hover over a slot for its name. They are deliberately unrelated to its job, so keeping a large operation going means going out exploring.</p>
 %(offer)s
 
 <h2 id="behaviour">What it does</h2>
@@ -488,9 +488,9 @@ def home_page():
     cards = "".join('<a class="card" href="golems/%s.html"><span class="view"><img src="assets/img/%s.png" alt="%s"></span><span class="cardname">%s</span><span class="lore">%s &middot; %s</span></a>'
                     % (g["slug"], g["slug"], g["title"], g["title"], g["role"], g["tagline"]) for g in GOLEMS)
     rows = "".join('<div class="row"><a class="rowname" href="golems/%s.html">%s<span class="lore">%s</span></a>'
-                   '<div class="cell"><span class="craft-title">Body</span><div class="slots">%s</div></div>'
-                   '<div class="cell"><span class="craft-title">Uses</span><div class="slots">%s</div></div>'
-                   '<div class="cell"><span class="craft-title">Produces</span><div class="slots">%s</div></div></div>' % (
+                   '<div class="cell"><div class="slots">%s</div></div>'
+                   '<div class="cell"><div class="slots">%s</div></div>'
+                   '<div class="cell"><div class="slots">%s</div></div></div>' % (
                        g["slug"], g["title"], g["role"], slot(g["body"]),
                        "".join(slot(i) for i, _ in g["consumes"]) or '<span class="lore">nothing</span>',
                        "".join(slot(i) for i in g["produces"][:7])) for g in GOLEMS)
