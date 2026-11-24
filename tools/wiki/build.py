@@ -61,13 +61,18 @@ def page(item):
 def slot(item, label=False, hint=None):
     """An inventory slot linking to the Minecraft wiki, with the game's tooltip; optionally with the name (and a hint) beside it."""
     n = html.escape(name(item))
-    tip = '<span class="tip"><b>%s</b>%s</span>' % (n, '<i>%s</i>' % html.escape(hint) if hint else "")
+    tip = '<span class="tip"><b>%s</b></span>' % n   # a tooltip is just the name; a hint is shown beside the slot instead
     s = ('<a class="invslot" href="%s%s"><img src="{root}assets/items/%s.png" alt="%s">%s</a>' % (MCWIKI, page(item), item, n, tip))
     if not label:
         return s
     extra = '<span class="lore">%s</span>' % html.escape(hint) if hint else ""
     return ('<span class="entry">%s<span class="entry-text"><a href="%s%s">%s</a>%s</span></span>'
             % (s, MCWIKI, page(item), n, extra))
+
+
+def panel(title, inner, cls=""):
+    """An inventory screen: the grey bevelled panel with its title, like the crafting table, around a row or grid of slots."""
+    return '<div class="mcpanel %s"><div class="craft-title">%s</div>%s</div>' % (cls, title, inner)
 
 
 def wiki(text, item=None, page_name=None):
@@ -227,18 +232,16 @@ def build_extras(vanilla):
 
 def build_landscape(vanilla, img):
     """The page background, painted pixel by pixel in game pixels (the CSS shows it at 3x): a sky that pales to a hazy
-    horizon with clouds and far hills, uneven grass with flowers, dirt that dithers into stone, and stone with ores that
-    turns to deepslate with more ores. It tiles sideways; below it the CSS tiles the deepslate texture, which lines up because
+    horizon with clouds and far hills, uneven grass with flowers, dirt that dithers into stone, and stone with the odd cave and ores that
+    get more common and richer with depth. It tiles sideways; below it the CSS repeats a tall stone tile that matches its bottom edge, which lines up because
     the strip is a whole number of 16-pixel texture rows tall."""
     import math
     import random
     import numpy as np
     rnd = random.Random(11)
-    W, H = 320, 560
+    W, H = 320, 720
     GROUND = 118
     DIRT_END = GROUND + 64
-    STONE_ORES = DIRT_END + 70   # no ores near the surface
-    DEEP_START = 400             # where stone starts turning to deepslate
     a = np.zeros((H, W, 4), np.uint8)
     a[..., 3] = 255
 
@@ -294,23 +297,49 @@ def build_landscape(vanilla, img):
     surf = [GROUND + int(round(2.4 * wave(x, 9, 3))) for x in range(W)]
     dirt_t = np.array(vanilla.texture("block/dirt"))
     stone_t = np.array(vanilla.texture("block/stone"))
-    deep_t = np.array(vanilla.texture("block/deepslate"))
-    # two rock areas; texture rows keep their phase so the CSS tile (deepslate) continues them
-    stone = np.zeros((H, W, 4), np.uint8)
-    deep = np.zeros((H, W, 4), np.uint8)
-    for y in range(H):
-        for x in range(W):
-            stone[y, x] = stone_t[y % 16, x % 16]
-            deep[y, x] = deep_t[y % 16, x % 16]
-    def scatter(area, names, count, y0, y1):  # whole ore blocks, on the 16-grid like the real thing
-        tex = [np.array(vanilla.texture("block/%s" % n)) for n in names]
-        for _ in range(count):
-            bx, by = rnd.randrange(W // 16) * 16, rnd.randrange(y0 // 16, y1 // 16) * 16
-            area[by:by + 16, bx:bx + 16] = rnd.choice(tex)
-    scatter(stone, ("coal_ore", "coal_ore", "iron_ore", "copper_ore", "lapis_ore", "gold_ore"), 14, STONE_ORES, DEEP_START - 16)
-    scatter(deep, ("deepslate_coal_ore", "deepslate_iron_ore", "deepslate_redstone_ore", "deepslate_redstone_ore", "deepslate_lapis_ore",
-                   "deepslate_gold_ore", "deepslate_diamond_ore"), 12, DEEP_START + 48, H - 16)
-    # ---- dirt that dithers into stone over a ragged band, stone that dithers into deepslate further down
+    ore_tex = {n: np.array(vanilla.texture("block/%s_ore" % n)) for n in ("coal", "iron", "copper", "lapis", "gold", "redstone", "diamond")}
+
+    def rock(h, depth0, depth1, y_off, caves, margin=0, bottom=0):
+        """Stone rows y_off..y_off+h-1 (texture phase kept so rows line up with the tiled CSS), with ores that get more common
+        and richer as depth goes from depth0 to depth1 (0..1), and a few caves."""
+        g = random.Random(h + int(y_off))
+        area = np.zeros((h, W, 4), np.uint8)
+        for y in range(h):
+            for x in range(W):
+                area[y, x] = stone_t[(y + y_off) % 16, x % 16]
+        for by in range(margin // 16, (h - bottom) // 16):
+            f = depth0 + (depth1 - depth0) * (by * 16 / max(1, h))
+            for bx in range(W // 16):
+                if g.random() > 0.012 + 0.09 * f * f:      # rare near the surface, common far down
+                    continue
+                weights = {"coal": 1.0 - 0.6 * f, "iron": 0.7, "copper": 0.6 * (1 - f) + 0.2, "lapis": 0.7 * f, "gold": 0.6 * f,
+                           "redstone": 0.9 * f, "diamond": 0.5 * f * f}
+                r_ = g.random() * sum(weights.values())
+                for n, wgt in weights.items():
+                    r_ -= wgt
+                    if r_ <= 0:
+                        break
+                area[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = ore_tex[n]
+        # caves: a wandering tunnel of overlapping blobs, dark with a ghost of the back wall
+        for _ in range(caves):
+            cx, cy = g.randrange(W), g.randint(margin + 24, h - bottom - 24)
+            n_seg, ang = g.randint(6, 11), g.uniform(-0.35, 0.35)
+            mask = np.zeros((h, W), bool)
+            for _s in range(n_seg):
+                rad = g.uniform(8, 14)
+                for yy in range(int(cy - rad - 2), int(cy + rad + 3)):
+                    for xx in range(int(cx - rad - 2), int(cx + rad + 3)):
+                        if 0 <= yy < h and (xx - cx) ** 2 + ((yy - cy) * 1.9) ** 2 <= (rad + g.uniform(-1.2, 1.2)) ** 2:
+                            mask[yy, xx % W] = True
+                cx += g.uniform(5, 9)
+                cy += math.sin(ang * _s + g.random()) * 3 - (3 if cy > h - bottom - 30 else 0)
+                cy = min(max(cy, margin + 16), h - bottom - 16)
+            for yy, xx in zip(*np.nonzero(mask)):
+                area[yy, xx, :3] = (area[yy, xx, :3] * 0.3 + np.array((10, 9, 14)) * 0.7).astype(np.uint8)
+        return area
+
+    stone = rock(H, 0.0, 1.0, 0, 14, margin=DIRT_END + 60)
+    # ---- dirt that dithers into stone over a ragged band
     grass_dark, grass_mid, grass_lit = (74, 128, 40), (104, 166, 56), (150, 206, 84)
     for x in range(W):
         thick = 4 + int(2.5 * (1 + wave(x, 21, 3))) + rnd.randint(0, 1)  # the grass lip hangs lower in places
@@ -324,14 +353,7 @@ def build_landscape(vanilla, img):
             band_start = DIRT_END + int(9 * wave(x, 33, 3))
             t = (y - band_start) / 26.0
             use_stone = t > 0 and rnd.random() < min(1.0, t * 1.15)
-            px = stone[y, x] if use_stone else dirt_t[y % 16, x % 16]
-            if y > DIRT_END + 20:   # stone darkens a little with depth
-                px = (np.array(px[:3]) * max(0.84, 1.0 - (y - DIRT_END - 20) / 400.0)).astype(np.uint8)
-            deep_start = DEEP_START + int(10 * wave(x, 57, 3))
-            t2 = (y - deep_start) / 40.0
-            if t2 > 0 and rnd.random() < min(1.0, t2 * 1.2):
-                px = deep[y, x]
-            a[y, x, :3] = px[:3]
+            a[y, x, :3] = (stone[y, x] if use_stone else dirt_t[y % 16, x % 16])[:3]
     # ---- the grass top: blades and tiny pixel flowers standing on the surface
     flowers = [((255, 215, 40), (255, 245, 150)), ((220, 50, 40), (255, 120, 90)), ((250, 250, 250), (255, 235, 90)),
                ((120, 150, 255), (200, 215, 255)), ((236, 120, 190), (255, 190, 225)), ((250, 150, 40), (255, 210, 120))]
@@ -358,7 +380,11 @@ def build_landscape(vanilla, img):
                 a[s + dy, (x + dx) % W, :3] = head
     out = Image.fromarray(a, "RGBA")
     out.resize((W * 3, H * 3), Image.NEAREST).save(img / "landscape.png")
-    Image.fromarray(deep_t, "RGBA").resize((48, 48), Image.NEAREST).save(img / "stone.png")
+    # the endless stone below the strip: one tall tile, as rich in ores as the strip's bottom, repeated by the CSS
+    TILE = 480
+    Image.fromarray(rock(TILE, 1.0, 1.0, 0, 3, margin=40, bottom=40), "RGBA").resize((W * 3, TILE * 3), Image.NEAREST).save(img / "underground.png")
+    if (img / "stone.png").exists():
+        (img / "stone.png").unlink()
 
 
 # ------------------------------------------------------------------ pages
@@ -405,15 +431,15 @@ def crafting(g):
     """The chest recipe as a crafting table shows it (shapeless, so the ingredients fill the first cells)."""
     cells = [slot(i) for i in g["recipe"]] + ['<span class="invslot blank"><img src="{root}assets/items/_empty.png" alt=""></span>'] * (9 - len(g["recipe"]))
     result = ('<span class="invslot"><img src="{root}assets/items/%s_chest.png" alt="%s">'
-              '<span class="tip"><b>%s</b><i>Shapeless</i></span></span>' % (g["id"], g["job"], g["job"]))
+              '<span class="tip"><b>%s</b></span></span>' % (g["id"], g["job"], g["job"]))
     return ('<div class="crafting"><div class="craft-title">Crafting</div><div class="craft-body">'
             '<div class="grid3">%s</div><img class="arrow" src="{root}assets/img/arrow.png" alt="makes">%s</div></div>' % ("".join(cells), result))
 
 
 def golem_page(g):
-    offer = "".join(slot(i, hint="Found: " + h) for i, h in g["offerings"])
-    made = "".join(slot(i) for i in g["produces"])
-    uses = "".join(slot(i, hint=t) for i, t in g["consumes"])
+    offer = panel("Offerings", '<div class="entries">%s</div>' % "".join(slot(i, label=True, hint="Found: " + h) for i, h in g["offerings"]), "wide")
+    made = panel("Produces", '<div class="invgrid">%s</div>' % "".join(slot(i) for i in g["produces"]))
+    uses = panel("Supplies", '<div class="entries">%s</div>' % "".join(slot(i, label=True, hint=t) for i, t in g["consumes"]), "wide")
     uses_text = "; ".join(t for _, t in g["consumes"]) or "Nothing: it digs bare-handed."
     behaviour = "".join("<li>%s</li>" % t for t in g["behaviour"])
     notes = "".join("<li>%s</li>" % t for t in g["notes"])
@@ -448,8 +474,8 @@ def golem_page(g):
 <p>A golem starts <em>dormant</em>: head hanging, standing still, holding out the thing it wants in its off hand. Right-click it with that item
 to give it an <strong>offering</strong>. Each offering is worth <strong>45 minutes</strong> of work and it stores at most two (90 minutes).
 It then asks for something different, so no single item will do. The clock runs only while the golem is loaded and has a job site.</p>
-<p>These are the eight items it can ask for: hover over a slot for its name. They are deliberately unrelated to its job, so keeping a large operation going means going out exploring.</p>
-<div class="hotbar">%(offer)s</div>
+<p>These are the eight items it can ask for, and where each is found. They are deliberately unrelated to its job, so keeping a large operation going means going out exploring.</p>
+%(offer)s
 
 <h2 id="behaviour">What it does</h2>
 <ul>%(behaviour)s</ul>
@@ -457,7 +483,7 @@ It then asks for something different, so no single item will do. The clock runs 
 Supplies come out of the chest the same way.</p>
 
 <h3>It produces</h3>
-<div class="invgrid">%(made)s</div>
+%(made)s
 %(usesblock)s
 <h2 id="notes">Notes</h2>
 <ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby.</li></ul>
@@ -470,7 +496,7 @@ Supplies come out of the chest the same way.</p>
         build=g["build"],
         uses_text=uses_text, summary=summary, howto=BUILD_HOWTO, crafting=crafting(g),
         offer=offer, behaviour=behaviour, made=made,
-        usesblock=("<h3>It uses</h3><div class=\"invgrid\">%s</div>" % uses) if uses else "", notes=notes, others=others)
+        usesblock=("<h3>It uses</h3>%s" % uses) if uses else "", notes=notes, others=others)
     return layout("%s - Industrious Golems Wiki" % g["title"], body, "../", g["slug"], g["tagline"] + " " + g["summary"])
 
 
@@ -478,9 +504,9 @@ def home_page():
     cards = "".join('<a class="card" href="golems/%s.html"><span class="view"><img src="assets/img/%s.png" alt="%s"></span><span class="cardname">%s</span><span class="lore">%s &middot; %s</span></a>'
                     % (g["slug"], g["slug"], g["title"], g["title"], g["role"], g["tagline"]) for g in GOLEMS)
     rows = "".join('<div class="row"><a class="rowname" href="golems/%s.html">%s<span class="lore">%s</span></a>'
-                   '<div class="cell"><span class="label">Body</span>%s</div>'
-                   '<div class="cell"><span class="label">Uses</span>%s</div>'
-                   '<div class="cell"><span class="label">Produces</span>%s</div></div>' % (
+                   '<div class="cell"><span class="craft-title">Body</span><div class="slots">%s</div></div>'
+                   '<div class="cell"><span class="craft-title">Uses</span><div class="slots">%s</div></div>'
+                   '<div class="cell"><span class="craft-title">Produces</span><div class="slots">%s</div></div></div>' % (
                        g["slug"], g["title"], g["role"], slot(g["body"]),
                        "".join(slot(i) for i, _ in g["consumes"]) or '<span class="lore">nothing</span>',
                        "".join(slot(i) for i in g["produces"][:7])) for g in GOLEMS)
