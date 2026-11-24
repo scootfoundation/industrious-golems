@@ -427,8 +427,7 @@ def golem_page(g):
     uses_text = "; ".join(t for _, t in g["consumes"]) or "Nothing: it digs bare-handed."
     behaviour = "".join("<li>%s</li>" % t for t in g["behaviour"])
     notes = "".join("<li>%s</li>" % t for t in g["notes"])
-    others = "".join('<a class="card small" href="%s.html"><span class="view"><img src="{root}assets/img/%s.png" alt=""></span><span class="cardname">%s</span></a>'
-                     % (o["slug"], o["slug"], o["title"]) for o in GOLEMS if o is not g)
+    others = "".join(golem_card(o, "", small=True) for o in GOLEMS if o is not g)
     summary = g["summary"].replace("The " + g["title"], "The <strong>%s</strong>" % g["title"], 1)
     body = """
 <article>
@@ -473,7 +472,7 @@ Supplies come out of the chest the same way.</p>
 <ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before.</li></ul>
 
 <h2>Other golems</h2>
-<div class="cards">%(others)s</div>
+<div class="gcards">%(others)s</div>
 </article>
 """ % dict(
         title=g["title"], role=g["role"], slug=g["slug"], job=g["job"], jobv=wiki(name(g["job_vanilla"]).lower(), g["job_vanilla"]),
@@ -484,24 +483,31 @@ Supplies come out of the chest the same way.</p>
     return layout("%s - Industrious Golems Wiki" % g["title"], body, "../", g["slug"], g["tagline"] + " " + g["summary"])
 
 
+def golem_card(g, href="", small=False):
+    """A golem as a container screen: the grey bevelled panel with its name, the dark entity view and a caption."""
+    return ('<a class="gcard%s" href="%s%s.html"><span class="ib-title">%s</span><span class="view"><img src="{root}assets/img/%s.png" alt="%s"></span>'
+            '<span class="gcap"><b>%s</b>%s</span></a>'
+            % (" small" if small else "", href, g["slug"], g["title"], g["slug"], g["title"], g["role"],
+               "" if small else " &middot; " + g["tagline"]))
+
+
 def home_page():
-    cards = "".join('<a class="gcard" href="golems/%s.html"><span class="view"><img src="assets/img/%s.png" alt="%s"></span>'
-                    '<span class="gname">%s</span><span class="grole">%s</span><span class="gtag">%s</span></a>'
-                    % (g["slug"], g["slug"], g["title"], g["title"], g["role"], g["tagline"]) for g in GOLEMS)
+    cards = "".join(golem_card(g, "golems/") for g in GOLEMS)
     body = """
 <article class="home">
-<p class="intro">Work golems for Minecraft: a farmer, a lumberjack, a herder and a miner.</p>
-<p class="lead">Industrious Golems is a NeoForge mod where golems hold a job and produce resources directly, while you build the
-infrastructure around them (chests, hoppers, furnaces, crafters, minecarts) from ordinary vanilla blocks. Villagers, trading and iron golems are left exactly as they are.</p>
+<p>The <strong>Industrious Golems</strong> mod for NeoForge adds four work golems. Each holds a job and produces resources directly, while you build the
+chests, hoppers, furnaces, crafters and minecarts around it from ordinary vanilla blocks. Villagers, trading and iron golems are left exactly as they are.</p>
+
+<h2 id="golems">Golems</h2>
 <div class="gcards">%(cards)s</div>
 
-<h2 id="how">How it works</h2>
-<ol class="steps">
-<li><b>Build it</b><span>A carved pumpkin on top of the golem's pattern of blocks. The pattern's lowest block becomes its chest.</span></li>
-<li><b>Wake it</b><span>Right-click it with the item it asks for. Each offering buys 45 minutes of work, and it asks for something new every time.</span></li>
-<li><b>Let it work</b><span>It works bare-handed, carries what it makes to its chest and restocks from it. What happens next is up to your build.</span></li>
-</ol>
-<p class="more">Each golem's page has its recipe, offerings, supplies and everything it produces. The source and issue tracker are on <a href="%(repo)s">GitHub</a>.</p>
+<h2 id="how">Getting started</h2>
+<ul>
+<li>Build a golem by placing a <strong>carved pumpkin</strong> on top of its pattern of blocks. The lowest block becomes its <strong>chest</strong>.</li>
+<li>A new golem is dormant. Right-click it with the item it holds out to give it an <strong>offering</strong>; each one is worth 45 minutes of work.</li>
+<li>It works bare-handed, carries what it makes to its chest and restocks its supplies from there.</li>
+</ul>
+<p>Each golem's page has its recipe, offerings, supplies and everything it produces. The source and issue tracker are on <a href="%(repo)s">GitHub</a>.</p>
 </article>
 """ % dict(cards=cards, repo=REPO)
     return layout("Industrious Golems Wiki", body, "", "home",

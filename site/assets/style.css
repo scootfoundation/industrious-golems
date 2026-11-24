@@ -128,23 +128,17 @@ strong { font-weight: 700; }
 .card.small .view { height: 130px; }
 .card .lore { font-size: 0.9rem; }
 
-/* ---- the home page */
-.intro { font: 700 clamp(1.6rem, 3.4vw, 2.3rem)/1.2 var(--font); margin: 0.4rem 0 0.8rem; color: #222; text-wrap: balance; }
-.home .lead { max-width: 62ch; color: #3a3a3a; margin: 0 0 1.6rem; }
-.gcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.4rem; margin: 0 0 1rem; }
-.gcard { display: flex; flex-direction: column; gap: 0.25rem; color: #222 !important; text-decoration: none !important; }
-.gcard .view { height: 290px; margin-bottom: 0.45rem; }
+/* ---- golem cards: each a container screen, like the infobox */
+.gcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.2rem; margin: 1rem 0 1.4rem; }
+.gcard { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.7rem; color: var(--text) !important; text-decoration: none !important;
+  background: var(--panel); border: var(--px) solid; border-color: var(--panel-hi) var(--panel-lo) var(--panel-lo) var(--panel-hi); box-shadow: 0 0 0 var(--px) #000; }
+.gcard .view { height: 270px; }
+.gcard.small .view { height: 150px; }
 .gcard .view img { max-height: 100%; }
-.gcard:hover .view { border-color: #fff; box-shadow: 0 0 0 var(--px) #fff; }
-.gname { font: 700 1.3rem/1.2 var(--font); }
-.grole { font: 600 0.8rem/1.2 var(--font); letter-spacing: 0.08em; text-transform: uppercase; color: #4f7a2a; }
-.gtag { color: #444; font-size: 0.98rem; line-height: 1.4; }
-.steps { list-style: none; padding: 0; margin: 1rem 0 1.4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.4rem; counter-reset: step; }
-.steps li { display: flex; flex-direction: column; gap: 0.3rem; margin: 0; padding-top: 0.2rem; counter-increment: step; }
-.steps li::before { content: counter(step); font: 700 1.4rem/1 var(--pixel); color: #4f7a2a; }
-.steps b { font-size: 1.1rem; }
-.steps span { color: #444; }
-.more { color: #555; }
+.gcard .ib-title { margin: 0; }
+.gcap { font-size: 0.95rem; line-height: 1.35; }
+.gcard:hover { background: #d2d2d2; }
+.gcard:hover .view { border-color: #fff; }
 
 /* ---- the "what each golem does" rows */
 .rows { display: flex; flex-direction: column; gap: 0.8rem; }
