@@ -27,5 +27,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      # the artifact list is sometimes not updated yet when the next step looks for it ("Found 0 artifact(s)")
+      - run: sleep 20
       - id: deployment
         uses: actions/deploy-pages@v4
