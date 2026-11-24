@@ -307,6 +307,7 @@ def build_landscape(vanilla, img):
         for y in range(h):
             for x in range(W):
                 area[y, x] = stone_t[(y + y_off) % 16, x % 16]
+        plain = area.copy()
         for by in range(margin // 16, (h - bottom) // 16):
             f = depth0 + (depth1 - depth0) * (by * 16 / max(1, h))
             for bx in range(W // 16):
@@ -320,22 +321,50 @@ def build_landscape(vanilla, img):
                     if r_ <= 0:
                         break
                 area[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = ore_tex[n]
-        # caves: clusters of whole blocks, each shaded like the dark back wall of a cave (grown by a random walk on the block grid)
-        cols, rows = W // 16, h // 16
+        # caves: clusters of whole blocks (grown by a random walk on the block grid), dark inside, outlined, and lit by torches
+        cols = W // 16
+        mask = np.zeros((h, W), bool)
+        torches = []
         for _ in range(caves):
             cell = (g.randrange(cols), g.randint((margin + 16) // 16, (h - bottom - 32) // 16))
             blocks = {cell}
-            for _s in range(g.randint(5, 12)):
+            for _s in range(g.randint(6, 13)):
                 bx, by = g.choice(sorted(blocks))
                 dx, dy = g.choice(((1, 0), (-1, 0), (1, 0), (-1, 0), (0, 1), (0, -1)))
                 nb = ((bx + dx) % cols, by + dy)
                 if (margin + 16) // 16 <= nb[1] < (h - bottom) // 16:
                     blocks.add(nb)
             for bx, by in blocks:
-                sl = (slice(by * 16, by * 16 + 16), slice(bx * 16, bx * 16 + 16))
-                dark = (stone_t[(np.arange(by * 16, by * 16 + 16) + y_off) % 16][:, np.arange(16)]).astype(np.float32)
-                dark[..., :3] = dark[..., :3] * 0.42
-                area[sl] = dark.astype(np.uint8)
+                mask[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = True
+            floors = sorted(b for b in blocks if (b[0], b[1] + 1) not in blocks)
+            for bx, by in g.sample(floors, min(len(floors), g.choice((1, 1, 2)))):
+                torches.append((bx, by))
+        yy, xx = np.mgrid[0:h, 0:W]
+        light = np.zeros((h, W), np.float32)
+        for bx, by in torches:
+            tx, ty = bx * 16 + 8, by * 16 + 5
+            dx = np.minimum(np.abs(xx - tx), W - np.abs(xx - tx))
+            d = np.sqrt(dx ** 2 + (yy - ty) ** 2)
+            light = np.maximum(light, np.clip(1 - d / 46.0, 0, 1) ** 1.4)
+        cool, warm = np.array((0.75, 0.8, 1.0), np.float32), np.array((1.1, 0.78, 0.45), np.float32)
+        lt = light[..., None]
+        wall = plain[..., :3].astype(np.float32) * (0.16 + 0.95 * lt) * (cool * (1 - lt) + warm * lt)
+        def grow(m):  # a pixel next to the set, 4-neighbourhood (wrapping sideways)
+            o = m.copy()
+            o |= np.roll(m, 1, 1) | np.roll(m, -1, 1)
+            o[1:] |= m[:-1]
+            o[:-1] |= m[1:]
+            return o
+        ring = grow(mask) & ~mask                      # stone just outside the cave: the outline
+        rim = mask & grow(~mask)                       # cave pixels along the edge: the lit lip
+        area[..., :3][mask] = np.clip(wall[mask], 0, 255).astype(np.uint8)
+        area[..., :3][ring] = (10, 8, 12)
+        area[..., :3][rim] = np.clip(wall[rim] * 1.6 + 26 + 70 * light[rim][:, None], 0, 255).astype(np.uint8)
+        out_im = Image.fromarray(area, "RGBA")
+        torch_im = vanilla.texture("block/torch")
+        for bx, by in torches:
+            out_im.alpha_composite(torch_im, (bx * 16, by * 16))
+        area = np.array(out_im)
         return area
 
     stone = rock(H, 0.0, 1.0, 0, 14, margin=DIRT_END + 60)
