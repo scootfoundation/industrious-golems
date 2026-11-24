@@ -232,7 +232,7 @@ def build_extras(vanilla):
 
 def build_landscape(vanilla, img):
     """The page background, painted pixel by pixel in game pixels (the CSS shows it at 3x): a sky that pales to a hazy
-    horizon with clouds and far hills, uneven grass with flowers, dirt that dithers into stone, and stone with the odd cave and ores that
+    horizon with clouds and far hills, uneven grass with flowers, dirt that dithers into stone, and stone with ores that
     get more common and richer with depth. It tiles sideways; below it the CSS repeats a tall stone tile that matches its bottom edge, which lines up because
     the strip is a whole number of 16-pixel texture rows tall."""
     import math
@@ -299,15 +299,14 @@ def build_landscape(vanilla, img):
     stone_t = np.array(vanilla.texture("block/stone"))
     ore_tex = {n: np.array(vanilla.texture("block/%s_ore" % n)) for n in ("coal", "iron", "copper", "lapis", "gold", "redstone", "diamond")}
 
-    def rock(h, depth0, depth1, y_off, caves, margin=0, bottom=0):
+    def rock(h, depth0, depth1, y_off, margin=0, bottom=0):
         """Stone rows y_off..y_off+h-1 (texture phase kept so rows line up with the tiled CSS), with ores that get more common
-        and richer as depth goes from depth0 to depth1 (0..1), and a few caves."""
+        and richer as depth goes from depth0 to depth1 (0..1)."""
         g = random.Random(h + int(y_off))
         area = np.zeros((h, W, 4), np.uint8)
         for y in range(h):
             for x in range(W):
                 area[y, x] = stone_t[(y + y_off) % 16, x % 16]
-        plain = area.copy()
         for by in range(margin // 16, (h - bottom) // 16):
             f = depth0 + (depth1 - depth0) * (by * 16 / max(1, h))
             for bx in range(W // 16):
@@ -321,61 +320,9 @@ def build_landscape(vanilla, img):
                     if r_ <= 0:
                         break
                 area[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = ore_tex[n]
-        # caves: clusters of whole blocks (grown by a random walk on the block grid), dark inside, outlined, and lit by torches
-        cols = W // 16
-        mask = np.zeros((h, W), bool)
-        torches = []
-        for _ in range(caves):
-            cell = (g.randrange(cols), g.randint((margin + 16) // 16, (h - bottom - 32) // 16))
-            blocks = {cell}
-            for _s in range(g.randint(18, 34)):
-                bx, by = g.choice(sorted(blocks))
-                dx, dy = g.choice(((1, 0), (-1, 0), (1, 0), (-1, 0), (0, 1), (0, -1)))
-                nb = ((bx + dx) % cols, by + dy)
-                if (margin + 16) // 16 <= nb[1] < (h - bottom) // 16:
-                    blocks.add(nb)
-            for bx, by in blocks:
-                mask[by * 16:by * 16 + 16, bx * 16:bx * 16 + 16] = True
-            floors = sorted(b for b in blocks if (b[0], b[1] + 1) not in blocks)
-            for bx, by in g.sample(floors, min(len(floors), 2 + len(blocks) // 9)):
-                torches.append((bx, by))
-        yy, xx = np.mgrid[0:h, 0:W]
-        light = np.zeros((h, W), np.float32)
-        for bx, by in torches:
-            tx, ty = bx * 16 + 8, by * 16 + 5
-            dx = np.minimum(np.abs(xx - tx), W - np.abs(xx - tx))
-            d = np.sqrt(dx ** 2 + (yy - ty) ** 2)
-            light = np.maximum(light, np.clip(1 - d / 46.0, 0, 1) ** 1.4)
-        cool, warm = np.array((0.75, 0.8, 1.0), np.float32), np.array((1.1, 0.78, 0.45), np.float32)
-        lt = light[..., None]
-        wall = plain[..., :3].astype(np.float32) * (0.16 + 0.95 * lt) * (cool * (1 - lt) + warm * lt)
-        def grow(m):  # a pixel next to the set, 4-neighbourhood (wrapping sideways)
-            o = m.copy()
-            o |= np.roll(m, 1, 1) | np.roll(m, -1, 1)
-            o[1:] |= m[:-1]
-            o[:-1] |= m[1:]
-            return o
-        area[..., :3][mask] = np.clip(wall[mask], 0, 255).astype(np.uint8)
-        # the edge is ragged like the grass over dirt, but dithers outwards: the cave is solid right up to its edge, and the stone
-        # around it is darkened (and torch-lit) in a band that breaks up over a few pixels
-        outer, cur = [], mask
-        for _k in range(5):
-            nxt = grow(cur)
-            outer.append(nxt & ~cur)
-            cur = nxt
-        for k, edge in enumerate(outer):
-            pick = edge & (np.random.RandomState(k + 3).rand(h, W) < 1.0 - 0.2 * k)
-            l = light[pick][:, None]
-            col = plain[..., :3][pick].astype(np.float32) * (0.28 + 0.14 * k + 0.9 * l) * (cool * (1 - l) + warm * l)
-            area[..., :3][pick] = np.clip(col, 0, 255).astype(np.uint8)
-        out_im = Image.fromarray(area, "RGBA")
-        torch_im = vanilla.texture("block/torch")
-        for bx, by in torches:
-            out_im.alpha_composite(torch_im, (bx * 16, by * 16))
-        area = np.array(out_im)
         return area
 
-    stone = rock(H, 0.0, 1.0, 0, 6, margin=DIRT_END + 60)
+    stone = rock(H, 0.0, 1.0, 0, margin=DIRT_END + 60)
     # ---- dirt that dithers into stone over a ragged band
     grass_dark, grass_mid, grass_lit = (74, 128, 40), (104, 166, 56), (150, 206, 84)
     for x in range(W):
@@ -419,7 +366,7 @@ def build_landscape(vanilla, img):
     out.resize((W * 3, H * 3), Image.NEAREST).save(img / "landscape.png")
     # the endless stone below the strip: one tall tile, as rich in ores as the strip's bottom, repeated by the CSS
     TILE = 480
-    Image.fromarray(rock(TILE, 1.0, 1.0, 0, 2, margin=40, bottom=40), "RGBA").resize((W * 3, TILE * 3), Image.NEAREST).save(img / "underground.png")
+    Image.fromarray(rock(TILE, 1.0, 1.0, 0, margin=40, bottom=40), "RGBA").resize((W * 3, TILE * 3), Image.NEAREST).save(img / "underground.png")
     if (img / "stone.png").exists():
         (img / "stone.png").unlink()
 
