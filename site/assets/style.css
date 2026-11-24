@@ -22,7 +22,7 @@
 html { scroll-padding-top: 1rem; }
 body {
   margin: 0; color: #262626; font: 400 18px/1.6 var(--font);
-  background: #2c2118 url("img/bg.png") repeat; background-size: 96px 96px; image-rendering: pixelated;
+  background: url("img/landscape.png") repeat-x 50% 0, #7d7d7d url("img/stone.png") repeat; image-rendering: pixelated;
 }
 img { image-rendering: pixelated; max-width: 100%; }
 a { color: var(--link); text-decoration: none; }

@@ -222,6 +222,67 @@ def build_extras(vanilla):
     dark = Image.new("RGBA", dirt.size, (0, 0, 0, 150))
     dirt.alpha_composite(dark)
     dirt.save(img / "bg.png")
+    build_landscape(vanilla, img)
+
+
+def build_landscape(vanilla, img):
+    """The page background: sky, then grass with flowers, then dirt, then stone (with a few ores).
+    One 16-block-wide strip that tiles sideways; the stone texture is tiled below it by the CSS."""
+    import random
+    rnd = random.Random(7)
+    B = 16                      # block size in game pixels (drawn 3x by the CSS)
+    W, SKY, DIRT, STONE = 16, 9, 5, 7
+    H = SKY + 1 + DIRT + STONE
+    out = Image.new("RGBA", (W * B, H * B))
+    # sky: vanilla's daytime blue, a little lighter toward the horizon
+    px = out.load()
+    for y in range(SKY * B):
+        t = y / (SKY * B)
+        c = (int(96 + 60 * t), int(150 + 55 * t), int(235 + 15 * t), 255)
+        for x in range(W * B):
+            px[x, y] = c
+    # clouds: flat white blocks, each a row of puffs
+    for cx, cy, n in ((1, 2, 3), (8, 1, 4), (12, 4, 2), (4, 5, 2)):
+        for i in range(n):
+            for j in range(1 + (i % 2 == 0)):
+                out.paste((255, 255, 255, 235), (((cx + i) % W) * B, (cy - j) * B, ((cx + i) % W + 1) * B, (cy - j + 1) * B))
+    def tint(im, rgb):
+        t = Image.new("RGBA", im.size, rgb + (255,))
+        from PIL import ImageChops
+        m = ImageChops.multiply(im.convert("RGB"), t.convert("RGB")).convert("RGBA")
+        m.putalpha(im.getchannel("A"))
+        return m
+    GRASS = (121, 192, 90)
+    dirt_t = vanilla.texture("block/dirt")
+    side = dirt_t.copy()
+    side.alpha_composite(tint(vanilla.texture("block/grass_block_side_overlay"), GRASS))
+    stone_t = vanilla.texture("block/stone")
+    ores = [vanilla.texture("block/%s" % n) for n in ("coal_ore", "iron_ore", "coal_ore", "copper_ore", "gold_ore")]
+    plants = [vanilla.texture("block/%s" % n) for n in ("dandelion", "poppy", "azure_bluet", "cornflower", "oxeye_daisy", "allium", "pink_tulip", "red_tulip")]
+    grass_plant = tint(vanilla.texture("block/short_grass"), GRASS)
+    # row SKY-1 holds the plants standing on the grass; the surface row is SKY
+    for x in range(W):
+        r_ = rnd.random()
+        if r_ < 0.35:
+            p = rnd.choice(plants)
+        elif r_ < 0.75:
+            p = grass_plant
+        else:
+            continue
+        out.alpha_composite(p, (x * B, (SKY - 1) * B))
+    for x in range(W):
+        out.alpha_composite(side, (x * B, SKY * B))
+    for row in range(DIRT):
+        for x in range(W):
+            out.alpha_composite(dirt_t, (x * B, (SKY + 1 + row) * B))
+    for row in range(STONE):
+        for x in range(W):
+            t = ores[rnd.randrange(len(ores))] if rnd.random() < 0.08 else stone_t
+            out.alpha_composite(t, (x * B, (SKY + 1 + DIRT + row) * B))
+    out.resize((W * B * 3, H * B * 3), Image.NEAREST).save(img / "landscape.png")
+    st = stone_t.copy()
+    st.alpha_composite(Image.new("RGBA", st.size, (0, 0, 0, 0)))
+    st.resize((B * 3, B * 3), Image.NEAREST).save(img / "stone.png")
 
 
 # ------------------------------------------------------------------ pages
