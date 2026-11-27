@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.mine;
 
+import com.scottcaldwell.industriousgolems.behavior.ClipRun;
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Approach;
@@ -48,7 +50,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private static final int IGNORE_TICKS = 6000;
 
     /** The block chosen by {@link #jobs}, and where to stand to strike it. */
-    public record MinePlan(MineFinder.Target first) { }
+    public record MinePlan(MineFinder.Target first) implements Task { }
 
     private enum State { APPROACH, SWING, SETTLE, DONE }
 
@@ -68,7 +70,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private final Machine.Run<State> machine = GRAPH.run();
     private MineFinder.Target target;
     private final Approach approach = new Approach(STALL_TICKS);
-    private int progress;
+    private ClipRun clip;
 
     public MineRock() {
         super(MinePlan.class, 2400);
@@ -156,7 +158,6 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         target = plan.first();
         machine.to(State.APPROACH);
         approach.reset();
-        progress = 0;
         golem.setPickupSuspended(true);
     }
 
@@ -170,10 +171,9 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         if (Cower.threatened(level, golem)) { done(); return; } // afraid: the cower job takes over
         switch (machine.state()) {
             case APPROACH -> approach(level, golem, time);
-            case SWING -> swing(level, golem);
-            case SETTLE -> {
+            case SWING, SETTLE -> {
                 holdStill(golem);
-                if (++progress / 20.0F >= Anim.S_MINE_LEN) done();
+                if (clip.tick()) done();
             }
             case DONE -> { }
         }
@@ -194,22 +194,17 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         }
         holdStill(golem);
         Face.toward(golem, Vec3.atCenterOf(block)); // beside it: square up to the block and bring a fist down on it
-        golem.playClip(Anim.S_MINE);
-        progress = 0;
+        // no crack while it winds up: the block gives way only when the fist lands
+        clip = ClipRun.play(golem, Anim.S_MINE, Anim.S_MINE_LEN).at(Anim.S_MINE_HIT, () -> strike(level, golem, block));
         machine.to(State.SWING);
-        swing(level, golem);
     }
 
-    private void swing(ServerLevel level, WorkGolem golem) {
-        BlockPos block = target.block();
-        holdStill(golem);
-        if (++progress / 20.0F >= Anim.S_MINE_HIT) { // no crack while it winds up: the block gives way only when the fist lands
-            BlockState state = level.getBlockState(block);
-            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-            level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
-            dig(level, golem, block, state);
-            machine.to(State.SETTLE);
-        }
+    private void strike(ServerLevel level, WorkGolem golem, BlockPos block) {
+        BlockState state = level.getBlockState(block);
+        golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+        level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
+        dig(level, golem, block, state);
+        machine.to(State.SETTLE);
     }
 
     private static boolean inReach(ServerLevel level, WorkGolem golem, BlockPos block) {

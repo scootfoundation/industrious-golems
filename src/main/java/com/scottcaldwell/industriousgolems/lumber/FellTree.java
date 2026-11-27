@@ -1,5 +1,8 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
+import com.scottcaldwell.industriousgolems.golem.Hop;
+import com.scottcaldwell.industriousgolems.behavior.ClipRun;
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.PickUp;
@@ -7,7 +10,6 @@ import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import net.minecraft.core.BlockPos;
-import com.scottcaldwell.industriousgolems.golem.Sneeze;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
 import net.minecraft.server.level.ServerLevel;
@@ -72,11 +74,12 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .edge(State.DESCEND, State.DONE, "landed on something that is not part of the tree and no log of it is left (or none can be stood over)");
 
     /** The tree chosen by {@link #plan}: chop {@code logs}, then replant at {@code replant}. */
-    public record FellPlan(List<BlockPos> logs, BlockPos replant) { }
+    public record FellPlan(List<BlockPos> logs, BlockPos replant) implements Task { }
 
     private final List<BlockPos> remaining = new ArrayList<>();
     private final Machine.Run<State> machine = GRAPH.run();
-    private int timer;
+    private ClipRun clip;
+    private Hop hop;
     private final Approach approach = new Approach(STALL_TICKS);
     /** The one block this swing breaks, or null. */
     private BlockPos target;
@@ -105,7 +108,6 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         aim(level);
         approach.reset();
         machine.reset();
-        timer = 0;
         golem.setPickupSuspended(true); // the drops are left lying until the felling is done, then picked up in turn
     }
 
@@ -165,36 +167,20 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 if (top == null) { giveUp(golem, time); return; } // no room to stand on top
                 holdStill(golem);
                 if (ground == null) ground = golem.position();
-                golem.playClip(Anim.M_SNEEZE_VANISH);
-                machine.to(State.SNEEZE);
-                timer = 0;
+                sneeze(level, golem);
             }
             case SNEEZE -> {
                 holdStill(golem);
-                if (timer == Math.round(Anim.M_VANISH_AT * 20) - 2) puff(level, golem.position().add(0, 0.6, 0));
-                if (++timer < Math.round(Anim.M_VANISH_AT * 20)) return;
-                // gone in a puff of spores, and out again on top of the crown
-                golem.teleportTo(top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
-                golem.getNavigation().stop();
-                golem.setDeltaMovement(Vec3.ZERO);
-                puff(level, golem.position().add(0, 0.6, 0));
-                golem.playClip(Anim.M_SNEEZE_APPEAR);
-                machine.to(State.APPEAR);
-                timer = 0;
+                hop.tick(); // gone in a puff of spores, and out again on top of the crown
+                if (hop.landed()) machine.to(State.APPEAR);
             }
             case APPEAR -> {
                 holdStill(golem);
-                if (++timer < Math.round(Anim.M_APPEAR_LEN * 20)) return;
-                startBreak(level, golem);
+                if (hop.tick()) startBreak(level, golem);
             }
             case BREAK -> {
                 holdStill(golem);
-                timer++;
-                if (timer == Math.round(Anim.M_BREAK_AT * 20)) {
-                    golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                    if (target != null && isTreeBlock(level, target)) level.destroyBlock(target, true, golem);
-                }
-                if (timer >= Math.round(Anim.M_BREAK_LEN * 20)) { machine.to(State.DESCEND); falling = 0; }
+                if (clip.tick()) { machine.to(State.DESCEND); falling = 0; }
             }
             case DESCEND -> {
                 holdStill(golem);
@@ -207,9 +193,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                     // logs still stand (a branch, a second trunk): vanish and reappear over the highest
                     visits++;
                     holdStill(golem);
-                    golem.playClip(Anim.M_SNEEZE_VANISH);
-                    machine.to(State.SNEEZE);
-                    timer = 0;
+                    sneeze(level, golem);
                 } else { golem.stopClip(); done(); }
             }
             case DONE -> { }
@@ -251,13 +235,17 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private void startBreak(ServerLevel level, WorkGolem golem) {
         target = nextBlock(level, golem);
         if (target != null && !target.equals(golem.blockPosition().below())) Face.toward(golem, Vec3.atCenterOf(target));
-        golem.playClip(Anim.M_BREAK_BELOW);
+        clip = ClipRun.play(golem, Anim.M_BREAK_BELOW, Anim.M_BREAK_LEN).at(Anim.M_BREAK_AT, () -> {
+            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+            if (target != null && isTreeBlock(level, target)) level.destroyBlock(target, true, golem);
+        });
         machine.to(State.BREAK);
-        timer = 0;
     }
 
-    private static void puff(ServerLevel level, Vec3 at) {
-        Sneeze.puff(level, at);
+    /** Sneezes up to the spot on top of the crown it is aiming at. */
+    private void sneeze(ServerLevel level, WorkGolem golem) {
+        hop = new Hop(level, golem, new Vec3(top.getX() + 0.5, top.getY(), top.getZ() + 0.5));
+        machine.to(State.SNEEZE);
     }
 
     @Override

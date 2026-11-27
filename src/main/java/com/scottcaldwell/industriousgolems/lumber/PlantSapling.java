@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
+import com.scottcaldwell.industriousgolems.behavior.ClipRun;
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Approach;
@@ -41,10 +43,10 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
             .edge(State.PLANT, State.DONE, "plant clip ends");
 
     /** @param at where the sapling goes */
-    public record Plan(BlockPos at) { }
+    public record Plan(BlockPos at) implements Task { }
 
     private final Machine.Run<State> machine = GRAPH.run();
-    private int timer;
+    private ClipRun clip;
     private final Approach approach = new Approach(STALL_TICKS);
     private Vec3 spot;
 
@@ -55,7 +57,6 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
-        timer = 0;
         approach.reset();
         spot = null;
     }
@@ -75,16 +76,13 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
                     return;
                 }
                 holdStill(golem);
-                golem.playClip(Anim.M_PLANT);
+                clip = ClipRun.play(golem, Anim.M_PLANT, Anim.M_PLANT_LEN).at(Anim.M_PLANT_AT, () -> plant(level, golem, at));
                 machine.to(State.PLANT);
-                timer = 0;
             }
             case PLANT -> {
                 holdStill(golem);
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(at)));
-                timer++;
-                if (timer == Math.round(Anim.M_PLANT_AT * 20)) plant(level, golem, at);
-                if (timer >= Math.round(Anim.M_PLANT_LEN * 20)) done();
+                if (clip.tick()) done();
             }
             case DONE -> { }
         }

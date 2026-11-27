@@ -15,7 +15,7 @@ import com.scottcaldwell.industriousgolems.golem.WorkGolem;
  *
  * <p>Subclasses implement {@link #begin}, {@link #tick}, {@link #end}, and call {@link #finish()} when done.
  */
-public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
+public abstract class TaskRunner<P extends Task> extends Behavior<WorkGolem> {
 
     private final Class<P> planType;
     private boolean finished = true;

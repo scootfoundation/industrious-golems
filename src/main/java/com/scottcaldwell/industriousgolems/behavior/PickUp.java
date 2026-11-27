@@ -43,10 +43,10 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             .edge(State.RISE, State.DONE, "the clip ends");
 
     /** @param itemId entity id of the stack to fetch */
-    public record Plan(int itemId) { }
+    public record Plan(int itemId) implements Task { }
 
     private final Machine.Run<State> machine = GRAPH.run();
-    private int timer;
+    private ClipRun clip;
     private final Approach approach = new Approach(GIVE_UP_TICKS);
     private Anim.Pick spec;
     private Vec3 spot;
@@ -75,7 +75,6 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
-        timer = -1;
         approach.reset();
         spot = null;
         spec = Anim.pick(golem.profession().id());
@@ -90,7 +89,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         switch (machine.state()) {
             case WALK -> walk(level, golem, time);
-            case CROUCH, RISE -> crouch(level, golem);
+            case CROUCH, RISE -> crouch(golem);
             case DONE -> { }
         }
     }
@@ -119,24 +118,23 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         }
         Face.toward(golem, item.position());
         holdStill(golem);
-        if (spec.clip() != null) golem.playClip(spec.clip());
-        timer = 0;
+        clip = ClipRun.play(golem, spec.clip(), spec.len()).at(spec.grab(), () -> grab(level, golem));
         machine.to(State.CROUCH);
     }
 
     /** Crouching over the stack: it reaches the hand partway through the clip. */
-    private void crouch(ServerLevel level, WorkGolem golem) {
+    private void crouch(WorkGolem golem) {
         holdStill(golem);
-        timer++;
-        if (machine.is(State.CROUCH) && timer >= Math.round(spec.grab() * 20)) {
-            if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && golem.canTake(item.getItem())) {
-                golem.pickUp(item);
-                if (golem.profession() == com.scottcaldwell.industriousgolems.ModProfessions.MINER) { // one scoop takes what lies about it too
-                    for (ItemEntity near : level.getEntitiesOfClass(ItemEntity.class, item.getBoundingBox().inflate(1.5), i -> golem.wantsToPickUp(level, i.getItem()))) golem.pickUp(near);
-                }
+        if (clip.tick()) done();
+    }
+
+    private void grab(ServerLevel level, WorkGolem golem) {
+        if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && golem.canTake(item.getItem())) {
+            golem.pickUp(item);
+            if (golem.profession() == com.scottcaldwell.industriousgolems.ModProfessions.MINER) { // one scoop takes what lies about it too
+                for (ItemEntity near : level.getEntitiesOfClass(ItemEntity.class, item.getBoundingBox().inflate(1.5), i -> golem.wantsToPickUp(level, i.getItem()))) golem.pickUp(near);
             }
-            machine.to(State.RISE);
         }
-        if (timer >= Math.round(spec.len() * 20)) done();
+        machine.to(State.RISE);
     }
 }

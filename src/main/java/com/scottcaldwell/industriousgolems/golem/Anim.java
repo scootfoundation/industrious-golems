@@ -25,13 +25,7 @@ public final class Anim {
 
     /** Seconds into the clip. */
     public static final float M_VANISH_LEN = 1.7F, M_VANISH_AT = 1.6F, M_APPEAR_LEN = 1.8F, M_BREAK_LEN = 1.7F, M_BREAK_AT = 0.9F;
-    public static final float M_PICK_LEN = 3.2F, M_PICK_GRAB = 1.3F, M_PLANT_LEN = 2.8F, M_PLANT_AT = 1.2F, M_RECEIVE_LEN = 3.8F;
-    /** The chest sequences: length, when the lid opens, when the item goes in / comes out, when the lid shuts. */
-    public static final float M_PUT_LEN = 5.1F, M_PUT_OPEN = 1.05F, M_PUT_DROP = 1.8F + 0.95F + 0.55F, M_PUT_CLOSE = 1.8F + 2.1F + 0.45F;
-    public static final float M_FETCH_LEN = 12.3F, M_FETCH_OPEN = 1.05F, M_FETCH_TAKE = 1.8F + 4.1F + 3.5F, M_FETCH_CLOSE = 1.8F + 4.1F + 4.8F + 0.8F;
-    /** How far the golem stands from the chest's centre, in blocks (13 pixels), facing it. */
-    public static final double M_CHEST_DIST = 13.0 / 16.0;
-
+    public static final float M_PICK_LEN = 3.2F, M_PLANT_LEN = 2.8F, M_PLANT_AT = 1.2F, M_RECEIVE_LEN = 3.8F;
     // ---- how each kind picks things up and visits a chest (timings in seconds into the clip) ----
 
     /**

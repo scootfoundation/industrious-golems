@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.needs;
 
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import java.util.function.Predicate;
 import net.minecraft.world.item.ItemStack;
 
@@ -14,15 +15,15 @@ import net.minecraft.world.item.ItemStack;
  * @param accepts   with a supply: which of the container's stacks will do (a cow cannot be fed carrots, say)
  * @param tidyFirst the job only comes after anything carried is put away and anything lying about picked up
  */
-public record Job(Object plan, String supply, Predicate<ItemStack> accepts, boolean tidyFirst) {
+public record Job(Task plan, String supply, Predicate<ItemStack> accepts, boolean tidyFirst) {
 
     /** Doable now, with the hand as it is. */
-    public static Job now(Object plan) {
+    public static Job now(Task plan) {
         return new Job(plan, null, s -> true, false);
     }
 
     /** Doable with a free hand, but only once everything carried or lying about is dealt with. */
-    public static Job whenTidy(Object plan) {
+    public static Job whenTidy(Task plan) {
         return new Job(plan, null, s -> true, true);
     }
 

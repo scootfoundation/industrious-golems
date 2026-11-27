@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.farm;
 
+import com.scottcaldwell.industriousgolems.behavior.ClipRun;
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
@@ -61,10 +63,10 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     public enum Kind { REAP, SOW }
 
     /** One plot to tend: reap the ripe crop at {@code pos}, or sow the carried seeds on the bare farmland there. */
-    public record CropPlan(Kind kind, BlockPos pos) { }
+    public record CropPlan(Kind kind, BlockPos pos) implements Task { }
 
     private final Machine.Run<State> machine = GRAPH.run();
-    private int timer;
+    private ClipRun clip;
     private final Approach approach = new Approach(STALL_TICKS);
     private Vec3 spot;
 
@@ -122,16 +124,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         if (!machine.is(State.APPROACH)) {
             holdStill(golem);
             Face.toward(golem, Vec3.atCenterOf(pos));
-            timer++;
-            float at = plan.kind() == Kind.REAP ? Anim.H_HARVEST_AT : Anim.H_REPLANT_AT;
-            float len = plan.kind() == Kind.REAP ? Anim.H_HARVEST_LEN : Anim.H_REPLANT_LEN;
-            if (machine.is(State.WORKING) && timer >= Math.round(at * 20)) {
-                machine.to(State.FOLLOW_THROUGH);
-                golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                if (plan.kind() == Kind.REAP) level.destroyBlock(pos, true, golem); // drops like a player's break
-                else sow(level, golem, pos);
-            }
-            if (timer >= Math.round(len * 20)) done();
+            if (clip.tick()) done();
             return;
         }
         if (!stillWorthIt(level, golem)) { done(); return; }
@@ -149,9 +142,15 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         }
         Face.toward(golem, Vec3.atCenterOf(pos));
         holdStill(golem);
-        golem.playClip(plan.kind() == Kind.REAP ? Anim.H_HARVEST : Anim.H_REPLANT);
+        boolean reap = plan.kind() == Kind.REAP;
+        clip = ClipRun.play(golem, reap ? Anim.H_HARVEST : Anim.H_REPLANT, reap ? Anim.H_HARVEST_LEN : Anim.H_REPLANT_LEN)
+                .at(reap ? Anim.H_HARVEST_AT : Anim.H_REPLANT_AT, () -> {
+                    machine.to(State.FOLLOW_THROUGH);
+                    golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+                    if (reap) level.destroyBlock(pos, true, golem); // drops like a player's break
+                    else sow(level, golem, pos);
+                });
         machine.to(State.WORKING);
-        timer = 0;
     }
 
     private void done() {

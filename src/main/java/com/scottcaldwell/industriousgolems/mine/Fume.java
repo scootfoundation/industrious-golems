@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.mine;
 
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
@@ -20,7 +21,7 @@ public class Fume extends TaskRunner<Fume.Plan> {
     private static final int FUME_TICKS = 160;
     private static final int STALL_TICKS = 160;
 
-    public record Plan() { }
+    public record Plan() implements Task { }
 
     private enum State { RUN, FUME, DONE }
 

@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.mine;
 
+import com.scottcaldwell.industriousgolems.behavior.ClipRun;
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Approach;
@@ -32,7 +34,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private static final int STALL_TICKS = 160;
     private static final int IGNORE_TICKS = 6000;
 
-    public record Plan(List<Trunk.Placement> builds) { }
+    public record Plan(List<Trunk.Placement> builds) implements Task { }
 
     private enum State { SEEK, APPROACH, PLACE, SETTLE, DONE }
 
@@ -58,7 +60,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private Trunk.Placement current;
     private BlockPos stand;
     private final Approach approach = new Approach(STALL_TICKS);
-    private int progress;
+    private ClipRun clip;
 
     public BuildTrunk() {
         super(Plan.class, 2400);
@@ -72,7 +74,6 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         current = null;
         stand = null;
         approach.reset();
-        progress = 0;
         golem.setPickupSuspended(true);
     }
 
@@ -87,10 +88,9 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         switch (machine.state()) {
             case SEEK -> seek(level, golem);
             case APPROACH -> approach(level, golem, time);
-            case PLACE -> place(level, golem);
-            case SETTLE -> {
+            case PLACE, SETTLE -> {
                 holdStill(golem);
-                if (++progress / 20.0F >= Anim.S_MINE_LEN) { progress = 0; current = null; machine.to(State.SEEK); }
+                if (clip.tick()) { current = null; machine.to(State.SEEK); }
             }
             case DONE -> { }
         }
@@ -130,10 +130,8 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         }
         holdStill(golem);
         Face.toward(golem, Vec3.atCenterOf(at));
-        golem.playClip(Anim.S_MINE);
-        progress = 0;
+        clip = ClipRun.play(golem, Anim.S_MINE, Anim.S_MINE_LEN).at(Anim.S_MINE_HIT, () -> place(level, golem));
         machine.to(State.PLACE);
-        place(level, golem);
     }
 
     /** The golem (one block wide, a block and a half tall) is not in the way of the block going in at {@code at}: it stands in another column, or well below it. */
@@ -148,8 +146,6 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     }
 
     private void place(ServerLevel level, WorkGolem golem) {
-        holdStill(golem);
-        if (++progress / 20.0F < Anim.S_MINE_HIT) return;
         ItemStack item = golem.packTake(current.part().match());
         if (!item.isEmpty() && canPlace(level, current)) {
             BlockState base = current.part().state(item);

@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.golem;
 
+import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.behavior.ContainerInteraction;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.PickUp;
@@ -59,7 +60,7 @@ public enum GolemMode {
         if (!golem.isCharged()) return DORMANT;
         if (golem.getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)) return PANICKING;
         if (Tasks.active(golem)) {
-            Object plan = golem.getData(ModAttachments.TASK).plan;
+            Task plan = golem.getData(ModAttachments.TASK).plan;
             if (plan instanceof ContainerInteraction.Plan visit) return visit.supply() == null ? DEPOSITING : FETCHING_SUPPLY;
             if (plan instanceof PickUp.Plan) return PICKING_UP;
             return WORKING;

@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.herd;
 
+import com.scottcaldwell.industriousgolems.behavior.ClipRun;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Approach;
@@ -79,7 +80,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     private final Machine.Run<State> machine = GRAPH.run();
     private final Approach approach = new Approach(APPROACH_TICKS);
-    private int timer;
+    private ClipRun clip;
     private Vec3 spot;
     private Animal frozen;
     private float yaw;
@@ -257,7 +258,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         Entity target = level.getEntity(plan.targetId());
         if (machine.is(State.PLAY) || machine.is(State.FOLLOW_THROUGH)) {
-            play(level, golem, target, time);
+            play(golem, target);
             return;
         }
         if (!(target instanceof Animal animal) || !animal.isAlive()) { done(); return; }
@@ -275,11 +276,9 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         if (lay == null) { // milking: just stand at the cow
             holdStill(golem);
             Face.toward(golem, animal.position());
-            if (clipFor(animal) != null) golem.playClip(clipFor(animal));
-            machine.to(State.PLAY);
-            timer = 0;
             frozen = animal;
             yaw = golem.getYRot();
+            startClip(level, golem, animal);
             return;
         }
         if (spot == null) spot = chooseSpot(level, golem, animal, lay);
@@ -301,10 +300,31 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         golem.setYHeadRot(yaw);
         holdStill(golem);
         animal.getNavigation().stop();
-        if (clipFor(animal) != null) golem.playClip(clipFor(animal));
-        machine.to(State.PLAY);
-        timer = 0;
         frozen = animal;
+        startClip(level, golem, animal);
+    }
+
+    /** Plays the job's clip; the deed itself lands at its moment in it. */
+    private void startClip(ServerLevel level, WorkGolem golem, Animal animal) {
+        float at = switch (plan.action()) {
+            case CULL -> Anim.T_CULL_HIT + 0.05F;
+            case BREED -> Anim.T_FEED_BITE + 0.2F;
+            case SHEAR -> Anim.T_SHEAR_AT;
+            case MILK -> 0.8F;
+        };
+        float len = switch (plan.action()) {
+            case CULL -> Anim.T_CULL_LEN;
+            case BREED -> Anim.T_FEED_LEN;
+            case SHEAR -> Anim.T_SHEAR_LEN;
+            case MILK -> 1.6F;
+        };
+        clip = ClipRun.play(golem, clipFor(animal), len).at(at, () -> {
+            if (!animal.isAlive()) return;
+            machine.to(State.FOLLOW_THROUGH);
+            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+            perform(level, golem, animal, level.getGameTime());
+        });
+        machine.to(State.PLAY);
     }
 
     private void done() {
@@ -313,9 +333,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     }
 
     /** The clip is playing: the animal is held where the arms go, and the deed is done at its moment in the clip. */
-    private void play(ServerLevel level, WorkGolem golem, Entity target, long time) {
+    private void play(WorkGolem golem, Entity target) {
         holdStill(golem);
-        timer++;
         boolean acted = machine.is(State.FOLLOW_THROUGH);
         Animal animal = target instanceof Animal a && a.isAlive() ? a : null;
         if (animal == null && !acted) { done(); return; }
@@ -335,24 +354,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 animal.setYHeadRot(ay);
             }
         }
-        float at = switch (plan.action()) {
-            case CULL -> Anim.T_CULL_HIT + 0.05F;
-            case BREED -> Anim.T_FEED_BITE + 0.2F;
-            case SHEAR -> Anim.T_SHEAR_AT;
-            case MILK -> 0.8F;
-        };
-        float len = switch (plan.action()) {
-            case CULL -> Anim.T_CULL_LEN;
-            case BREED -> Anim.T_FEED_LEN;
-            case SHEAR -> Anim.T_SHEAR_LEN;
-            case MILK -> 1.6F;
-        };
-        if (!acted && animal != null && timer >= Math.round(at * 20)) {
-            machine.to(State.FOLLOW_THROUGH);
-            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-            perform(level, golem, animal, time);
-        }
-        if (timer >= Math.round(len * 20)) done();
+        if (clip.tick()) done();
     }
 
     private boolean perform(ServerLevel level, WorkGolem golem, Animal animal, long time) {

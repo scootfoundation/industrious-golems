@@ -56,7 +56,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
 
     private BlockPos chestPos;
     private Plan visit;
-    private int timer;
+    private ClipRun clip;
     private final Approach approach = new Approach(400);
     private Container opened;
     private Anim.Chest spec;
@@ -71,7 +71,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     // ---- choosing a container ---------------------------------------------------------------------------------
 
     /** Which container to visit; {@code supply} is the need to take from it, or null to put the carried stack in. */
-    public record Plan(BlockPos pos, String supply, java.util.function.Predicate<ItemStack> accepts) {
+    public record Plan(BlockPos pos, String supply, java.util.function.Predicate<ItemStack> accepts) implements Task {
         public Plan(BlockPos pos, String supply) {
             this(pos, supply, s -> true);
         }
@@ -215,7 +215,6 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         machine.reset();
         spec = Anim.chest(golem.profession().id());
         spot = null;
-        timer = 0;
         approach.reset();
         stowed = null;
         golem.setPickupSuspended(true); // a free hand while the stack is in the air must not grab something else
@@ -235,7 +234,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     protected void tick(ServerLevel level, WorkGolem golem, long time) {
         if (chestPos == null) return;
         if (machine.is(State.APPROACH)) approach(level, golem);
-        else play(level, golem);
+        else play(golem);
     }
 
     private void approach(ServerLevel level, WorkGolem golem) {
@@ -275,10 +274,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             return;
         }
         Face.toward(golem, Vec3.atCenterOf(chestPos));
-        golem.playClip(visit.supply() == null ? spec.put() : spec.fetch());
-        timer = 0;
         golem.setUsingChest(chestPos);
         machine.to(State.REACH);
+        startClip(level, golem);
     }
 
     private boolean taken(ServerLevel level, WorkGolem golem) {
@@ -286,57 +284,73 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 other -> other != golem && chestPos.equals(other.usingChest())).isEmpty();
     }
 
-    private void play(ServerLevel level, WorkGolem golem) {
-        holdStill(golem);
-        Face.toward(golem, Vec3.atCenterOf(chestPos));
-        timer++;
+    /** Starts the visit's clip: the lid, the hand-over and the close each happen at their moment in it. */
+    private void startClip(ServerLevel level, WorkGolem golem) {
         boolean put = visit.supply() == null;
-        float t = timer / 20.0F;
-        if (machine.is(State.REACH) && t >= (put ? spec.putOpen() : spec.fetchOpen())) {
-            Container chest = HopperBlockEntity.getContainerAt(level, chestPos);
-            if (chest == null) { done(); return; }
-            opened = chest;
-            chest.startOpen((ContainerUser) golem);
-            golem.setOpenedChestPos(chestPos);
-            machine.to(State.OPEN);
-        }
+        clip = ClipRun.play(golem, put ? spec.put() : spec.fetch(), put ? spec.putLen() : spec.fetchLen())
+                .at(put ? spec.putOpen() : spec.fetchOpen(), () -> open(level, golem));
         if (put) {
-            if (machine.is(State.OPEN) && t >= spec.putRelease()) { // the hand lets go of the stack
-                stowed = golem.carried().copy();
-                golem.setCarried(ItemStack.EMPTY);
-                golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                machine.to(State.LET_GO);
-            }
-            if (machine.is(State.LET_GO) && t >= spec.putDrop()) { // and it lands in the chest
-                boolean intact = opened != null && HopperBlockEntity.getContainerAt(level, chestPos) == opened; // not broken meanwhile
-                ItemStack rest = intact ? insert(opened, stowed) : stowed;
-                if (intact) opened.setChanged();
-                stowed = ItemStack.EMPTY;
-                if (!rest.isEmpty()) golem.setCarried(rest);
-                machine.to(State.TRANSFERRED);
-            }
+            clip.at(spec.putRelease(), () -> letGo(golem)).at(spec.putDrop(), () -> drop(level, golem));
         } else {
-            if (machine.is(State.OPEN) && t >= spec.fetchTake()) {
-                if (opened != null) {
-                    take(ProfessionNeeds.of(golem).need(visit.supply()), visit.accepts(), golem, opened);
-                    opened.setChanged();
-                }
-                machine.to(State.TRANSFERRED);
-            }
-            if (machine.is(State.TRANSFERRED) && spec.fetchThrow() >= 0 && t >= spec.fetchThrow()) {
+            clip.at(spec.fetchTake(), () -> takeOut(golem)).at(spec.fetchThrow(), () -> {
+                if (!machine.is(State.TRANSFERRED)) return;
                 throwOut(level, golem);
                 machine.to(State.THROWN);
-            }
+            });
         }
-        boolean transferred = put ? machine.is(State.TRANSFERRED) : spec.fetchThrow() < 0 ? machine.is(State.TRANSFERRED) : machine.is(State.THROWN);
-        if (transferred && t >= (put ? spec.putClose() : spec.fetchClose())) {
+        boolean throwing = !put && spec.fetchThrow() >= 0;
+        clip.at(put ? spec.putClose() : spec.fetchClose(), () -> {
+            if (!machine.is(throwing ? State.THROWN : State.TRANSFERRED)) return;
             closeChest(golem);
             machine.to(State.CLOSED);
+        });
+    }
+
+    private void play(WorkGolem golem) {
+        holdStill(golem);
+        Face.toward(golem, Vec3.atCenterOf(chestPos));
+        if (!clip.tick()) return;
+        closeChest(golem);
+        done();
+    }
+
+    private void open(ServerLevel level, WorkGolem golem) {
+        if (!machine.is(State.REACH)) return;
+        Container chest = HopperBlockEntity.getContainerAt(level, chestPos);
+        if (chest == null) { done(); return; }
+        opened = chest;
+        chest.startOpen((ContainerUser) golem);
+        golem.setOpenedChestPos(chestPos);
+        machine.to(State.OPEN);
+    }
+
+    /** The hand lets go of the stack. */
+    private void letGo(WorkGolem golem) {
+        if (!machine.is(State.OPEN)) return;
+        stowed = golem.carried().copy();
+        golem.setCarried(ItemStack.EMPTY);
+        golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+        machine.to(State.LET_GO);
+    }
+
+    /** And it lands in the chest. */
+    private void drop(ServerLevel level, WorkGolem golem) {
+        if (!machine.is(State.LET_GO)) return;
+        boolean intact = opened != null && HopperBlockEntity.getContainerAt(level, chestPos) == opened; // not broken meanwhile
+        ItemStack rest = intact ? insert(opened, stowed) : stowed;
+        if (intact) opened.setChanged();
+        stowed = ItemStack.EMPTY;
+        if (!rest.isEmpty()) golem.setCarried(rest);
+        machine.to(State.TRANSFERRED);
+    }
+
+    private void takeOut(WorkGolem golem) {
+        if (!machine.is(State.OPEN)) return;
+        if (opened != null) {
+            take(ProfessionNeeds.of(golem).need(visit.supply()), visit.accepts(), golem, opened);
+            opened.setChanged();
         }
-        if (t >= (put ? spec.putLen() : spec.fetchLen())) {
-            closeChest(golem);
-            done();
-        }
+        machine.to(State.TRANSFERRED);
     }
 
     /** The stack is flung out onto the grass beside the golem, where it will be picked up in the ordinary way. */

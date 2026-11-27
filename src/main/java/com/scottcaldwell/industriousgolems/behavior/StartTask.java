@@ -40,7 +40,7 @@ public class StartTask extends Behavior<WorkGolem> {
 
         JobList jobs = new JobList(ProfessionNeeds.of(golem).work().jobs().jobs(level, golem).iterator());
         Job ready = jobs.first(Job::ready);
-        Object plan = ready == null ? null : ready.plan();
+        Task plan = ready == null ? null : ready.plan();
         if (plan == null && golem.isCarrying()) plan = PickUp.plan(level, golem); // top up the stack in hand first
         if (plan == null) plan = ContainerInteraction.planDeposit(level, golem);
         if (plan == null) plan = PickUp.plan(level, golem);

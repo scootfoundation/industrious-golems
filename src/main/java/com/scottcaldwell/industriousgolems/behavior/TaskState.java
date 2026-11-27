@@ -12,7 +12,7 @@ import java.util.Map;
 public class TaskState {
 
     /** What to do next, or null when idle. Runners recognise their own plan type. */
-    public Object plan;
+    public Task plan;
     private long nextPlanAt;
     private final Map<Integer, Long> ignoredItems = new HashMap<>();
     private final Map<Long, Long> ignoredBlocks = new HashMap<>();

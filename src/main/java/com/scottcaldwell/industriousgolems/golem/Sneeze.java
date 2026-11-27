@@ -6,7 +6,6 @@ import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
@@ -65,7 +64,7 @@ public class Sneeze {
     private long goalSeen = Long.MIN_VALUE;
     private double best = Double.MAX_VALUE;
     private int stuck;
-    private int timer;
+    private Hop hop;
     private Vec3 landing;
     private long nextHomeCheck;
     private boolean boxedIn;
@@ -79,7 +78,7 @@ public class Sneeze {
     /** Runs once per tick before the brain. Returns true while a hop is under way, when the brain must not run. */
     public boolean tick(ServerLevel level) {
         if (golem.profession() != ModProfessions.LUMBERJACK) return false;
-        if (!machine.is(State.WATCH)) return hop(level);
+        if (!machine.is(State.WATCH)) return hopping();
         if (!golem.isCharged() || !golem.clip().isEmpty() || golem.isPassenger()) { forget(); return false; }
         long now = level.getGameTime();
         if (trapped(level, now)) {
@@ -110,11 +109,9 @@ public class Sneeze {
     }
 
     private boolean vanish() {
-        golem.getNavigation().stop();
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        golem.playClip(Anim.M_SNEEZE_VANISH);
+        hop = new Hop((ServerLevel) golem.level(), golem, landing);
         machine.to(State.VANISH);
-        timer = 0;
         return true;
     }
 
@@ -184,25 +181,14 @@ public class Sneeze {
         goal = null;
     }
 
-    private boolean hop(ServerLevel level) {
+    private boolean hopping() {
         if (!golem.isCharged()) { abort(); return false; }
         golem.getNavigation().stop();
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         golem.setDeltaMovement(0, golem.getDeltaMovement().y, 0);
-        if (machine.is(State.VANISH)) {
-            int vanish = Math.round(Anim.M_VANISH_AT * 20);
-            if (timer == vanish - 2) puff(level, golem.position().add(0, 0.6, 0));
-            if (++timer < vanish) return true;
-            golem.teleportTo(landing.x, landing.y, landing.z);
-            golem.setDeltaMovement(Vec3.ZERO);
-            puff(level, golem.position().add(0, 0.6, 0));
-            golem.playClip(Anim.M_SNEEZE_APPEAR);
-            machine.to(State.APPEAR);
-            timer = 0;
-            return true;
-        }
-        if (++timer < Math.round(Anim.M_APPEAR_LEN * 20)) return true;
-        abort();
+        boolean over = hop.tick();
+        if (hop.landed()) machine.to(State.APPEAR);
+        if (over) abort();
         return true;
     }
 
@@ -246,10 +232,5 @@ public class Sneeze {
             if (best != null) break;
         }
         return best;
-    }
-
-    public static void puff(ServerLevel level, Vec3 at) {
-        level.sendParticles(ParticleTypes.SPORE_BLOSSOM_AIR, at.x, at.y, at.z, 24, 0.35, 0.3, 0.35, 0.05);
-        level.sendParticles(ParticleTypes.POOF, at.x, at.y, at.z, 8, 0.25, 0.25, 0.25, 0.03);
     }
 }
