@@ -15,8 +15,6 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.util.profiling.Profiler;
-import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
@@ -67,24 +65,19 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     private static final EntityDataAccessor<String> CLIP = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<Long> CLIP_START = SynchedEntityData.defineId(WorkGolem.class, EntityDataSerializers.LONG);
 
-    /** While the game time is before this the golem stands still playing a one-off clip (being handed an offering); 0 when not. */
-    private long pausedUntil;
     private int chargeTicks;
     private int lastOffering = -1;
     private @Nullable BlockPos openedChestPos;
     /** Set while the work itself drops things the golem should leave lying until it is done (mining); not saved. */
     private boolean pickupSuspended;
-    /** What the golem is doing at the top level; see {@link GolemMode}. Not saved: it is read off the golem again. */
-    private final com.scottcaldwell.industriousgolems.behavior.Machine.Run<GolemMode> mode = GolemMode.GRAPH.run();
-
-    /** The mushroom golem's short-range teleport out of places it cannot walk out of. */
-    private final Sneeze sneeze = new Sneeze(this);
+    /** What is in charge of the golem each tick. Not saved: it is read off the golem again. */
+    private final GolemControl control = new GolemControl(this);
     private final Gates gates = new Gates(this);
     /** The chest this golem is standing at and using, so that others sharing it wait their turn; not saved. */
     private @Nullable BlockPos usingChest;
 
     public GolemMode mode() {
-        return mode.state();
+        return control.mode();
     }
 
     public WorkGolem(EntityType<? extends WorkGolem> type, Level level) {
@@ -133,24 +126,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     @Override
     protected void customServerAiStep(ServerLevel level) {
-        ProfilerFiller profiler = Profiler.get();
-        if (pausedUntil != 0 && level.getGameTime() >= pausedUntil) {
-            pausedUntil = 0;
-            stopClip();
-        }
-        if (pausedUntil == 0 && sneeze.tick(level)) {
-            // sneezing its way out of a tight spot: the task waits
-        } else if (pausedUntil == 0) {
-            profiler.push("workGolemBrain");
-            getBrain().tick(level, this);
-            profiler.pop();
-            profiler.push("workGolemActivity");
-            GolemBrain.updateActivity(this);
-            mode.to(GolemMode.of(this));
-            profiler.pop();
-        } else {
-            getNavigation().stop();
-        }
+        control.tick(level);
         gates.tick(level);
         Workplace.tick(level, this);
         if (getUnhappyCounter() > 0) setUnhappyCounter(getUnhappyCounter() - 1);
@@ -191,8 +167,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     /** Plays a clip that takes the golem's whole attention: it stands still until the clip is over, then goes back to what it was doing. */
     public void playClipAndWait(String id, float seconds) {
         playClip(id);
-        pausedUntil = level().getGameTime() + Math.round(seconds * 20);
-        getNavigation().stop();
+        control.receive(seconds);
     }
 
     /** Back to the default walk / idle / waiting animation. */

@@ -2,12 +2,19 @@
 
 - **State machines are explicit.** Every task runner declares its states as an enum and its transitions as a `Machine.Graph`
   (see `behavior/Machine.java`); it moves only with `machine.to(...)`, and an undeclared transition fails the game tests.
-  Top-level golem behaviour is `golem/GolemMode.java`. New runners must be added to `behavior/Graphs.java`.
+  New runners must be added to `behavior/Graphs.java`.
+  At the top level, `golem/GolemControl.java` decides what is in charge each tick (anything that takes a golem over from its brain goes
+  there); `golem/GolemMode.java` records it and declares the allowed hand-overs.
 - **A profession decides its work in one place: a list of candidate `Job`s** (`needs/Job.java`, `Work.jobs` in `ModProfessions`), best first,
   each saying whether it is doable with the hand as it is, needs a supply fetched from the chest first (`Job.needing`, with which stacks
   will do), or waits until everything is tidy (`Job.whenTidy`). `behavior/StartTask.java` takes them in order. Do not add a second
   "what would I want" question beside the planner; a job the chest cannot supply must not hold up the ones after it. New supply/pen/stock
   situations go in the herder matrix (`herder_matrix_*` game tests; each has its own test environment so neighbouring arenas do not interfere).
+- **Use the shared parts in runners.** Getting somewhere goes through `behavior/Approach.java` (it decides when a place is unreachable;
+  set the target aside when it does). Acting at moments in a clip is a `behavior/ClipRun.java`; the sneeze teleport is `golem/Hop.java`.
+  A plan record implements `behavior/Task.java` and returns what it is working on from `claims()`; planners leave out `Claims.others(...)`.
+- **Golem kinds differ by declaration.** Shared code asks `golem/Traits.java` and `golem/Carry.java`, never which profession a golem is.
+  Stacks go into containers through `golem/Slots.java`.
 - **Keep the diagram current.** After changing any graph run `tools/update-state-docs.ps1` (runs the `state_graphs` game test,
   rebuilds `docs/state-machines.html`) and republish the page as an artifact.
 - **Raise bugs as GitHub issues.** When you find a bug (while working on something else, reviewing, or testing), open an issue on this repository with

@@ -60,7 +60,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     static final long MILK_COOLDOWN = 6000;
     private static final double REACH_SQR = 4.0 * 4.0;
     private static final int APPROACH_TICKS = 400;
-    private static final int IGNORE_TICKS = 6000;
+    private static final int IGNORE_TICKS = 600; // short: animals move
 
     private enum State { WALK, STAGE, PLAY, FOLLOW_THROUGH, DONE }
 
@@ -74,7 +74,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             .state(State.FOLLOW_THROUGH, "The deed is done (culled, sheared, milked or fed); the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.WALK, State.STAGE, "within 4 blocks of the animal")
-            .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer (ignored for 5 min)")
+            .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer (ignored for 30 s)")
             .edge(State.STAGE, State.WALK, "the animal wandered out of reach")
             .edge(State.STAGE, State.PLAY, "standing on the spot facing the right way (milking needs no spot)")
             .edge(State.STAGE, State.DONE, "no room to stage it (does the job without the show), the animal is gone, or 20 s without getting nearer")
@@ -118,7 +118,9 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         Set<Object> taken = Claims.others(level, golem); // animals another golem is already seeing to
         TaskState state = golem.getData(ModAttachments.TASK);
         long when = level.getGameTime();
-        pen.animals.removeIf(a -> state.ignoresEntity(a.getId(), when)); // (out of reach: not this golem's to count either)
+        long spoken = pen.animals.stream().filter(a -> taken.contains(a.getId())).count(); // (another golem's, and may be about to be culled)
+        // one it could not get to is not picked for a while either; it is still in the pen and still counts
+        for (Animal animal : pen.animals) if (state.ignoresEntity(animal.getId(), when)) taken.add(animal.getId());
         int total = pen.animals.size();
         int cells = pen.cells.size();
         Map<EntityType<?>, List<Animal>> adults = new HashMap<>();
@@ -128,7 +130,6 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         List<Job> jobs = new ArrayList<>();
 
         // too crowded: cull the most numerous species, but always keep a breeding pair
-        long spoken = pen.animals.stream().filter(a -> taken.contains(a.getId())).count(); // (it may be about to be culled)
         if (bareHanded && (total - spoken) * CELLS_PER_ANIMAL > cells) {
             List<Animal> crowded = null;
             for (List<Animal> group : adults.values()) {
@@ -389,6 +390,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             }
             case MILK -> {
                 if (!needs.isSupply("bucket", carried) || !(animal instanceof Cow)) return false;
+                long last = animal.getData(ModAttachments.MILKED_AT); // another golem may have got here first
+                if (last != Long.MIN_VALUE && time - last < MILK_COOLDOWN) return false;
                 carried.shrink(1);
                 ItemStack milk = new ItemStack(Items.MILK_BUCKET);
                 if (carried.isEmpty()) golem.setCarried(milk);
