@@ -34,7 +34,9 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private static final int STALL_TICKS = 160;
     private static final int IGNORE_TICKS = 6000;
 
-    public record Plan(List<Trunk.Placement> builds) implements Task { }
+    public record Plan(List<Trunk.Placement> builds) implements Task {
+        @Override public java.util.Collection<?> claims() { return builds.stream().map(Trunk.Placement::pos).toList(); }
+    }
 
     private enum State { SEEK, APPROACH, PLACE, SETTLE, DONE }
 

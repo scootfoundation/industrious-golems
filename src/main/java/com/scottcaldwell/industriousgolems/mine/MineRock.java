@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.mine;
 
+import com.scottcaldwell.industriousgolems.behavior.Claims;
+import java.util.Set;
 import com.scottcaldwell.industriousgolems.behavior.ClipRun;
 import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.ModAttachments;
@@ -50,7 +52,9 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private static final int IGNORE_TICKS = 6000;
 
     /** The block chosen by {@link #jobs}, and where to stand to strike it. */
-    public record MinePlan(MineFinder.Target first) implements Task { }
+    public record MinePlan(MineFinder.Target first) implements Task {
+        @Override public java.util.Collection<?> claims() { return java.util.List.of(first.block()); }
+    }
 
     private enum State { APPROACH, SWING, SETTLE, DONE }
 
@@ -118,7 +122,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private static Work work(ServerLevel level, WorkGolem golem, BlockPos chest) {
         TaskState state = golem.getData(ModAttachments.TASK);
         long now = level.getGameTime();
-        Trunk.Step step = Trunk.next(level, chest, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
+        Set<Object> taken = Claims.others(level, golem);
+        Trunk.Step step = Trunk.next(level, chest, golem.blockPosition(), pos -> state.ignoresBlock(pos, now), taken::contains);
         if (step == null) return null;
         if (step.digs()) {
             BlockPos stand = MineFinder.fistSpot(level, step.dig(), golem.blockPosition());

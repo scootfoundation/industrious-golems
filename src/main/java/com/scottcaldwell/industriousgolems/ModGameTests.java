@@ -119,6 +119,7 @@ public class ModGameTests {
         strictly("golem_sneezes_out_from_under_leaves", ModGameTests::golemSneezesOutFromUnderLeaves);
         strictly("golem_uses_gate_and_shuts_it", ModGameTests::golemUsesGate);
         strictly("golems_share_one_chest", ModGameTests::golemsShareOneChest);
+        strictly("golems_leave_each_others_targets", ModGameTests::golemsLeaveEachOthersTargets);
         strictly("lumberjack_breaks_one_log_at_a_time", ModGameTests::lumberjackBreaksOneLogAtATime);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
@@ -858,6 +859,40 @@ public class ModGameTests {
     }
 
     /** What the golem works with (seeds) goes in its own chest, not a copper chest, a plain chest or another golem's chest beside it. */
+    /** While one golem holds a task on a crop or a cow, another is not offered the same one. */
+    private static void golemsLeaveEachOthersTargets(GameTestHelper helper) {
+        buildFarm(helper);
+        BlockPos crop = new BlockPos(5, 2, 5);
+        helper.setBlock(crop.below(), Blocks.FARMLAND);
+        helper.setBlock(crop, ((CropBlock) Blocks.WHEAT).getStateForAge(7));
+        WorkGolem first = spawnFarmer(helper, new BlockPos(2, 1, 4));
+        WorkGolem second = spawnFarmer(helper, new BlockPos(3, 1, 4));
+        var level = helper.getLevel();
+        helper.assertTrue(com.scottcaldwell.industriousgolems.farm.TendCrops.jobs(level, second).findAny().isPresent(), "the ripe wheat is work");
+        first.getData(com.scottcaldwell.industriousgolems.ModAttachments.TASK).plan = new com.scottcaldwell.industriousgolems.farm.TendCrops.CropPlan(
+                com.scottcaldwell.industriousgolems.farm.TendCrops.Kind.REAP, helper.absolutePos(crop));
+        helper.assertTrue(com.scottcaldwell.industriousgolems.farm.TendCrops.jobs(level, second).findAny().isEmpty(), "but not while the other golem is reaping it");
+
+        for (int i = 1; i <= 5; i++) {
+            helper.setBlock(new BlockPos(i, 1, 1), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(1, 1, i), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(5, 1, i), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(i, 1, 5), Blocks.OAK_FENCE);
+        }
+        helper.setBlock(crop, Blocks.AIR);
+        Cow cow = helper.spawn(EntityTypes.COW, new BlockPos(3, 1, 3));
+        WorkGolem milker = spawnWorker(helper, ModProfessions.HERDER, COMPOSTER, new BlockPos(6, 1, 3));
+        WorkGolem other = spawnWorker(helper, ModProfessions.HERDER, COMPOSTER, new BlockPos(6, 1, 4));
+        other.setCarried(new ItemStack(Items.BUCKET));
+        helper.assertTrue(HerdWork.jobs(level, other).findAny().isPresent(), "the cow can be milked");
+        milker.getData(com.scottcaldwell.industriousgolems.ModAttachments.TASK).plan = new com.scottcaldwell.industriousgolems.herd.HerdPlan(
+                com.scottcaldwell.industriousgolems.herd.HerdPlan.Action.MILK, cow.getId());
+        helper.assertTrue(HerdWork.jobs(level, other).findAny().isEmpty(), "but not while the other golem is milking it");
+        // arenas stand side by side and a pen is looked for 16 blocks about: leave nobody behind to work the neighbours'
+        for (var made : List.of(first, second, milker, other, cow)) made.discard();
+        helper.succeed();
+    }
+
     private static void golemUsesItsOwnChest(GameTestHelper helper) {
         buildFarm(helper);
         helper.setBlock(COMPOSTER, ModBlocks.HAY_CHEST.get());

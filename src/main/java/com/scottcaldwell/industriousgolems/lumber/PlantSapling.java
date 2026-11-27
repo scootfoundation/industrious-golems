@@ -43,7 +43,9 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
             .edge(State.PLANT, State.DONE, "plant clip ends");
 
     /** @param at where the sapling goes */
-    public record Plan(BlockPos at) implements Task { }
+    public record Plan(BlockPos at) implements Task {
+        @Override public java.util.Collection<?> claims() { return java.util.List.of(at); }
+    }
 
     private final Machine.Run<State> machine = GRAPH.run();
     private ClipRun clip;

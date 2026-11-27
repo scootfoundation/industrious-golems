@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.behavior;
 
+import java.util.Set;
 import com.scottcaldwell.industriousgolems.golem.Carry;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
@@ -41,7 +42,9 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             .edge(State.RISE, State.DONE, "the clip ends");
 
     /** @param itemId entity id of the stack to fetch */
-    public record Plan(int itemId) implements Task { }
+    public record Plan(int itemId) implements Task {
+        @Override public java.util.Collection<?> claims() { return java.util.List.of(itemId); }
+    }
 
     private final Machine.Run<State> machine = GRAPH.run();
     private ClipRun clip;
@@ -61,8 +64,9 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         if (at == null) return null;
         TaskState state = golem.getData(ModAttachments.TASK);
         ItemEntity best = null;
+        Set<Object> taken = Claims.others(level, golem);
         for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(carry.reach(), carry.reachHeight(), carry.reach()),
-                i -> golem.wantsToPickUp(level, i.getItem()) && !state.ignores(i.getId(), level.getGameTime())
+                i -> golem.wantsToPickUp(level, i.getItem()) && !taken.contains(i.getId()) && !state.ignoresEntity(i.getId(), level.getGameTime())
                         && !(carry.dryOnly() && i.isInLiquid()) && !(carry.aroundSelf() && golem.distanceTo(i) > carry.reach()))) {
             if (best == null || golem.distanceToSqr(item) < golem.distanceToSqr(best)) best = item;
         }
@@ -108,7 +112,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
         Approach.Outcome outcome = approach.stand(golem, spot, 0.9);
         if (outcome != Approach.Outcome.ARRIVED) {
             if (outcome == Approach.Outcome.UNREACHABLE) { // stuck behind something: leave it, so it does not hold up the rest of the work
-                golem.getData(ModAttachments.TASK).ignoreItem(item.getId(), time + IGNORE_TICKS);
+                golem.getData(ModAttachments.TASK).ignoreEntity(item.getId(), time + IGNORE_TICKS);
                 done();
             }
             return;

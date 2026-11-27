@@ -1,5 +1,9 @@
 package com.scottcaldwell.industriousgolems.farm;
 
+import com.scottcaldwell.industriousgolems.behavior.Claims;
+import com.scottcaldwell.industriousgolems.behavior.TaskState;
+import com.scottcaldwell.industriousgolems.ModAttachments;
+import java.util.Set;
 import com.scottcaldwell.industriousgolems.behavior.ClipRun;
 import com.scottcaldwell.industriousgolems.behavior.Task;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
@@ -43,6 +47,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     private static final int RADIUS = 10;
     private static final int HEIGHT = 2;
     private static final int STALL_TICKS = 400;
+    private static final int IGNORE_TICKS = 6000;
 
     private enum State { APPROACH, WORKING, FOLLOW_THROUGH, DONE }
 
@@ -55,7 +60,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
             .state(State.FOLLOW_THROUGH, "The crop is cut (or the seed planted); the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.APPROACH, State.WORKING, "settled on the spot, facing the plot")
-            .edge(State.APPROACH, State.DONE, "the plot is no longer ripe / bare or the hands changed, or no nearer for 20 s")
+            .edge(State.APPROACH, State.DONE, "the plot is no longer ripe / bare or the hands changed, or no nearer for 20 s (the plot is then ignored for 5 min)")
             .edge(State.WORKING, State.FOLLOW_THROUGH, "the clip reaches the harvest / plant moment")
             .edge(State.WORKING, State.DONE, "the clip ends without the act")
             .edge(State.FOLLOW_THROUGH, State.DONE, "the clip ends");
@@ -63,7 +68,9 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     public enum Kind { REAP, SOW }
 
     /** One plot to tend: reap the ripe crop at {@code pos}, or sow the carried seeds on the bare farmland there. */
-    public record CropPlan(Kind kind, BlockPos pos) implements Task { }
+    public record CropPlan(Kind kind, BlockPos pos) implements Task {
+        @Override public java.util.Collection<?> claims() { return java.util.List.of(pos); }
+    }
 
     private final Machine.Run<State> machine = GRAPH.run();
     private ClipRun clip;
@@ -94,9 +101,13 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, boolean ripe) {
         BlockPos from = golem.blockPosition();
+        Set<Object> taken = Claims.others(level, golem);
+        TaskState state = golem.getData(ModAttachments.TASK);
+        long now = level.getGameTime();
         return BlockPos.betweenClosedStream(center.offset(-RADIUS, -HEIGHT, -RADIUS), center.offset(RADIUS, HEIGHT, RADIUS))
                 .filter(p -> ripe ? isRipe(level.getBlockState(p)) : isBareFarmland(level, p))
                 .map(BlockPos::immutable)
+                .filter(p -> !taken.contains(p) && !state.ignoresBlock(p, now))
                 .min(Comparator.comparingDouble(p -> p.distSqr(from)));
     }
 
@@ -137,7 +148,10 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         }
         Approach.Outcome outcome = approach.stand(golem, spot, 0.9);
         if (outcome != Approach.Outcome.ARRIVED) {
-            if (outcome == Approach.Outcome.UNREACHABLE) done();
+            if (outcome == Approach.Outcome.UNREACHABLE) { // leave it a while, so it does not hold up the other plots
+                golem.getData(ModAttachments.TASK).ignoreBlock(pos, level.getGameTime() + IGNORE_TICKS);
+                done();
+            }
             return;
         }
         Face.toward(golem, Vec3.atCenterOf(pos));

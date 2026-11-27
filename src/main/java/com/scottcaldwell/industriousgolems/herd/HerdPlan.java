@@ -6,4 +6,9 @@ import com.scottcaldwell.industriousgolems.behavior.Task;
 public record HerdPlan(Action action, int targetId) implements Task {
 
     public enum Action { CULL, SHEAR, MILK, BREED }
+
+    @Override
+    public java.util.Collection<?> claims() {
+        return java.util.List.of(targetId);
+    }
 }

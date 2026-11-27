@@ -74,7 +74,9 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .edge(State.DESCEND, State.DONE, "landed on something that is not part of the tree and no log of it is left (or none can be stood over)");
 
     /** The tree chosen by {@link #plan}: chop {@code logs}, then replant at {@code replant}. */
-    public record FellPlan(List<BlockPos> logs, BlockPos replant) implements Task { }
+    public record FellPlan(List<BlockPos> logs, BlockPos replant) implements Task {
+        @Override public java.util.Collection<?> claims() { return java.util.List.of(replant); }
+    }
 
     private final List<BlockPos> remaining = new ArrayList<>();
     private final Machine.Run<State> machine = GRAPH.run();

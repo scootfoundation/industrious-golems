@@ -1,5 +1,8 @@
 package com.scottcaldwell.industriousgolems.herd;
 
+import com.scottcaldwell.industriousgolems.behavior.Claims;
+import com.scottcaldwell.industriousgolems.behavior.TaskState;
+import java.util.Set;
 import com.scottcaldwell.industriousgolems.behavior.ClipRun;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
@@ -57,6 +60,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     static final long MILK_COOLDOWN = 6000;
     private static final double REACH_SQR = 4.0 * 4.0;
     private static final int APPROACH_TICKS = 400;
+    private static final int IGNORE_TICKS = 6000;
 
     private enum State { WALK, STAGE, PLAY, FOLLOW_THROUGH, DONE }
 
@@ -70,7 +74,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             .state(State.FOLLOW_THROUGH, "The deed is done (culled, sheared, milked or fed); the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.WALK, State.STAGE, "within 4 blocks of the animal")
-            .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer")
+            .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer (ignored for 5 min)")
             .edge(State.STAGE, State.WALK, "the animal wandered out of reach")
             .edge(State.STAGE, State.PLAY, "standing on the spot facing the right way (milking needs no spot)")
             .edge(State.STAGE, State.DONE, "no room to stage it (does the job without the show), the animal is gone, or 20 s without getting nearer")
@@ -111,6 +115,10 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     private static List<Job> jobsFor(ServerLevel level, WorkGolem golem, HerdPen pen, boolean bucket, boolean feed) {
         boolean bareHanded = !golem.isCarrying();
+        Set<Object> taken = Claims.others(level, golem); // animals another golem is already seeing to
+        TaskState state = golem.getData(ModAttachments.TASK);
+        long when = level.getGameTime();
+        pen.animals.removeIf(a -> state.ignoresEntity(a.getId(), when)); // (out of reach: not this golem's to count either)
         int total = pen.animals.size();
         int cells = pen.cells.size();
         Map<EntityType<?>, List<Animal>> adults = new HashMap<>();
@@ -120,9 +128,11 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         List<Job> jobs = new ArrayList<>();
 
         // too crowded: cull the most numerous species, but always keep a breeding pair
-        if (bareHanded && total * CELLS_PER_ANIMAL > cells) {
+        long spoken = pen.animals.stream().filter(a -> taken.contains(a.getId())).count(); // (it may be about to be culled)
+        if (bareHanded && (total - spoken) * CELLS_PER_ANIMAL > cells) {
             List<Animal> crowded = null;
-            for (List<Animal> species : adults.values()) {
+            for (List<Animal> group : adults.values()) {
+                List<Animal> species = group.stream().filter(a -> !taken.contains(a.getId())).toList();
                 if (species.size() > MIN_ADULTS && (crowded == null || species.size() > crowded.size())) crowded = species;
             }
             Animal victim = crowded == null ? null : nearest(golem, crowded, null);
@@ -132,7 +142,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         if (bareHanded) {
             List<Animal> ready = new ArrayList<>();
             for (Animal animal : pen.animals) {
-                if (animal instanceof Sheep sheep && !sheep.isBaby() && sheep.readyForShearing()) ready.add(animal);
+                if (animal instanceof Sheep sheep && !sheep.isBaby() && sheep.readyForShearing() && !taken.contains(animal.getId())) ready.add(animal);
             }
             Animal shearable = nearest(golem, ready, null);
             if (shearable != null) jobs.add(Job.now(new HerdPlan(HerdPlan.Action.SHEAR, shearable.getId())));
@@ -142,7 +152,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             long now = level.getGameTime();
             List<Animal> milkable = new ArrayList<>();
             for (Animal animal : pen.animals) {
-                if (animal instanceof Cow cow && !cow.isBaby()) {
+                if (animal instanceof Cow cow && !cow.isBaby() && !taken.contains(animal.getId())) {
                     long last = cow.getData(ModAttachments.MILKED_AT);
                     if (last == Long.MIN_VALUE || now - last >= MILK_COOLDOWN) milkable.add(animal);
                 }
@@ -161,7 +171,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 if (inLove >= 2) continue;
                 List<Animal> candidates = new ArrayList<>();
                 for (Animal animal : group) {
-                    if (animal.getAge() == 0 && !animal.isInLove() && animal.canFallInLove()
+                    if (animal.getAge() == 0 && !animal.isInLove() && animal.canFallInLove() && !taken.contains(animal.getId())
                             && (!feed || animal.isFood(golem.carried()))) {
                         candidates.add(animal);
                     }
@@ -267,7 +277,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         if (golem.distanceToSqr(animal) > REACH_SQR) {
             machine.to(State.WALK);
             spot = null;
-            if (approach.walk(golem, new EntityTracker(animal, false), 3, () -> false) == Approach.Outcome.UNREACHABLE) done();
+            if (approach.walk(golem, new EntityTracker(animal, false), 3, () -> false) == Approach.Outcome.UNREACHABLE) giveUp(golem, animal, time);
             return;
         }
         // in reach: settle on a spot so that the animal, set where the clip wants it, is exactly where the arms go
@@ -291,7 +301,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         }
         Approach.Outcome outcome = approach.stand(golem, spot, 1.0);
         if (outcome != Approach.Outcome.ARRIVED) {
-            if (outcome == Approach.Outcome.UNREACHABLE) done();
+            if (outcome == Approach.Outcome.UNREACHABLE) giveUp(golem, animal, time);
             return;
         }
         Face.toward(golem, animal.position().multiply(1, 0, 1).add(0, golem.getY(), 0));
@@ -325,6 +335,12 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             perform(level, golem, animal, level.getGameTime());
         });
         machine.to(State.PLAY);
+    }
+
+    /** It cannot get to this animal: leave it alone for a while, to its own work and to any golem that can. */
+    private void giveUp(WorkGolem golem, Animal animal, long time) {
+        golem.getData(ModAttachments.TASK).ignoreEntity(animal.getId(), time + IGNORE_TICKS);
+        done();
     }
 
     private void done() {

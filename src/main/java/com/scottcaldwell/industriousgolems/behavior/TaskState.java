@@ -14,7 +14,7 @@ public class TaskState {
     /** What to do next, or null when idle. Runners recognise their own plan type. */
     public Task plan;
     private long nextPlanAt;
-    private final Map<Integer, Long> ignoredItems = new HashMap<>();
+    private final Map<Integer, Long> ignoredEntities = new HashMap<>();
     private final Map<Long, Long> ignoredBlocks = new HashMap<>();
 
     private BlockPos plantSpot;
@@ -47,15 +47,15 @@ public class TaskState {
         nextPlanAt = time;
     }
 
-    /** Stops the golem going after this dropped stack until {@code until} (it could not get there). */
-    void ignoreItem(int entityId, long until) {
-        ignoredItems.put(entityId, until);
+    /** Stops the golem going after this entity (a dropped stack, an animal) until {@code until} (it could not get there). */
+    public void ignoreEntity(int entityId, long until) {
+        ignoredEntities.put(entityId, until);
     }
 
-    boolean ignores(int entityId, long now) {
-        Long until = ignoredItems.get(entityId);
+    public boolean ignoresEntity(int entityId, long now) {
+        Long until = ignoredEntities.get(entityId);
         if (until == null) return false;
-        if (now >= until) ignoredItems.remove(entityId);
+        if (now >= until) ignoredEntities.remove(entityId);
         return now < until;
     }
 

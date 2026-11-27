@@ -94,10 +94,15 @@ public final class Trunk {
      * @param ignored blocks it has given up on for now
      */
     public static Step next(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored) {
-        BlockPos vein = vein(level, chest, from, ignored);
+        return next(level, chest, from, ignored, pos -> false);
+    }
+
+    /** @param taken blocks another golem is digging or placing: left to it, and an arm with nothing else to do is passed over */
+    public static Step next(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored, Predicate<BlockPos> taken) {
+        BlockPos vein = vein(level, chest, from, ignored.or(taken));
         if (vein != null) return new Step(vein, List.of(), false, null, -1);
         Result hub = assess(level, hubCells(chest), () -> true, ignored);
-        if (!hub.done()) return step(level, hub, null, 0, from);
+        if (!hub.done()) return step(level, hub, null, 0, from, taken);
 
         // no changing arm without a reason: while the golem is inside an arm it carries on down that one. Back at the hub (after a trip to the
         // chest) the arms are taken a section at a time, the least advanced first, the nearest of equals, so the mine grows as a plus.
@@ -106,7 +111,7 @@ public final class Trunk {
         double bestDistance = Double.MAX_VALUE;
         for (Direction arm : ARMS) {
             Frontier front = frontier(level, chest, arm, ignored);
-            if (front == null) continue;
+            if (front == null || busy(front.result(), taken)) continue;
             if (insideArm(chest, arm, from)) { best = front; break; }
             int section = (front.slice() - 1) / SUPPORT_EVERY;
             double distance = sliceCentre(chest, arm, front.slice()).distSqr(from);
@@ -116,7 +121,7 @@ public final class Trunk {
                 bestDistance = distance;
             }
         }
-        return best == null ? null : step(level, best.result(), best.arm(), best.slice(), from);
+        return best == null ? null : step(level, best.result(), best.arm(), best.slice(), from, taken);
     }
 
     /**
@@ -146,13 +151,21 @@ public final class Trunk {
         return next(level, chest, chest, pos -> false) != null;
     }
 
-    private static Step step(ServerLevel level, Result result, Direction arm, int slice, BlockPos from) {
+    /** Whether all there is to do here is already another golem's. */
+    private static boolean busy(Result result, Predicate<BlockPos> taken) {
+        if (!result.plugs().isEmpty()) return taken.test(result.plugs().get(0).pos());
+        if (!result.dig().isEmpty()) return result.dig().stream().allMatch(taken);
+        return !result.builds().isEmpty() && taken.test(result.builds().get(0).pos());
+    }
+
+    private static Step step(ServerLevel level, Result result, Direction arm, int slice, BlockPos from, Predicate<BlockPos> taken) {
+        if (busy(result, taken)) return null;
         // liquid in or beside the slice is sealed with cobblestone before anything else is done, even where it ends the arm
         if (!result.plugs().isEmpty()) return new Step(null, result.plugs(), true, arm, slice);
         if (result.blocked()) return null;
         if (result.dig().isEmpty()) return new Step(null, result.builds(), false, arm, slice);
         // some of the rock may not be dug yet from where it lies (it has to be open to the air on a side): take the ones that can be
-        BlockPos dig = result.dig().stream().filter(p -> MineFinder.isMineable(level, p, true) && MineFinder.fistSpot(level, p, from) != null).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
+        BlockPos dig = result.dig().stream().filter(p -> !taken.test(p) && MineFinder.isMineable(level, p, true) && MineFinder.fistSpot(level, p, from) != null).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
         return dig == null ? null : new Step(dig, List.of(), false, arm, slice);
     }
 

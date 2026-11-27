@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.lumber;
 
+import com.scottcaldwell.industriousgolems.behavior.Claims;
+import java.util.Set;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.ContainerInteraction;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
@@ -53,21 +55,30 @@ public final class LumberWork {
                 () -> plantingPlace(level, golem, site, state, level.getGameTime(), null) != null ? Job.needing("saplings") : null,
                 () -> {
                     long now = level.getGameTime();
-                    TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now));
+                    Set<Object> taken = Claims.others(level, golem);
+                    TreeFinder.Tree tree = TreeFinder.find(level, site, golem.blockPosition(), pos -> state.ignoresBlock(pos, now) || taken.contains(pos));
                     return tree == null ? null : Job.whenTidy(new FellTree.FellPlan(tree.logs(), tree.base()));
                 });
     }
 
     /** The best open ground near the chest (see {@link Planting}); the golem does not remember where trees stood. {@code sapling} null means "any sapling would do". */
     private static BlockPos plantingPlace(ServerLevel level, WorkGolem golem, BlockPos site, TaskState state, long now, ItemStack sapling) {
+        Set<Object> taken = Claims.others(level, golem);
         if (state.plantSpotFresh(now, PLACE_CACHE_TICKS)) {
             BlockPos cached = state.plantSpot();
             if (cached == null) return null; // looked a moment ago and found nothing
-            if (!state.ignoresBlock(cached, now) && canPlantAt(level, cached, sapling)) return cached;
+            if (!state.ignoresBlock(cached, now) && !crowds(taken, cached) && canPlantAt(level, cached, sapling)) return cached;
         }
-        BlockPos found = Planting.find(level, golem, site, pos -> state.ignoresBlock(pos, now));
+        BlockPos found = Planting.find(level, golem, site, pos -> state.ignoresBlock(pos, now) || crowds(taken, pos));
         state.cachePlantSpot(found, now);
         return found;
+    }
+
+    /** Whether the spot is too near one another golem is working on: a tree planted there would crowd the other's. */
+    private static boolean crowds(Set<Object> taken, BlockPos spot) {
+        int spacing = Planting.LAYOUT.spacing();
+        return taken.stream().anyMatch(o -> o instanceof BlockPos other
+                && Math.abs(other.getX() - spot.getX()) <= spacing && Math.abs(other.getZ() - spot.getZ()) <= spacing);
     }
 
     /** Whether a sapling can go here: the place is free (air, or a plant that gives way) and the sapling would survive on it. */
