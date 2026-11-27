@@ -10,6 +10,9 @@
   situations go in the herder matrix (`herder_matrix_*` game tests; each has its own test environment so neighbouring arenas do not interfere).
 - **Keep the diagram current.** After changing any graph run `tools/update-state-docs.ps1` (runs the `state_graphs` game test,
   rebuilds `docs/state-machines.html`) and republish the page as an artifact.
+- **Raise bugs as GitHub issues.** When you find a bug (while working on something else, reviewing, or testing), open an issue on this repository with
+  `gh issue create --label bug`, even if you fix it straight away: what happens, how to reproduce it (or say it was found by reading and not reproduced),
+  and where in the code. Check `gh issue list` first so the same bug is not raised twice, and close the issue from the commit that fixes it (`Fixes #N`).
 - Game tests: `./gradlew runGameTestServer --console=plain`.
 - **Dev loop without restarts.** Run the client (`run-client.bat`), then after an edit run
   `powershell -ExecutionPolicy Bypass -File tools/hotswap.ps1` (compiles and redefines changed classes in the running game through
