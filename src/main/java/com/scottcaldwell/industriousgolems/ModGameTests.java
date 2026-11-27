@@ -43,6 +43,7 @@ import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
@@ -115,6 +116,10 @@ public class ModGameTests {
         strictly("golem_sends_produce_to_copper_chest", ModGameTests::golemSendsProduceToCopperChest);
         strictly("golem_chests_join_into_doubles", ModGameTests::golemChestsJoinIntoDoubles);
         strictly("golem_climbs_to_raised_chest", ModGameTests::golemClimbsToRaisedChest);
+        strictly("golem_sneezes_out_from_under_leaves", ModGameTests::golemSneezesOutFromUnderLeaves);
+        strictly("golem_uses_gate_and_shuts_it", ModGameTests::golemUsesGate);
+        strictly("golems_share_one_chest", ModGameTests::golemsShareOneChest);
+        strictly("lumberjack_breaks_one_log_at_a_time", ModGameTests::lumberjackBreaksOneLogAtATime);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
         strictly("miner_follows_veins", ModGameTests::minerFollowsVeins);
@@ -903,6 +908,94 @@ public class ModGameTests {
             }
             helper.assertTrue(count(own, Items.OAK_LOG) == 5, "the logs go in the chest" + describe(helper, golem, own));
             helper.assertTrue(worst[0] < 0.75, "the chest was opened from " + worst[0] + " blocks below it");
+        });
+    }
+
+    /** A mushroom golem with leaves at head height on every side cannot take a step: it sneezes out and carries on to its chest. */
+    private static void golemSneezesOutFromUnderLeaves(GameTestHelper helper) {
+        buildFarm(helper);
+        BlockPos site = new BlockPos(6, 1, 6);
+        helper.setBlock(site, ModBlocks.MUSHROOM_CHEST.get());
+        var leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
+        for (Direction side : Direction.Plane.HORIZONTAL) helper.setBlock(new BlockPos(2, 2, 2).relative(side), leaf);
+        helper.setBlock(COMPOSTER, Blocks.AIR);
+        WorkGolem golem = spawnWorker(helper, ModProfessions.LUMBERJACK, site, new BlockPos(2, 1, 2));
+        // handed its logs once it has landed: a golem still in the air takes any spot for reachable and sets off
+        helper.runAtTickTime(20, () -> golem.setCarried(new ItemStack(Items.OAK_LOG, 5)));
+        Container own = helper.getBlockEntity(site, ChestBlockEntity.class);
+        helper.succeedWhen(() -> helper.assertTrue(count(own, Items.OAK_LOG) == 5, "it gets out and puts the logs away" + describe(helper, golem, own)));
+    }
+
+    /** The chest is outside the pen and the golem inside: it goes through the shut gate and leaves it shut. */
+    private static void golemUsesGate(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(CHEST, Blocks.AIR);
+        for (int z = 0; z <= 7; z++) helper.setBlock(new BlockPos(4, 1, z), Blocks.OAK_FENCE);
+        BlockPos gate = new BlockPos(4, 1, 5);
+        helper.setBlock(gate, Blocks.OAK_FENCE_GATE.defaultBlockState().setValue(FenceGateBlock.FACING, Direction.EAST));
+        BlockPos site = new BlockPos(6, 1, 2);
+        helper.setBlock(site, ModBlocks.HAY_CHEST.get().defaultBlockState().setValue(ChestBlock.FACING, Direction.SOUTH));
+        WorkGolem golem = spawnWorker(helper, ModProfessions.FARMER, site, new BlockPos(2, 1, 2));
+        golem.setCarried(new ItemStack(Items.WHEAT, 5));
+        Container own = helper.getBlockEntity(site, ChestBlockEntity.class);
+        boolean[] opened = {false};
+        helper.succeedWhen(() -> {
+            opened[0] |= helper.getBlockState(gate).getValue(FenceGateBlock.OPEN);
+            helper.assertTrue(count(own, Items.WHEAT) == 5, "the wheat reaches the chest outside" + describe(helper, golem, own));
+            helper.assertTrue(opened[0], "it went by the gate");
+            helper.assertTrue(!helper.getBlockState(gate).getValue(FenceGateBlock.OPEN), "and shut it behind itself");
+        });
+    }
+
+    /** Two golems with no chest of their own both take up the one chest there is, and both put their stacks in it. */
+    private static void golemsShareOneChest(GameTestHelper helper) {
+        buildFarm(helper);
+        BlockPos site = new BlockPos(3, 1, 3);
+        helper.setBlock(COMPOSTER, Blocks.AIR);
+        helper.setBlock(CHEST, Blocks.AIR);
+        helper.setBlock(site, ModBlocks.HAY_CHEST.get().defaultBlockState().setValue(ChestBlock.FACING, Direction.SOUTH));
+        List<WorkGolem> golems = new java.util.ArrayList<>();
+        for (BlockPos at : List.of(new BlockPos(2, 1, 5), new BlockPos(5, 1, 5))) {
+            WorkGolem golem = helper.spawn(ModEntities.FARMER_GOLEM.get(), at);
+            Offerings.fill(golem);
+            golem.setCarried(new ItemStack(Items.WHEAT, 5));
+            golems.add(golem);
+        }
+        Container own = helper.getBlockEntity(site, ChestBlockEntity.class);
+        helper.succeedWhen(() -> {
+            for (WorkGolem golem : golems) {
+                helper.assertTrue(helper.absolutePos(site).equals(golem.jobSite(helper.getLevel())), "both work from the one chest");
+            }
+            helper.assertTrue(count(own, Items.WHEAT) == 10, "both stacks go in, got " + count(own, Items.WHEAT));
+        });
+    }
+
+    /** A swing takes one log only, and the logs level with the golem all go before it breaks the one under its feet. */
+    private static void lumberjackBreaksOneLogAtATime(GameTestHelper helper) {
+        buildFarm(helper);
+        // a two by two trunk
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        var leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, false);
+        for (int x = 5; x <= 6; x++) {
+            for (int z = 5; z <= 6; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
+                for (int y = 1; y <= 3; y++) { logs.add(new BlockPos(x, y, z)); helper.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG); }
+                helper.setBlock(new BlockPos(x, 4, z), leaf);
+                for (int y = 5; y <= 7; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR); // the arena's low ceiling
+            }
+        }
+        helper.setBlock(COMPOSTER, Blocks.FLETCHING_TABLE);
+        WorkGolem golem = spawnWorker(helper, ModProfessions.LUMBERJACK, COMPOSTER, new BlockPos(3, 1, 3));
+        int[] left = {logs.size()};
+        String[] wrong = {""};
+        helper.onEachTick(() -> {
+            List<BlockPos> standing = logs.stream().filter(p -> helper.getBlockState(p).is(Blocks.OAK_LOG)).toList();
+            if (left[0] - standing.size() > 1) wrong[0] = (left[0] - standing.size()) + " logs broke at once";
+            left[0] = standing.size();
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(left[0] == 0, "the whole trunk comes down, " + left[0] + " left" + describe(helper, golem, helper.getBlockEntity(CHEST, ChestBlockEntity.class)));
+            helper.assertTrue(wrong[0].isEmpty(), wrong[0]);
         });
     }
 

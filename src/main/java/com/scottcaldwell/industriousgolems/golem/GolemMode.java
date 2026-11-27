@@ -23,7 +23,7 @@ public enum GolemMode {
                         + "each task does once it runs.", GolemMode.class)
                 .start(UNEMPLOYED)
                 .state(DORMANT, "No charge: stands where it is and does nothing. Only the core behaviours (swimming, looking) run.")
-                .state(UNEMPLOYED, "Charged but without a chest of its own: wanders and looks for a chest to claim as its job site.")
+                .state(UNEMPLOYED, "Charged but without a chest to work from: wanders and looks for one. Chests are shared, never claimed.")
                 .state(SEARCHING, "Charged, with a chest. Every few seconds the dispatcher looks for the next thing to do, in a fixed order "
                         + "(see the dispatcher). Strolls near the chest between looks (not the hay golem, who stands still).")
                 .state(DEPOSITING, "Task: carrying a stack, so takes it to the chest and puts it in. Always the first thing to do with a full hand.")
@@ -31,7 +31,7 @@ public enum GolemMode {
                 .state(FETCHING_SUPPLY, "Task: empty-handed and the work needs a supply, so takes a stack of it out of the chest.")
                 .state(WORKING, "Task: the profession's own job (farm, fell trees, dig rock, tend the pen). Which runner has its own diagram.")
                 .state(PANICKING, "Hurt: runs away. Whatever task was running is dropped.");
-        g.edge(UNEMPLOYED, SEARCHING, "claims a chest as its job site");
+        g.edge(UNEMPLOYED, SEARCHING, "takes up a chest to work from");
         g.edge(SEARCHING, UNEMPLOYED, "its chest is gone");
         g.edge(DORMANT, SEARCHING, "charged again, with a chest");
         g.edge(DORMANT, UNEMPLOYED, "charged again, no chest");

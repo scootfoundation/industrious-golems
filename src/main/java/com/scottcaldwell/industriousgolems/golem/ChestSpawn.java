@@ -21,7 +21,7 @@ import net.neoforged.neoforge.event.level.BlockEvent;
 /**
  * Builds a golem the way vanilla builds its golems: a pattern of blocks with a carved pumpkin or jack o'lantern placed on
  * top. The pumpkin and all but the lowest block go, the lowest becomes the golem's chest, and the golem stands on it already
- * bound to it as its job site. No chest is needed to start; the pattern makes one.
+ * set to work from it (others of its kind may share it, see {@link Workplace}). No chest is needed to start; the pattern makes one.
  *
  * <p>Each golem has its own pattern (see {@link ModProfessions.Profession#pattern()}): hay bale under a fence for the hay golem,
  * a red mushroom block for the mushroom golem, two terracotta for the terracotta golem, a T of smooth stone for the stone golem.
@@ -73,8 +73,6 @@ public final class ChestSpawn {
         golem.setYBodyRot(facing.toYRot());
         golem.setYHeadRot(facing.toYRot());
         golem.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(level.dimension(), base));
-        // claim the chest at once so no other golem takes it
-        level.getPoiManager().take(profession.jobSite(), (holder, pos) -> pos.equals(base), base, 1);
         level.addFreshEntity(golem);
 
         for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, golem.getBoundingBox().inflate(5.0))) {

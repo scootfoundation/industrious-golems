@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:lumberjack_breaks_one_log_at_a_time",
+  "max_ticks": 12000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

@@ -25,6 +25,7 @@ import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -42,6 +43,10 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** Containers within this many blocks (horizontally; +-2 vertically) of the job site count as "adjacent". */
     public static final int SEARCH_RADIUS = 3;
     private static final int DURATION = 1200;
+    /** With nowhere proper to stand, how close the golem has to be to use the chest anyway: with nothing between, and over a fence. */
+    private static final double BESIDE = 1.8, OVER_FENCE = 5.0;
+    /** How near its spot a golem gets before it waits for another to finish with the chest. */
+    private static final double QUEUE_DIST = 2.0;
     /**
      * How far below and above the spot in front of the chest still counts as being there. A full block below does not; above
      * allows for a golem perched on the rim of a neighbouring chest or composter, which the last shuffle slides it off.
@@ -181,8 +186,8 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             "Any golem. Walks to the spot in front of the chest, faces it, then plays the profession's clip; the lid, the hand-over and "
                     + "the close are each tied to a moment in that clip.", State.class)
             .start(State.APPROACH)
-            .state(State.APPROACH, "Walking to the spot in front of the chest (the side it faces). Never starts the clip anywhere else, and "
-                    + "not while up on top of the chest.")
+            .state(State.APPROACH, "Walking to the spot in front of the chest (the side it faces), waiting near it while another golem is at the "
+                    + "chest. Never starts the clip anywhere else, and not while up on top of the chest.")
             .state(State.REACH, "Standing in front, clip playing, lid still shut.")
             .state(State.OPEN, "The lid is up (the chest is opened for the golem: lid animation and sound). Waiting for the hand to let go or take.")
             .state(State.LET_GO, "Put only: the hand has let go of the stack and it is on its way in.")
@@ -237,8 +242,13 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         lookAtChest(golem);
         if (spot == null) {
             spot = Stand.front(level, chestPos, golem, spec.dist());
-            // no spot in front of or beside it: only where the golem already stands on the ground, never up on the chest
-            if (spot == null && golem.onGround() && Math.abs(golem.getY() - chestPos.getY()) < 0.5) spot = golem.position();
+            // no spot in front of or beside it: only where the golem already stands on the ground, never up on the chest, and only if
+            // that is right by the chest, or a short reach over a fence from it (a herder in a pen with no gate)
+            if (spot == null && golem.onGround() && Math.abs(golem.getY() - chestPos.getY()) < 0.5) {
+                Vec3 chest = Vec3.atBottomCenterOf(chestPos);
+                double far = golem.position().distanceToSqr(chest);
+                if (far < BESIDE * BESIDE || (far < OVER_FENCE * OVER_FENCE && fenceBetween(golem, chest))) spot = golem.position();
+            }
             if (spot == null) { done(); return; }
         }
         // up on top of the chest (its lid is under a block high, so the golem's block position is the chest's own, not the one above):
@@ -256,6 +266,11 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             walkTo(golem, new BlockPosTracker(BlockPos.containing(spot)), 0);
             return;
         }
+        // another golem sharing the chest is at it: wait beside it rather than shove for the same spot
+        if (golem.position().distanceToSqr(spot) < QUEUE_DIST * QUEUE_DIST && taken(level, golem)) {
+            holdStill(golem);
+            return;
+        }
         if (!standAt(golem, spot, 1.0)) {
             if (++stalled > 400) done();
             return;
@@ -263,7 +278,13 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         Face.toward(golem, Vec3.atCenterOf(chestPos));
         golem.playClip(visit.supply() == null ? spec.put() : spec.fetch());
         timer = 0;
+        golem.setUsingChest(chestPos);
         machine.to(State.REACH);
+    }
+
+    private boolean taken(ServerLevel level, WorkGolem golem) {
+        return !level.getEntitiesOfClass(WorkGolem.class, new AABB(chestPos).inflate(2.5),
+                other -> other != golem && chestPos.equals(other.usingChest())).isEmpty();
     }
 
     private void play(ServerLevel level, WorkGolem golem) {
@@ -337,6 +358,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
         golem.setPickupSuspended(false);
+        golem.setUsingChest(null);
         closeChest(golem); // also covers interruptions (panic, damage, timeout)
         if (stowed != null && !stowed.isEmpty()) { // let go of a stack the chest never received
             if (golem.carried().isEmpty()) golem.setCarried(stowed);

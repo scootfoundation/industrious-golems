@@ -82,6 +82,9 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     /** The mushroom golem's short-range teleport out of places it cannot walk out of. */
     private final Sneeze sneeze = new Sneeze(this);
+    private final Gates gates = new Gates(this);
+    /** The chest this golem is standing at and using, so that others sharing it wait their turn; not saved. */
+    private @Nullable BlockPos usingChest;
 
     public GolemMode mode() {
         return mode.state();
@@ -110,7 +113,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     @Override
     protected PathNavigation createNavigation(Level level) {
-        GroundPathNavigation navigation = new GroundPathNavigation(this, level);
+        GroundPathNavigation navigation = new GolemPathing(this, level);
         navigation.setCanOpenDoors(true);
         navigation.setCanFloat(true);
         return navigation;
@@ -151,6 +154,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         } else {
             getNavigation().stop();
         }
+        gates.tick(level);
+        Workplace.tick(level, this);
         if (getUnhappyCounter() > 0) setUnhappyCounter(getUnhappyCounter() - 1);
         Offerings.tick(this);
         NeedsIndicator.tick(this);
@@ -492,6 +497,14 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     }
 
     // ---- chests ---------------------------------------------------------------------------------------------------
+
+    public void setUsingChest(@Nullable BlockPos pos) {
+        usingChest = pos;
+    }
+
+    public @Nullable BlockPos usingChest() {
+        return usingChest;
+    }
 
     /** Which chest this golem is holding open (chests only play their lid animation for a ContainerUser). */
     public void setOpenedChestPos(@Nullable BlockPos pos) {

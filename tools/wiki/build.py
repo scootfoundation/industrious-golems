@@ -101,7 +101,7 @@ GOLEMS = [
             "Seeds come from the chest. When it runs out it waits, so keep some seeds in the Hay Chest.",
         ],
         notes=["Hoppers and water streams work fine around it: it only ever picks up the crops it works with.",
-               "The vanilla composter still counts as its job site if you have no Hay Chest."],
+               "It can also work from a vanilla composter if you have no Hay Chest."],
         tips=[],
     ),
     dict(
@@ -117,9 +117,9 @@ GOLEMS = [
         behaviour=[
             "It looks for trees within <strong>16 blocks</strong> of its chest and fells them log by log, including branches and extra trunks. "
             "Logs, sticks, apples and saplings are carried to the chest.",
-            "It fells a tree from the top: it <strong>sneezes</strong> up onto the crown, then breaks the tree's logs within <strong>3 blocks</strong> of it before the block under its feet, so a big, thick trunk comes down in one go. "
+            "It fells a tree from the top: it <strong>sneezes</strong> up onto the crown, then breaks <strong>one block at a time</strong>: any log level with it up to <strong>3 blocks</strong> away, and only when none is left, the block under its feet. "
             "It cannot be hurt by the drop, since a Mushroom Golem <strong>takes no fall damage</strong>.",
-            "If it ever gets stuck (say after the leaves it cleared leave it boxed in, so it can neither reach a tree nor get back to its chest), it uses the same sneeze to hop a few blocks toward where it is headed, or toward its chest.",
+            "It is a little over a block tall, so it cannot walk under leaves that hang at head height. If it gets stuck (under low leaves, boxed in, or unable to get back to its chest), it uses the same sneeze to hop a few blocks toward where it is headed, or toward its chest.",
             "It <strong>ignores logs you have built with</strong> (and stripped logs), so your house is safe.",
             "It plants saplings wherever the ground near the chest suits a tree best (it does not go back to where a tree stood), within <strong>14 blocks</strong> of the chest, keeping saplings at least <strong>5 blocks apart</strong> so trees have room. It plants before it fells: it keeps planting until there is no good ground left, then goes back to cutting. It "
             "leaves a <strong>6-block clearing</strong> around the chest so the chest never gets walled in.",
@@ -178,7 +178,8 @@ GOLEMS = [
 
 BUILD_HOWTO = ("Each golem is built from its own pattern of blocks with a <strong>carved pumpkin</strong> or <strong>jack o'lantern</strong> placed on top "
                "(see each golem's page). The pumpkin and all but the lowest block are consumed, the lowest block becomes the golem's chest, and the golem stands on it. "
-               "You do not need a chest first: the pattern makes one. The golem is bound to that chest and starts <em>dormant</em>.")
+               "You do not need a chest first: the pattern makes one. The golem works from that chest and starts <em>dormant</em>. "
+               "A chest is not owned: <strong>any number of golems of a kind can share one</strong>, taking turns at it. A golem whose chest is gone takes up the nearest one of its kind it can walk to (within 48 blocks).")
 
 
 # ------------------------------------------------------------------ rendering
@@ -459,7 +460,7 @@ def golem_page(g):
   <div class="ib-cap">%(job)s</div>
   <table>
     <tr><th>Role</th><td>%(role)s</td></tr>
-    <tr><th>Job site</th><td>%(job)s (or a vanilla %(jobv)s)</td></tr>
+    <tr><th>Works from</th><td>%(job)s (or a vanilla %(jobv)s)</td></tr>
     <tr><th>Built from</th><td>%(build)s</td></tr>
     <tr><th>Uses</th><td>%(uses_text)s</td></tr>
     <tr><th>Charge</th><td>45 minutes per offering</td></tr>
@@ -475,7 +476,7 @@ def golem_page(g):
 <h2 id="offerings">Waking it up</h2>
 <p>A golem starts <em>dormant</em>: head hanging, standing still, holding out the thing it wants in its off hand. Right-click it with that item
 to give it an <strong>offering</strong>. Each offering is worth <strong>45 minutes</strong> of work and it stores at most two (90 minutes).
-It then asks for something different, so no single item will do. The clock runs only while the golem is loaded and has a job site.</p>
+It then asks for something different, so no single item will do. The clock runs only while the golem is loaded and has a chest.</p>
 <p>These are the eight items it can ask for: hover over a slot for its name. They are deliberately unrelated to its job, so keeping a large operation going means going out exploring.</p>
 %(offer)s
 
@@ -488,7 +489,7 @@ Supplies come out of the chest the same way.</p>
 %(made)s
 %(usesblock)s
 <h2 id="notes">Notes</h2>
-<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before.</li></ul>
+<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
 
 <h2>Other golems</h2>
 <div class="gcards">%(others)s</div>

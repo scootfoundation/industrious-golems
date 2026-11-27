@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:golem_uses_gate_and_shuts_it",
+  "max_ticks": 12000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

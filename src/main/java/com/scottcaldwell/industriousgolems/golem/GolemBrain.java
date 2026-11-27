@@ -13,7 +13,6 @@ import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.ai.ActivityData;
 import net.minecraft.world.entity.ai.Brain;
-import net.minecraft.world.entity.ai.behavior.AcquirePoi;
 import net.minecraft.world.entity.ai.behavior.AnimalPanic;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
@@ -28,7 +27,6 @@ import net.minecraft.world.entity.ai.behavior.SetEntityLookTargetSometimes;
 import net.minecraft.world.entity.ai.behavior.StrollAroundPoi;
 import net.minecraft.world.entity.ai.behavior.StrollToPoi;
 import net.minecraft.world.entity.ai.behavior.Swim;
-import net.minecraft.world.entity.ai.behavior.ValidateNearbyPoi;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.ai.sensing.Sensor;
@@ -36,12 +34,11 @@ import net.minecraft.world.entity.ai.sensing.SensorType;
 import net.minecraft.world.entity.schedule.Activity;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /**
- * The work golems' brain. Core behaviours (movement, looking, doors, panic) always run; the idle activity looks for a
- * job site and loiters near it; the work activity (job site claimed, golem charged) lets {@link StartTask} hand over to
+ * The work golems' brain. Core behaviours (movement, looking, doors, panic) always run; the idle activity
+ * loiters near its chest; the work activity (it has a chest and is charged) lets {@link StartTask} hand over to
  * the exclusive task activity, which carries out container visits and the profession's own work. A golem without
  * charge rests: nothing but the core behaviours runs.
  */
@@ -93,9 +90,7 @@ public final class GolemBrain {
                 new LookAtTargetSink(45, 90),
                 new MoveToTargetSink(),
                 InteractWithDoor.create(),
-                new CountDownCooldownTicks(MemoryModuleType.GAZE_COOLDOWN_TICKS),
-                ValidateNearbyPoi.create(profession.jobSite(), MemoryModuleType.JOB_SITE),
-                AcquirePoi.create(profession.jobSite(), MemoryModuleType.JOB_SITE, false, Optional.empty())));
+                new CountDownCooldownTicks(MemoryModuleType.GAZE_COOLDOWN_TICKS))); // (which chest it works from is looked after by Workplace: shared, never claimed)
 
         // the hay golem stands still when it has nothing to do; the others wander near their chest
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> idle = ImmutableList.builder();

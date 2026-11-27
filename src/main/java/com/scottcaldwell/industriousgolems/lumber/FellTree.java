@@ -8,6 +8,7 @@ import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import net.minecraft.core.BlockPos;
 import com.scottcaldwell.industriousgolems.golem.Sneeze;
 import com.scottcaldwell.industriousgolems.golem.Anim;
+import com.scottcaldwell.industriousgolems.golem.Face;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -28,8 +29,9 @@ import java.util.List;
 /**
  * Fells a natural tree from the top down. The lumberjack walks to the foot of the tree, sneezes and vanishes in a puff
  * of spores, and reappears standing on top of the crown. From there it mines straight down through the trunk's column,
- * bare-handed: the block under its feet breaks (leaves and logs alike, dropped as for a player and carried off a stack
- * at a time, see PickUp), it drops one block, and again, until it lands on the ground. Runs in the exclusive task activity.
+ * bare-handed, one block a swing (dropped as for a player and carried off a stack at a time, see PickUp): first any log
+ * of the tree level with it within {@link #LOG_REACH} blocks across, then the block under its feet (leaves and logs
+ * alike), dropping one, and again, until it lands on the ground. Runs in the exclusive task activity.
  */
 public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
@@ -38,11 +40,13 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     /** Ticks spent trying to get to the foot of the tree before giving up. */
     private static final int STALL_TICKS = 600;
 
-    /** Logs of the tree within this many blocks of the golem break with each swing, before the block under its feet. */
+    /** How far across it reaches for a log level with it, which it breaks before the block under its feet. */
     private static final double LOG_REACH = 3.0;
 
     /** Most sneezes (extra visits after the first) in one felling. */
-    private static final int MAX_VISITS = 12;
+    private static final int MAX_VISITS = 24;
+    /** How far above a log it looks for room to stand. */
+    private static final int CLEARANCE = 10;
 
     private enum State { WALK, SNEEZE, APPEAR, BREAK, DESCEND, DONE }
 
@@ -54,7 +58,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .state(State.WALK, "Walking to within 3.5 blocks of the foot of the tree.")
             .state(State.SNEEZE, "Sneeze-and-vanish clip; a puff of spores at the end.")
             .state(State.APPEAR, "Teleported onto the crown; the appear clip plays.")
-            .state(State.BREAK, "Standing on the top block of the trunk's column, the break clip playing; at the hit moment the tree's other logs within 3 blocks break first (big trunks), then the block below.")
+            .state(State.BREAK, "The break clip playing; at the hit moment one block breaks: a log of the tree level with him within 3 blocks across if there is one, else the block below.")
             .state(State.DESCEND, "Swing done and the block is gone: waiting to land on the next block down.")
             .state(State.DONE, "(end) Task over. If interrupted up in the tree he poofs back to the ground.")
             .edge(State.WALK, State.SNEEZE, "within 3.5 blocks of the tree and there is room on top of the crown")
@@ -62,7 +66,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .edge(State.SNEEZE, State.APPEAR, "vanish moment reached: teleports onto the crown")
             .edge(State.APPEAR, State.BREAK, "appear clip ends")
             .edge(State.BREAK, State.DESCEND, "break clip ends")
-            .edge(State.DESCEND, State.BREAK, "landed, and another log or leaf is directly below")
+            .edge(State.DESCEND, State.BREAK, "landed, and a log is level with him within reach, or a log or leaf is directly below")
             .edge(State.DESCEND, State.SNEEZE, "landed on something that is not part of the tree, but logs of the tree remain (a branch, another trunk): vanishes again to reach them")
             .edge(State.DESCEND, State.DONE, "landed on something that is not part of the tree and no log of it is left (or none can be stood over)");
 
@@ -73,6 +77,8 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
     private int stalled;
+    /** The one block this swing breaks, or null. */
+    private BlockPos target;
     /** The spot on top of the crown the golem pops out at (its feet), or null when there is none. */
     private BlockPos top;
     /** Sneezes so far: a bound, so a tree that will not come down cannot keep him at it forever. */
@@ -83,7 +89,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private int falling;
 
     public FellTree() {
-        super(FellPlan.class, 6000); // a big tree with branches takes a while: every log is a sneeze, a drop and a swing
+        super(FellPlan.class, 12000); // a big tree takes a while: a swing for every log, and a sneeze up to each branch
     }
 
     // ---- the job ------------------------------------------------------------------------------------------------
@@ -111,14 +117,18 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         return high;
     }
 
-    /** The spot over the log's column, above whatever leaves and logs sit directly over it; null when there is no room to stand there. */
+    /**
+     * The lowest spot over the log with room to stand, on leaves or logs of its column; null when there is none. There may be a gap on
+     * the way up, where a log of the column has already been taken from the side.
+     */
     private static BlockPos standAbove(ServerLevel level, BlockPos log) {
-        BlockPos column = log;
-        while (isTreeBlock(level, column.above())) column = column.above();
-        BlockPos feet = column.above();
-        if (!level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
-                || !level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()) return null;
-        return feet;
+        for (BlockPos feet = log.above(); feet.getY() <= log.getY() + CLEARANCE; feet = feet.above()) {
+            boolean solid = !level.getBlockState(feet).getCollisionShape(level, feet).isEmpty();
+            if (solid && !isTreeBlock(level, feet)) return null; // roofed over by something that is not the tree
+            if (!solid && isTreeBlock(level, feet.below())
+                    && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()) return feet;
+        }
+        return null;
     }
 
     /** Drops the logs that are gone, then aims at the highest one that can be stood over (giving up on those that cannot). */
@@ -174,22 +184,14 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             case APPEAR -> {
                 holdStill(golem);
                 if (++timer < Math.round(Anim.M_APPEAR_LEN * 20)) return;
-                startBreak(golem);
+                startBreak(level, golem);
             }
             case BREAK -> {
                 holdStill(golem);
                 timer++;
                 if (timer == Math.round(Anim.M_BREAK_AT * 20)) {
                     golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                    BlockPos below = golem.blockPosition().below();
-                    // the tree's other logs within reach go first (a big trunk is several columns), then the block underfoot
-                    BlockPos here = golem.blockPosition();
-                    for (BlockPos log : plan.logs()) {
-                        if (!log.equals(below) && log.distSqr(here) <= LOG_REACH * LOG_REACH && level.getBlockState(log).is(BlockTags.LOGS)) {
-                            level.destroyBlock(log, true, golem);
-                        }
-                    }
-                    if (isTreeBlock(level, below)) level.destroyBlock(below, true, golem);
+                    if (target != null && isTreeBlock(level, target)) level.destroyBlock(target, true, golem);
                 }
                 if (timer >= Math.round(Anim.M_BREAK_LEN * 20)) { machine.to(State.DESCEND); falling = 0; }
             }
@@ -199,7 +201,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                     if (++falling > STALL_TICKS / 6) { golem.stopClip(); done(); } // hung up on something: let go
                     return;
                 }
-                if (isTreeBlock(level, golem.blockPosition().below())) startBreak(golem);
+                if (nextBlock(level, golem) != null) startBreak(level, golem);
                 else if (visits < MAX_VISITS && aim(level)) {
                     // logs still stand (a branch, a second trunk): vanish and reappear over the highest
                     visits++;
@@ -224,7 +226,30 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         done();
     }
 
-    private void startBreak(WorkGolem golem) {
+    /**
+     * What the next swing takes: a log of the tree level with the golem (from the block it stands on up to its head) within reach across,
+     * the highest and then nearest first; with none, the tree block under its feet; or null.
+     */
+    private BlockPos nextBlock(ServerLevel level, WorkGolem golem) {
+        BlockPos here = golem.blockPosition(), below = here.below();
+        BlockPos next = null;
+        double nextDist = 0;
+        for (BlockPos log : plan.logs()) {
+            if (log.equals(below) || log.getY() < below.getY() || log.getY() > here.getY() + 1) continue;
+            double dx = log.getX() - here.getX(), dz = log.getZ() - here.getZ(), dist = dx * dx + dz * dz;
+            if (dist > LOG_REACH * LOG_REACH || !level.getBlockState(log).is(BlockTags.LOGS)) continue;
+            if (next == null || log.getY() > next.getY() || (log.getY() == next.getY() && dist < nextDist)) {
+                next = log;
+                nextDist = dist;
+            }
+        }
+        if (next != null) return next;
+        return isTreeBlock(level, below) ? below : null;
+    }
+
+    private void startBreak(ServerLevel level, WorkGolem golem) {
+        target = nextBlock(level, golem);
+        if (target != null && !target.equals(golem.blockPosition().below())) Face.toward(golem, Vec3.atCenterOf(target));
         golem.playClip(Anim.M_BREAK_BELOW);
         machine.to(State.BREAK);
         timer = 0;

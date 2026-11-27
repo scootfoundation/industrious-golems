@@ -5,6 +5,7 @@ import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -17,6 +18,9 @@ import net.minecraft.world.phys.Vec3;
  * nearer to where it is going. Only the lumberjack does this. Where it is going is its walk goal, whoever set it (a task, a stroll); a golem
  * that is idle with no walk goal but cannot reach its own chest (boxed in, so that no job can even be planned) heads for the chest.
  * Nothing else touches the golem during the hop.
+ *
+ * <p>It also sneezes when it is trapped, whatever it was trying to do: it is a little over a block tall, so under low leaves there can
+ * be no step it is able to take, and then no task ever sets a walk goal for the progress watch to see.
  */
 public class Sneeze {
 
@@ -37,18 +41,20 @@ public class Sneeze {
     /** How often an idle golem checks it can still get to its chest, and how near the chest counts as home. */
     private static final int HOME_CHECK_TICKS = 40;
     private static final double HOME_DIST = 4.0;
+    /** How often it checks whether it is trapped, how many checks in a row it takes, and the pause after hopping out of a trap. */
+    private static final int TRAP_CHECK_TICKS = 20, TRAP_CHECKS = 2, TRAP_PAUSE_TICKS = 100;
 
     private enum State { WATCH, VANISH, APPEAR }
 
     public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("sneeze-hop", "Mushroom golem: sneeze out of a tight spot",
-            "Lumberjack only. If a walk goal is set (or the golem is idle and cannot reach its chest) and it gets no nearer for 2 s it sneezes, "
-                    + "vanishes and reappears up to 8 blocks nearer the goal (on the nearest standable spot), then carries on. The brain is paused meanwhile.",
+            "Lumberjack only. If a walk goal is set (or the golem is idle and cannot reach its chest) and it gets no nearer for 2 s, or it is trapped "
+                    + "(no step it can take, or carrying something with no way to its chest), it sneezes, vanishes and reappears up to 8 blocks nearer the goal (on the nearest standable spot), then carries on. The brain is paused meanwhile.",
             State.class)
             .start(State.WATCH)
             .state(State.WATCH, "Watching its own progress toward the current goal.")
             .state(State.VANISH, "Sneeze-and-vanish clip; a puff of spores at the end. The brain waits.")
             .state(State.APPEAR, "Teleported onto the landing spot; the appear clip plays. The brain waits.")
-            .edge(State.WATCH, State.VANISH, "no nearer the goal for 2 s, the goal 2.5 blocks or more away, and a standable landing spot exists toward it")
+            .edge(State.WATCH, State.VANISH, "no nearer the goal for 2 s with the goal 2.5 blocks or more away, or trapped for 2 s; and a standable landing spot exists")
             .edge(State.VANISH, State.APPEAR, "vanish moment reached: teleports onto the landing spot")
             .edge(State.APPEAR, State.WATCH, "appear clip ends");
 
@@ -63,6 +69,8 @@ public class Sneeze {
     private Vec3 landing;
     private long nextHomeCheck;
     private boolean boxedIn;
+    private long nextTrapCheck;
+    private int trappedChecks;
 
     public Sneeze(WorkGolem golem) {
         this.golem = golem;
@@ -74,6 +82,14 @@ public class Sneeze {
         if (!machine.is(State.WATCH)) return hop(level);
         if (!golem.isCharged() || !golem.clip().isEmpty() || golem.isPassenger()) { forget(); return false; }
         long now = level.getGameTime();
+        if (trapped(level, now)) {
+            BlockPos site = golem.jobSite(level);
+            landing = landingSpot(level, site != null ? site : golem.blockPosition());
+            IndustriousGolems.LOGGER.debug("Sneeze: {} trapped at {}: {}", golem.getId(), golem.blockPosition(), landing);
+            nextTrapCheck = now + TRAP_PAUSE_TICKS;
+            trappedChecks = 0;
+            if (landing != null) return vanish();
+        }
         BlockPos aim = currentGoal(level, now);
         if (aim == null) { forget(); return false; }
         if (goal == null || goal.distSqr(aim) > 4) { best = Double.MAX_VALUE; stuck = Math.min(stuck, 0); } // a new goal: progress starts afresh
@@ -90,12 +106,53 @@ public class Sneeze {
         IndustriousGolems.LOGGER.debug("Sneeze: {} stuck at {} heading for {}{}: {}", golem.getId(), golem.blockPosition(), goal,
                 goalIsHome ? " (home)" : "", landing == null ? "no landing spot" : "hopping to " + landing);
         if (landing == null) { stuck = -RETRY_TICKS; return false; }
+        return vanish();
+    }
+
+    private boolean vanish() {
         golem.getNavigation().stop();
         golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         golem.playClip(Anim.M_SNEEZE_VANISH);
         machine.to(State.VANISH);
         timer = 0;
         return true;
+    }
+
+    /** Whether it has been unable to get out on foot for a couple of checks running. */
+    private boolean trapped(ServerLevel level, long now) {
+        if (now < nextTrapCheck) return false;
+        nextTrapCheck = now + TRAP_CHECK_TICKS;
+        if (!golem.onGround() || golem.isInLiquid() || !(walledIn(level) || cutOff(level))) {
+            trappedChecks = 0;
+            return false;
+        }
+        return ++trappedChecks >= TRAP_CHECKS;
+    }
+
+    /** Not one step to take: squashed into a block, or low leaves or walls on every side. */
+    private boolean walledIn(ServerLevel level) {
+        if (!level.noCollision(golem, golem.getBoundingBox().deflate(0.05))) return true;
+        return !hasStep(level, BlockPos.containing(golem.getX(), golem.getY() + 0.2, golem.getZ()));
+    }
+
+    /** Whether there is somewhere beside this spot to step to: level, one up or one down. */
+    private static boolean hasStep(ServerLevel level, BlockPos feet) {
+        for (Direction side : Direction.Plane.HORIZONTAL) {
+            for (int dy = -1; dy <= 1; dy++) {
+                BlockPos to = feet.relative(side).above(dy);
+                BlockPos below = to.below();
+                if (Stand.free(level, Vec3.atBottomCenterOf(to)) && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Holding something for its chest and unable to get there (a carrying golem has no stroll or job to set a walk goal with). */
+    private boolean cutOff(ServerLevel level) {
+        BlockPos site = golem.jobSite(level);
+        if (site == null || !golem.isCarrying()) return false;
+        double far = golem.distanceToSqr(Vec3.atCenterOf(site));
+        return far > HOME_DIST * HOME_DIST && far <= RANGE_FROM_SITE * RANGE_FROM_SITE && Stand.front(level, site, golem, 1.5) == null;
     }
 
     /**
@@ -179,6 +236,7 @@ public class Sneeze {
                         BlockPos below = feet.below();
                         if (level.getBlockState(below).getCollisionShape(level, below).isEmpty()) continue;
                         if (at.distanceToSqr(here) < 2.25) continue; // not worth a sneeze
+                        if (!hasStep(level, feet)) continue; // nor into another trap
                         if (site != null && feet.distSqr(site) > RANGE_FROM_SITE * RANGE_FROM_SITE) continue; // never out of the work area
                         double score = at.distanceToSqr(ideal);
                         if (score < bestScore) { bestScore = score; best = at; }

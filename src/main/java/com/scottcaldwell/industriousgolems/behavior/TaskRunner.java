@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.entity.ai.behavior.Behavior;
@@ -95,7 +96,8 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
     protected static boolean standAt(WorkGolem golem, Vec3 spot, double tolerance) {
         double dx = spot.x - golem.getX(), dz = spot.z - golem.getZ();
         double d = Math.sqrt(dx * dx + dz * dz);
-        if (d <= Math.max(tolerance, 1.25)) { // (within the block the walk would end in, the last bit is a shuffle)
+        // (within the block the walk would end in, the last bit is a shuffle; never through a fence, which it goes round by the gate)
+        if (d <= Math.max(tolerance, 1.25) && !fenceBetween(golem, spot)) {
             golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             golem.getNavigation().stop();
             if (d > 0.03) { // a last shuffle onto the exact spot
@@ -107,6 +109,20 @@ public abstract class TaskRunner<P> extends Behavior<WorkGolem> {
             return true;
         }
         walkTo(golem, new BlockPosTracker(BlockPos.containing(spot.x, golem.getY(), spot.z)), 0);
+        return false;
+    }
+
+    /** Whether a fence, gate or wall stands on the straight line from the golem to the spot. */
+    protected static boolean fenceBetween(WorkGolem golem, Vec3 spot) {
+        double dx = spot.x - golem.getX(), dz = spot.z - golem.getZ();
+        int steps = (int) Math.ceil(Math.sqrt(dx * dx + dz * dz) / 0.2);
+        BlockPos own = golem.blockPosition();
+        for (int i = 1; i <= steps; i++) {
+            BlockPos at = BlockPos.containing(golem.getX() + dx * i / steps, golem.getY() + 0.1, golem.getZ() + dz * i / steps);
+            if (at.equals(own)) continue;
+            var state = golem.level().getBlockState(at);
+            if (state.is(BlockTags.FENCES) || state.is(BlockTags.FENCE_GATES) || state.is(BlockTags.WALLS)) return true;
+        }
         return false;
     }
 
