@@ -1809,7 +1809,7 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             for (BlockPos pos : rock) helper.assertTrue(helper.getBlockState(pos).isAir(), "the rock at " + pos + " should be dug" + describe(helper, miner, chest));
             helper.assertTrue(helper.getBlockState(new BlockPos(8, 3, 6)).is(Blocks.WALL_TORCH), "the arm's first brace gets its torch" + describe(helper, miner, chest));
-            helper.assertTrue(miner.packCount(Kit.COBBLE.match()) >= 6, "the rock is picked up into its pack as cobblestone, got " + miner.packCount(Kit.COBBLE.match()) + describe(helper, miner, chest));
+            helper.assertTrue(miner.pack().count(Kit.COBBLE.match()) >= 6, "the rock is picked up into its pack as cobblestone, got " + miner.pack().count(Kit.COBBLE.match()) + describe(helper, miner, chest));
             helper.assertTrue(helper.getBlockState(HUB.below()).is(Blocks.STONE) && helper.getBlockState(new BlockPos(6, 0, 5)).is(Blocks.STONE), "the floor stays");
         });
     }
@@ -1834,19 +1834,19 @@ public class ModGameTests {
     /** The miner's inventory: three slots of its own for fences, planks and torches, five general ones; each special slot takes only its kind. */
     private static void minerPackSlots(GameTestHelper helper) {
         WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
-        miner.packAdd(new ItemStack(Items.OAK_FENCE, 5));
-        miner.packAdd(new ItemStack(Items.TORCH, 3));
-        miner.packAdd(new ItemStack(Items.OAK_FENCE, 2));
-        miner.packAdd(new ItemStack(Items.COBBLESTONE, 30));
-        miner.packAdd(new ItemStack(Items.DIRT, 10));
+        miner.pack().add(new ItemStack(Items.OAK_FENCE, 5));
+        miner.pack().add(new ItemStack(Items.TORCH, 3));
+        miner.pack().add(new ItemStack(Items.OAK_FENCE, 2));
+        miner.pack().add(new ItemStack(Items.COBBLESTONE, 30));
+        miner.pack().add(new ItemStack(Items.DIRT, 10));
         helper.assertTrue(miner.pack().getItem(Kit.FENCE.ordinal()).getCount() == 7, "fences share the one slot");
         helper.assertTrue(miner.pack().getItem(Kit.TORCH.ordinal()).getCount() == 3, "the torches have a slot of their own");
         helper.assertTrue(miner.pack().getItem(Kit.PLANKS.ordinal()).isEmpty(), "planks have none yet");
-        helper.assertTrue(miner.packCount(Kit.COBBLE.match()) == 30 && miner.packFill() == 2, "cobblestone and dirt go in the general slots");
-        helper.assertTrue(!miner.packTake(Kit.TORCH.match()).isEmpty() && miner.packCount(Kit.TORCH.match()) == 2, "taking one leaves the rest");
-        helper.assertTrue(miner.hasLoot(), "dirt is loot to put away");
-        for (int i = 0; i < 2; i++) miner.packAdd(new ItemStack(Items.STONE, 64));
-        helper.assertTrue(miner.packFits(java.util.List.of(new ItemStack(Items.STONE, 64))) && !miner.packFits(java.util.List.of(new ItemStack(Items.STONE, 128))), "room for what a block might drop");
+        helper.assertTrue(miner.pack().count(Kit.COBBLE.match()) == 30 && miner.pack().fill() == 2, "cobblestone and dirt go in the general slots");
+        helper.assertTrue(!miner.pack().takeOne(Kit.TORCH.match()).isEmpty() && miner.pack().count(Kit.TORCH.match()) == 2, "taking one leaves the rest");
+        helper.assertTrue(miner.pack().hasLoot(), "dirt is loot to put away");
+        for (int i = 0; i < 2; i++) miner.pack().add(new ItemStack(Items.STONE, 64));
+        helper.assertTrue(miner.pack().fitsAll(java.util.List.of(new ItemStack(Items.STONE, 64))) && !miner.pack().fitsAll(java.util.List.of(new ItemStack(Items.STONE, 128))), "room for what a block might drop");
         var menu = new com.scottcaldwell.industriousgolems.mine.GolemPackMenu(1, helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL).getInventory(), miner);
         helper.assertTrue(menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new ItemStack(Items.TORCH)) && !menu.getSlot(Kit.TORCH.ordinal()).mayPlace(new ItemStack(Items.DIRT)), "the torch slot takes only torches");
         helper.assertTrue(menu.getSlot(Kit.PLANKS.ordinal()).mayPlace(new ItemStack(Items.BIRCH_PLANKS)), "any planks go in the plank slot");

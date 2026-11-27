@@ -71,7 +71,10 @@ public final class ModEntities {
 
     @SubscribeEvent
     public static void attributes(EntityAttributeCreationEvent event) {
-        for (var type : all()) event.put(type.get(), WorkGolem.createAttributes(professionOf(type.get()).speed(), professionOf(type.get()) == ModProfessions.MINER ? 80.0 : 48.0).build());
+        for (var type : all()) {
+            var profession = professionOf(type.get());
+            event.put(type.get(), WorkGolem.createAttributes(profession.speed(), profession.traits().pathRange()).build());
+        }
     }
 
     public static void register(IEventBus modEventBus) {

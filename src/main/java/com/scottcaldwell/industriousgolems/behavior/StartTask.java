@@ -3,7 +3,6 @@ package com.scottcaldwell.industriousgolems.behavior;
 import com.google.common.collect.ImmutableMap;
 import com.scottcaldwell.industriousgolems.ModActivities;
 import com.scottcaldwell.industriousgolems.ModAttachments;
-import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.needs.Job;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
@@ -50,8 +49,8 @@ public class StartTask extends Behavior<WorkGolem> {
             plan = tidy == null ? null : tidy.plan();
         }
         state.plan = plan;
-        // a lumberjack with a stack in hand and nowhere to put it (the chest is full) sits down with it, rather than standing about looking busy
-        if (plan == null && golem.isCarrying() && golem.profession() == ModProfessions.LUMBERJACK) {
+        // some golems with a stack in hand and nowhere to put it (the chest is full) sits down with it, rather than standing about looking busy
+        if (plan == null && golem.isCarrying() && golem.profession().traits().sitsWhenFull()) {
             if (!Anim.M_SIT_FULL.equals(golem.clip())) {
                 golem.getNavigation().stop();
                 golem.playClip(Anim.M_SIT_FULL);

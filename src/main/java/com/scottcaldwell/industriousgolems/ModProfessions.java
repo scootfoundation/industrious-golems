@@ -2,6 +2,8 @@ package com.scottcaldwell.industriousgolems;
 
 
 
+import com.scottcaldwell.industriousgolems.golem.Carry;
+import com.scottcaldwell.industriousgolems.golem.Traits;
 import com.scottcaldwell.industriousgolems.golem.GolemPattern;
 import com.scottcaldwell.industriousgolems.farm.TendCrops;
 
@@ -86,7 +88,7 @@ public final class ModProfessions {
 
                              ProfessionNeeds needs, List<Offering> offerings,
 
-                             Supplier<? extends Block> chest, GolemPattern pattern) { }
+                             Supplier<? extends Block> chest, GolemPattern pattern, Traits traits) { }
 
 
 
@@ -119,7 +121,8 @@ public final class ModProfessions {
                     Items.CACTUS_FLOWER, Items.POINTED_DRIPSTONE, Items.GLOW_BERRIES),
 
             ModBlocks.HAY_CHEST::get,
-            GolemPattern.column(state -> state.is(BlockTags.FENCES), state -> state.is(Blocks.HAY_BLOCK)));
+            GolemPattern.column(state -> state.is(BlockTags.FENCES), state -> state.is(Blocks.HAY_BLOCK)),
+            new Traits(Carry.HAND, false, false, false, false, 48.0));
 
 
 
@@ -152,7 +155,8 @@ public final class ModProfessions {
                     Offering.of(Items.SHROOMLIGHT), Offering.of(Items.BIG_DRIPLEAF)),
 
             ModBlocks.TERRACOTTA_CHEST::get,
-            GolemPattern.column(state -> state.is(BlockTags.TERRACOTTA), state -> state.is(BlockTags.TERRACOTTA)));
+            GolemPattern.column(state -> state.is(BlockTags.TERRACOTTA), state -> state.is(BlockTags.TERRACOTTA)),
+            Traits.plain());
 
 
 
@@ -183,7 +187,8 @@ public final class ModProfessions {
                     Items.ARMADILLO_SCUTE, Items.HONEY_BOTTLE, Items.OPEN_EYEBLOSSOM),
 
             ModBlocks.MUSHROOM_CHEST::get,
-            GolemPattern.column(state -> state.is(Blocks.RED_MUSHROOM_BLOCK)));
+            GolemPattern.column(state -> state.is(Blocks.RED_MUSHROOM_BLOCK)),
+            new Traits(Carry.HAND, true, true, true, true, 48.0));
 
 
 
@@ -208,7 +213,8 @@ public final class ModProfessions {
                     Items.CHORUS_FRUIT, Items.PHANTOM_MEMBRANE, Items.GHAST_TEAR, Items.BREEZE_ROD),
 
             ModBlocks.STONE_CHEST::get,
-            GolemPattern.tee(state -> state.is(Blocks.SMOOTH_STONE)));
+            GolemPattern.tee(state -> state.is(Blocks.SMOOTH_STONE)),
+            new Traits(Carry.PACK, false, true, false, false, 80.0));
 
 
 
@@ -232,9 +238,9 @@ public final class ModProfessions {
 
                                      SoundEvent workSound, ProfessionNeeds needs, List<Offering> offerings,
 
-                                     Supplier<? extends Block> chest, GolemPattern pattern) {
+                                     Supplier<? extends Block> chest, GolemPattern pattern, Traits traits) {
 
-        Profession profession = new Profession(id, jobSite, speed, workSound, needs, offerings, chest, pattern);
+        Profession profession = new Profession(id, jobSite, speed, workSound, needs, offerings, chest, pattern, traits);
 
         ALL.add(profession);
 

@@ -8,10 +8,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Containers;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import com.scottcaldwell.industriousgolems.mine.GolemPackMenu;
-import com.scottcaldwell.industriousgolems.mine.Kit;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -47,7 +45,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * A work golem: a golem that holds a job. Which job (farmer, lumberjack, herder or miner) is fixed by its entity type, see
@@ -277,124 +274,26 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         lastOffering = input.getIntOr("LastOffering", -1);
         pack.clearContent();
         input.read("Pack", ItemStack.OPTIONAL_CODEC.listOf()).ifPresent(list -> {
-            for (int i = 0; i < list.size() && i < PACK_SIZE; i++) pack.setItem(i, list.get(i));
+            for (int i = 0; i < list.size() && i < Pack.SIZE; i++) pack.setItem(i, list.get(i));
         });
     }
 
     // ---- the pack --------------------------------------------------------------------------------------------------
 
-    /**
-     * The miner's inventory: a slot each for fence posts, plank beams and torches (see {@link Kit}), then general slots for whatever it digs and
-     * the cobblestone it builds with; empty for the other kinds, who carry one stack in the hand.
-     */
-    private final SimpleContainer pack = new SimpleContainer(PACK_SIZE) {
-        @Override
-        public void setChanged() {
-            super.setChanged();
-            if (!level().isClientSide()) entityData.set(PACK_FILL, packFill());
-        }
-    };
-    public static final int PACK_SIZE = 8;
+    /** Empty and unused for golems that carry in the hand (see {@link Carry}). */
+    private final Pack pack = new Pack(this::syncPack);
 
-    public SimpleContainer pack() {
+    private void syncPack() {
+        if (!level().isClientSide()) entityData.set(PACK_FILL, this.pack.fill());
+    }
+
+    public Pack pack() {
         return pack;
-    }
-
-    /** How many items in the pack match. */
-    public int packCount(Predicate<ItemStack> match) {
-        int n = 0;
-        for (int i = 0; i < pack.getContainerSize(); i++) if (match.test(pack.getItem(i))) n += pack.getItem(i).getCount();
-        return n;
-    }
-
-    /** Puts the stack in the pack: in its special slot if it has one, otherwise into the general slots. Returns what did not fit. */
-    public ItemStack packAdd(ItemStack stack) {
-        ItemStack rest = stack.copy();
-        int special = Kit.specialSlot(rest);
-        if (special >= 0) return mergeInto(rest, special, special + 1);
-        return mergeInto(rest, Kit.SPECIAL, PACK_SIZE);
-    }
-
-    private ItemStack mergeInto(ItemStack rest, int from, int to) {
-        for (int pass = 0; pass < 2 && !rest.isEmpty(); pass++) {
-            for (int i = from; i < to && !rest.isEmpty(); i++) {
-                ItemStack held = pack.getItem(i);
-                if (pass == 0 && !held.isEmpty() && ItemStack.isSameItemSameComponents(held, rest)) {
-                    int n = Math.min(rest.getCount(), held.getMaxStackSize() - held.getCount());
-                    held.grow(n);
-                    rest.shrink(n);
-                } else if (pass == 1 && held.isEmpty()) {
-                    int n = Math.min(rest.getCount(), rest.getMaxStackSize());
-                    pack.setItem(i, rest.copyWithCount(n));
-                    rest.shrink(n);
-                }
-            }
-        }
-        pack.setChanged();
-        return rest;
-    }
-
-    /** Whether all of these would fit in the pack together. */
-    public boolean packFits(java.util.List<ItemStack> stacks) {
-        SimpleContainer trial = new SimpleContainer(PACK_SIZE);
-        for (int i = 0; i < PACK_SIZE; i++) trial.setItem(i, pack.getItem(i).copy());
-        for (ItemStack stack : stacks) {
-            ItemStack rest = stack.copy();
-            int special = Kit.specialSlot(rest);
-            int from = special >= 0 ? special : Kit.SPECIAL, to = special >= 0 ? special + 1 : PACK_SIZE;
-            for (int pass = 0; pass < 2 && !rest.isEmpty(); pass++) {
-                for (int i = from; i < to && !rest.isEmpty(); i++) {
-                    ItemStack held = trial.getItem(i);
-                    if (pass == 0 && !held.isEmpty() && ItemStack.isSameItemSameComponents(held, rest)) {
-                        int n = Math.min(rest.getCount(), held.getMaxStackSize() - held.getCount());
-                        held.grow(n);
-                        rest.shrink(n);
-                    } else if (pass == 1 && held.isEmpty()) {
-                        int n = Math.min(rest.getCount(), rest.getMaxStackSize());
-                        trial.setItem(i, rest.copyWithCount(n));
-                        rest.shrink(n);
-                    }
-                }
-            }
-            if (!rest.isEmpty()) return false;
-        }
-        return true;
-    }
-
-    /** Takes one matching item out of the pack, or returns an empty stack. */
-    public ItemStack packTake(Predicate<ItemStack> match) {
-        for (int i = 0; i < pack.getContainerSize(); i++) {
-            ItemStack held = pack.getItem(i);
-            if (held.isEmpty() || !match.test(held)) continue;
-            ItemStack one = held.copyWithCount(1);
-            pack.removeItem(i, 1);
-            return one;
-        }
-        return ItemStack.EMPTY;
-    }
-
-    /** Whether the general slots hold anything worth putting in the chest: the diggings, and cobblestone beyond what it keeps for building. */
-    public boolean hasLoot() {
-        int cobble = 0;
-        for (int i = Kit.SPECIAL; i < PACK_SIZE; i++) {
-            ItemStack held = pack.getItem(i);
-            if (held.isEmpty()) continue;
-            if (Kit.COBBLE.match().test(held)) cobble += held.getCount();
-            else return true;
-        }
-        return cobble > Kit.RESERVE;
     }
 
     /** What the client draws the sack from. */
     public int syncedPackFill() {
         return entityData.get(PACK_FILL);
-    }
-
-    /** How many of the pack's general slots are taken, out of {@code PACK_SIZE - Kit.SPECIAL}: how full the sack on its back looks. */
-    public int packFill() {
-        int n = 0;
-        for (int i = Kit.SPECIAL; i < PACK_SIZE; i++) if (!pack.getItem(i).isEmpty()) n++;
-        return n;
     }
 
     /** The golem's pack falls where it dies. */
@@ -429,11 +328,13 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         return true;
     }
 
-    /** Whether the hand has room for this stack: empty, or already holding the same thing short of a full stack. */
+    public Carry carry() {
+        return profession().traits().carry();
+    }
+
+    /** Whether there is room for this stack, or some of it. */
     public boolean canTake(ItemStack stack) {
-        if (profession() == ModProfessions.MINER) return packFits(java.util.List.of(stack.copyWithCount(1)));
-        ItemStack held = carried();
-        return held.isEmpty() || (ItemStack.isSameItemSameComponents(held, stack) && held.getCount() < held.getMaxStackSize());
+        return carry().canTake(this, stack);
     }
 
     @Override
@@ -441,10 +342,9 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         return isCharged() && !pickupSuspended && canTake(stack) && profession().needs().picksUp(stack);
     }
 
-    /** Mushroom golems land softly. */
     @Override
     public boolean causeFallDamage(double fallDistance, float damageMultiplier, DamageSource source) {
-        if (profession() == ModProfessions.LUMBERJACK) return false;
+        if (profession().traits().softLanding()) return false;
         return super.causeFallDamage(fallDistance, damageMultiplier, source);
     }
 
@@ -453,28 +353,14 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         pickUp(item);
     }
 
-    /** Takes the stack lying there with a free hand; with a stack already in hand, tops it up from the same item as far as one stack goes. */
+    /** Takes as much of the lying stack as there is room for. */
     public void pickUp(ItemEntity item) {
         if (item.isRemoved() || item.getItem().isEmpty() || !canTake(item.getItem())) return;
         ItemStack lying = item.getItem();
-        if (profession() == ModProfessions.MINER) { // into the pack, as much as fits
-            onItemPickup(item);
-            ItemStack rest = packAdd(lying);
-            int took = lying.getCount() - rest.getCount();
-            take(item, took);
-            lying.setCount(rest.getCount());
-            if (lying.isEmpty()) item.discard();
-            return;
-        }
-        int n = isCarrying() ? Math.min(lying.getCount(), carried().getMaxStackSize() - carried().getCount()) : lying.getCount();
         onItemPickup(item);
-        if (isCarrying()) {
-            ItemStack held = carried().copy();
-            held.grow(n);
-            setCarried(held);
-        } else setCarried(lying.copyWithCount(n));
-        take(item, n);
-        lying.shrink(n);
+        int took = carry().take(this, lying);
+        take(item, took);
+        lying.shrink(took);
         if (lying.isEmpty()) item.discard();
     }
 
@@ -485,7 +371,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         if (!isAlive() || player.isSecondaryUseActive()) return InteractionResult.PASS;
         ItemStack held = player.getItemInHand(hand);
         if (!Offerings.wants(this, held)) {
-            if (profession() != ModProfessions.MINER) return InteractionResult.PASS;
+            if (carry() != Carry.PACK) return InteractionResult.PASS;
             if (!level().isClientSide()) player.openMenu(new SimpleMenuProvider((id, inventory, who) -> new GolemPackMenu(id, inventory, this), getDisplayName()));
             return InteractionResult.SUCCESS;
         }

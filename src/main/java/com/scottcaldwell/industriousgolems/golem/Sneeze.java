@@ -1,7 +1,6 @@
 package com.scottcaldwell.industriousgolems.golem;
 
 import com.scottcaldwell.industriousgolems.IndustriousGolems;
-import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.Tasks;
 import net.minecraft.core.BlockPos;
@@ -77,7 +76,7 @@ public class Sneeze {
 
     /** Runs once per tick before the brain. Returns true while a hop is under way, when the brain must not run. */
     public boolean tick(ServerLevel level) {
-        if (golem.profession() != ModProfessions.LUMBERJACK) return false;
+        if (!golem.profession().traits().sneezes()) return false;
         if (!machine.is(State.WATCH)) return hopping();
         if (!golem.isCharged() || !golem.clip().isEmpty() || golem.isPassenger()) { forget(); return false; }
         long now = level.getGameTime();

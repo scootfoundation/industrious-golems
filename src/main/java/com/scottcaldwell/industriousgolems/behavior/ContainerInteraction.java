@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems.behavior;
 
+import com.scottcaldwell.industriousgolems.golem.Pack;
+import com.scottcaldwell.industriousgolems.golem.Slots;
 import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
@@ -81,7 +83,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     public static Plan planDeposit(ServerLevel level, WorkGolem golem) {
         ItemStack carried = golem.carried();
         if (carried.isEmpty()) return null;
-        BlockPos pos = best(level, golem, chest -> room(chest, carried), true, isInput(golem, carried));
+        BlockPos pos = best(level, golem, chest -> Slots.fits(chest, carried), true, isInput(golem, carried));
         return pos == null ? null : new Plan(pos, null);
     }
 
@@ -146,7 +148,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** A slot of the chest holding something of the kit that the golem's pack is still short of, or -1. */
     private static int kitSlot(Need need, WorkGolem golem, Container chest) {
         for (Need.Part part : need.parts()) {
-            if (golem.packCount(part.match()) >= part.target()) continue;
+            if (golem.pack().count(part.match()) >= part.target()) continue;
             for (int i = 0; i < chest.getContainerSize(); i++) {
                 ItemStack s = chest.getItem(i);
                 if (!s.isEmpty() && part.match().test(s)) return i;
@@ -161,20 +163,6 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (!s.isEmpty() && need.match().test(s) && accepts.test(s)) return i;
         }
         return -1;
-    }
-
-    /** Whether the whole stack fits. */
-    private static boolean room(Container chest, ItemStack stack) {
-        int left = stack.getCount();
-        for (int i = 0; i < chest.getContainerSize() && left > 0; i++) {
-            if (!chest.canPlaceItem(i, stack)) continue;
-            ItemStack there = chest.getItem(i);
-            if (there.isEmpty()) left -= Math.min(stack.getMaxStackSize(), chest.getMaxStackSize());
-            else if (ItemStack.isSameItemSameComponents(there, stack)) {
-                left -= Math.min(there.getMaxStackSize(), chest.getMaxStackSize()) - there.getCount();
-            }
-        }
-        return left <= 0;
     }
 
     // ---- the visit (runs in the exclusive task activity) --------------------------------------------------------
@@ -337,7 +325,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     private void drop(ServerLevel level, WorkGolem golem) {
         if (!machine.is(State.LET_GO)) return;
         boolean intact = opened != null && HopperBlockEntity.getContainerAt(level, chestPos) == opened; // not broken meanwhile
-        ItemStack rest = intact ? insert(opened, stowed) : stowed;
+        ItemStack rest = intact ? Slots.insert(opened, stowed) : stowed;
         if (intact) opened.setChanged();
         stowed = ItemStack.EMPTY;
         if (!rest.isEmpty()) golem.setCarried(rest);
@@ -406,12 +394,12 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** Tops the pack up from the chest, each kind of the kit to its target. */
     private static void fillPack(Need need, WorkGolem golem, Container chest) {
         for (Need.Part part : need.parts()) {
-            int want = part.target() - golem.packCount(part.match());
+            int want = part.target() - golem.pack().count(part.match());
             for (int i = 0; i < chest.getContainerSize() && want > 0; i++) {
                 ItemStack in = chest.getItem(i);
                 if (in.isEmpty() || !part.match().test(in)) continue;
                 int n = Math.min(want, in.getCount());
-                int took = n - golem.packAdd(in.copyWithCount(n)).getCount(); // as much as the pack takes
+                int took = n - golem.pack().add(in.copyWithCount(n)).getCount(); // as much as the pack takes
                 if (took <= 0) continue;
                 in.shrink(took);
                 if (in.isEmpty()) chest.setItem(i, ItemStack.EMPTY);
@@ -423,7 +411,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** Puts what the golem has dug in the chest, everything in its general slots but the cobblestone it keeps for building; what the chest cannot take stays. */
     private static void depositLoot(WorkGolem golem, Container chest) {
         int keep = Kit.RESERVE;
-        for (int i = Kit.SPECIAL; i < WorkGolem.PACK_SIZE; i++) {
+        for (int i = Kit.SPECIAL; i < Pack.SIZE; i++) {
             ItemStack held = golem.pack().getItem(i);
             if (held.isEmpty()) continue;
             int kept = 0;
@@ -432,7 +420,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
                 keep -= kept;
             }
             if (kept >= held.getCount()) continue;
-            ItemStack rest = insert(chest, held.copyWithCount(held.getCount() - kept));
+            ItemStack rest = Slots.insert(chest, held.copyWithCount(held.getCount() - kept));
             int left = kept + rest.getCount();
             golem.pack().setItem(i, left <= 0 ? ItemStack.EMPTY : held.copyWithCount(left));
         }
@@ -441,33 +429,12 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** Whether a visit to this chest would do the golem any good: its diggings would go in, or it has something of the kit that the pack is short of. */
     private static boolean packVisitUseful(Need need, WorkGolem golem, Container chest) {
         if (kitSlot(need, golem, chest) >= 0) return true;
-        for (int i = Kit.SPECIAL; i < WorkGolem.PACK_SIZE; i++) {
+        for (int i = Kit.SPECIAL; i < Pack.SIZE; i++) {
             ItemStack held = golem.pack().getItem(i);
             if (held.isEmpty()) continue;
             boolean cobble = Kit.COBBLE.match().test(held);
-            if ((!cobble || golem.packCount(Kit.COBBLE.match()) > Kit.RESERVE) && room(chest, held.copyWithCount(1))) return true;
+            if ((!cobble || golem.pack().count(Kit.COBBLE.match()) > Kit.RESERVE) && Slots.fits(chest, held.copyWithCount(1))) return true;
         }
         return false;
-    }
-
-    /** Inserts into the container, merging into matching stacks first; returns whatever did not fit. */
-    private static ItemStack insert(Container c, ItemStack stack) {
-        for (int pass = 0; pass < 2 && !stack.isEmpty(); pass++) {
-            for (int i = 0; i < c.getContainerSize() && !stack.isEmpty(); i++) {
-                if (!c.canPlaceItem(i, stack)) continue;
-                ItemStack there = c.getItem(i);
-                if (pass == 0) {
-                    if (there.isEmpty() || !ItemStack.isSameItemSameComponents(there, stack)) continue;
-                    int room = Math.min(there.getMaxStackSize(), c.getMaxStackSize()) - there.getCount();
-                    int n = Math.min(room, stack.getCount());
-                    if (n > 0) { there.grow(n); stack.shrink(n); }
-                } else if (there.isEmpty()) {
-                    int n = Math.min(Math.min(stack.getMaxStackSize(), c.getMaxStackSize()), stack.getCount());
-                    c.setItem(i, stack.copyWithCount(n));
-                    stack.shrink(n);
-                }
-            }
-        }
-        return stack;
     }
 }

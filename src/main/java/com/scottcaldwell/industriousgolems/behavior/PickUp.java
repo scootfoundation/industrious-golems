@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.behavior;
 
+import com.scottcaldwell.industriousgolems.golem.Carry;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
 import com.scottcaldwell.industriousgolems.golem.Stand;
@@ -18,11 +19,8 @@ import net.minecraft.world.phys.AABB;
  */
 public class PickUp extends TaskRunner<PickUp.Plan> {
 
-    /** How far from the job site stacks are collected: past the lumberjack's tree search (16) and the canopy that drops leaves around it. */
-    public static final int RADIUS = 24;
-    /** The stone golem picks up only what lies within this many blocks of it; its mine is long, and it takes the diggings as it goes. */
-    public static final int MINER_RADIUS = 5;
-    private static final double REACH_SQR = 1.2 * 1.2;
+    /** Farther than this from the stack it was going for and the golem forgets it. */
+    private static final double STRAYED = 32;
     /** Walking this long without getting any nearer the stack means it cannot be reached. */
     private static final int GIVE_UP_TICKS = 240;
     private static final int IGNORE_TICKS = 6000;
@@ -37,7 +35,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             .state(State.RISE, "The stack has reached the hand; the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.WALK, State.CROUCH, "settled on the spot")
-            .edge(State.WALK, State.DONE, "stack gone, hand already full, strayed far from the job site, or no nearer for 12 s (the stack is then ignored for 5 min)")
+            .edge(State.WALK, State.DONE, "stack gone, hand already full, the stack is now far away, or no nearer for 12 s (the stack is then ignored for 5 min)")
             .edge(State.CROUCH, State.RISE, "the clip reaches its grab time: the stack moves into the hand")
             .edge(State.CROUCH, State.DONE, "the clip ends without a grab (nothing left to take)")
             .edge(State.RISE, State.DONE, "the clip ends");
@@ -58,15 +56,14 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     /** The nearest stack worth taking, or null. Needs a free hand. */
     public static Plan plan(ServerLevel level, WorkGolem golem) {
         if (golem.isCarrying() && !golem.canTake(golem.carried())) return null; // a full stack: off to the chest
-        boolean miner = golem.profession() == com.scottcaldwell.industriousgolems.ModProfessions.MINER;
-        BlockPos at = miner ? golem.blockPosition() : golem.jobSite(level);
+        Carry carry = golem.carry();
+        BlockPos at = carry.aroundSelf() ? golem.blockPosition() : golem.jobSite(level);
         if (at == null) return null;
         TaskState state = golem.getData(ModAttachments.TASK);
         ItemEntity best = null;
-        int radius = miner ? MINER_RADIUS : RADIUS;
-        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(radius, miner ? 3 : 4, radius),
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(carry.reach(), carry.reachHeight(), carry.reach()),
                 i -> golem.wantsToPickUp(level, i.getItem()) && !state.ignores(i.getId(), level.getGameTime())
-                        && !(miner && (i.isInLiquid() || golem.distanceTo(i) > MINER_RADIUS)))) {
+                        && !(carry.dryOnly() && i.isInLiquid()) && !(carry.aroundSelf() && golem.distanceTo(i) > carry.reach()))) {
             if (best == null || golem.distanceToSqr(item) < golem.distanceToSqr(best)) best = item;
         }
         return best == null ? null : new Plan(best.getId());
@@ -107,7 +104,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             spot = item.position().add(away.normalize().scale(spec.dist()));
             if (!Stand.reachable(level, golem, spot)) spot = item.position(); // no room to stand back from it
         }
-        if (golem.distanceToSqr(item) > (RADIUS + 8) * (RADIUS + 8)) { done(); return; }
+        if (golem.distanceToSqr(item) > STRAYED * STRAYED) { done(); return; } // it has been carried or has rolled well out of range
         Approach.Outcome outcome = approach.stand(golem, spot, 0.9);
         if (outcome != Approach.Outcome.ARRIVED) {
             if (outcome == Approach.Outcome.UNREACHABLE) { // stuck behind something: leave it, so it does not hold up the rest of the work
@@ -131,8 +128,9 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     private void grab(ServerLevel level, WorkGolem golem) {
         if (level.getEntity(plan.itemId()) instanceof ItemEntity item && !item.isRemoved() && golem.canTake(item.getItem())) {
             golem.pickUp(item);
-            if (golem.profession() == com.scottcaldwell.industriousgolems.ModProfessions.MINER) { // one scoop takes what lies about it too
-                for (ItemEntity near : level.getEntitiesOfClass(ItemEntity.class, item.getBoundingBox().inflate(1.5), i -> golem.wantsToPickUp(level, i.getItem()))) golem.pickUp(near);
+            double scoop = golem.carry().scoop(); // one movement takes what lies about it too
+            if (scoop > 0) {
+                for (ItemEntity near : level.getEntitiesOfClass(ItemEntity.class, item.getBoundingBox().inflate(scoop), i -> golem.wantsToPickUp(level, i.getItem()))) golem.pickUp(near);
             }
         }
         machine.to(State.RISE);

@@ -126,9 +126,9 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
                 state.ignoreBlock(step.dig(), now + IGNORE_TICKS);
                 return null;
             }
-            return new Work(step, stand, golem.packFits(drops(level, golem, step.dig())));
+            return new Work(step, stand, golem.pack().fitsAll(drops(level, golem, step.dig())));
         }
-        return new Work(step, null, golem.packCount(step.builds().get(0).part().match()) > 0);
+        return new Work(step, null, golem.pack().count(step.builds().get(0).part().match()) > 0);
     }
 
     /** What breaking the block would drop (as an iron pickaxe would get it). */
@@ -142,7 +142,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
      * dig or build and it has diggings to put away. It does not make the trip merely for having picked something up.
      */
     private static boolean needsChest(WorkGolem golem, Work w) {
-        return w == null ? golem.hasLoot() : !w.supplied();
+        return w == null ? golem.pack().hasLoot() : !w.supplied();
     }
 
     /** The mine has work the golem cannot do for want of something (supplies, or room for the diggings). */

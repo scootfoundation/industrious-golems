@@ -98,7 +98,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
 
     private void seek(ServerLevel level, WorkGolem golem) {
         while ((current = queue.poll()) != null) {
-            if (golem.packCount(current.part().match()) <= 0) { done(); return; } // short of it: the planner asks the chest for more
+            if (golem.pack().count(current.part().match()) <= 0) { done(); return; } // short of it: the planner asks the chest for more
             if (!canPlace(level, current)) continue;
             approach.reset();
             stand = null;
@@ -146,7 +146,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     }
 
     private void place(ServerLevel level, WorkGolem golem) {
-        ItemStack item = golem.packTake(current.part().match());
+        ItemStack item = golem.pack().takeOne(current.part().match());
         if (!item.isEmpty() && canPlace(level, current)) {
             BlockState base = current.part().state(item);
             if (current.facing() != null && base.hasProperty(HorizontalDirectionalBlock.FACING)) base = base.setValue(HorizontalDirectionalBlock.FACING, current.facing());
@@ -154,7 +154,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
             level.setBlock(current.pos(), state, 3);
             level.playSound(null, current.pos(), state.getSoundType().getPlaceSound(), SoundSource.BLOCKS, 1.0F, 0.8F);
             golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-        } else if (!item.isEmpty()) golem.packAdd(item);
+        } else if (!item.isEmpty()) golem.pack().add(item);
         machine.to(State.SETTLE);
     }
 

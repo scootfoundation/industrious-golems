@@ -92,11 +92,11 @@ public final class GolemBrain {
                 InteractWithDoor.create(),
                 new CountDownCooldownTicks(MemoryModuleType.GAZE_COOLDOWN_TICKS))); // (which chest it works from is looked after by Workplace: shared, never claimed)
 
-        // the hay golem stands still when it has nothing to do; the others wander near their chest
+        // some stand still when they have nothing to do (the hay golem); the others wander near their chest
         ImmutableList.Builder<Pair<Integer, ? extends BehaviorControl<? super WorkGolem>>> idle = ImmutableList.builder();
         idle.add(Pair.of(5, new StartTask()));
         idle.add(Pair.of(6, SetEntityLookTargetSometimes.create(EntityTypes.PLAYER, 6.0F, UniformInt.of(40, 80))));
-        if (profession != ModProfessions.FARMER) {
+        if (profession.traits().strolls()) {
             idle.add(Pair.of(7, new Wander(new RunOne<>(ImmutableList.of(
                     Pair.of(StrollAroundPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 4), 3),
                     Pair.of(StrollToPoi.create(MemoryModuleType.JOB_SITE, STROLL_SPEED, 1, 10), 5),

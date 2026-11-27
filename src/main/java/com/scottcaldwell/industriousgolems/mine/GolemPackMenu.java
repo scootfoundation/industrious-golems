@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.mine;
 
+import com.scottcaldwell.industriousgolems.golem.Pack;
 import com.scottcaldwell.industriousgolems.ModMenus;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
 import net.minecraft.world.Container;
@@ -17,7 +18,7 @@ import net.minecraft.world.item.ItemStack;
 public class GolemPackMenu extends AbstractContainerMenu {
 
     public static final int ROW_Y = 20, PLAYER_Y = 48, HEIGHT = 132;
-    private static final int KIT_SLOTS = Kit.SPECIAL, SLOTS = WorkGolem.PACK_SIZE;
+    private static final int KIT_SLOTS = Kit.SPECIAL, SLOTS = Pack.SIZE;
 
     private final Container pack;
     private final WorkGolem golem;
