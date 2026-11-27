@@ -179,7 +179,7 @@ GOLEMS = [
 BUILD_HOWTO = ("Each golem is built from its own pattern of blocks with a <strong>carved pumpkin</strong> or <strong>jack o'lantern</strong> placed on top "
                "(see each golem's page). The pumpkin and all but the lowest block are consumed, the lowest block becomes the golem's chest, and the golem stands on it. "
                "You do not need a chest first: the pattern makes one. The golem works from that chest and starts <em>dormant</em>. "
-               "A chest is not owned: <strong>any number of golems of a kind can share one</strong>, taking turns at it. A golem whose chest is gone takes up the nearest one of its kind it can walk to (within 48 blocks).")
+               "A chest is not owned: <strong>any number of golems of a kind can share one</strong>, taking turns at it, and golems do not go for the same crop, tree, animal, dropped stack or block. A golem that cannot get to a plot or an animal leaves it alone for a while. A golem whose chest is gone takes up the nearest one of its kind it can walk to (within 48 blocks).")
 
 
 # ------------------------------------------------------------------ rendering
