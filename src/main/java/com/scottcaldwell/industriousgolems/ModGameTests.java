@@ -114,6 +114,7 @@ public class ModGameTests {
         FUNCTIONS.register("stone_chest_pattern", () -> h -> chestPattern(h, ModProfessions.MINER, ModBlocks.STONE_CHEST.get()));
         strictly("golem_sends_produce_to_copper_chest", ModGameTests::golemSendsProduceToCopperChest);
         strictly("golem_chests_join_into_doubles", ModGameTests::golemChestsJoinIntoDoubles);
+        strictly("golem_climbs_to_raised_chest", ModGameTests::golemClimbsToRaisedChest);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
         strictly("miner_trunk_plan", ModGameTests::minerTrunkPlan);
         strictly("miner_follows_veins", ModGameTests::minerFollowsVeins);
@@ -880,6 +881,28 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(count(copper, Items.WHEAT) == 5, "wheat goes to the copper chest, got " + count(copper, Items.WHEAT));
             helper.assertTrue(count(own, Items.WHEAT) == 0, "none in the golem's own chest");
+        });
+    }
+
+    /** A chest up on a ledge with steps to it: a golem standing underneath climbs up and does not use it from below. */
+    private static void golemClimbsToRaisedChest(GameTestHelper helper) {
+        buildFarm(helper); // for its floor and walls
+        for (int x = 3; x <= 5; x++) helper.setBlock(new BlockPos(x, 3, 3), Blocks.STONE);
+        helper.setBlock(new BlockPos(6, 1, 3), Blocks.STONE);
+        helper.setBlock(new BlockPos(6, 2, 3), Blocks.STONE);
+        helper.setBlock(new BlockPos(7, 1, 3), Blocks.STONE);
+        BlockPos site = new BlockPos(3, 4, 3);
+        helper.setBlock(site, ModBlocks.MUSHROOM_CHEST.get().defaultBlockState().setValue(ChestBlock.FACING, Direction.EAST));
+        WorkGolem golem = spawnWorker(helper, ModProfessions.LUMBERJACK, site, new BlockPos(4, 1, 3)); // right under the spot in front
+        golem.setCarried(new ItemStack(Items.OAK_LOG, 5));
+        Container own = helper.getBlockEntity(site, ChestBlockEntity.class);
+        double[] worst = {0}; // how far under the chest the golem ever was while holding it open (a failure inside succeedWhen is only retried)
+        helper.succeedWhen(() -> {
+            if (!helper.getBlockEntity(site, ChestBlockEntity.class).getEntitiesWithContainerOpen().isEmpty()) {
+                worst[0] = Math.max(worst[0], helper.absolutePos(site).getY() - golem.getY());
+            }
+            helper.assertTrue(count(own, Items.OAK_LOG) == 5, "the logs go in the chest" + describe(helper, golem, own));
+            helper.assertTrue(worst[0] < 0.75, "the chest was opened from " + worst[0] + " blocks below it");
         });
     }
 

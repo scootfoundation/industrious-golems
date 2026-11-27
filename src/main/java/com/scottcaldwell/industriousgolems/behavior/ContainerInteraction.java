@@ -42,6 +42,11 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** Containers within this many blocks (horizontally; +-2 vertically) of the job site count as "adjacent". */
     public static final int SEARCH_RADIUS = 3;
     private static final int DURATION = 1200;
+    /**
+     * How far below and above the spot in front of the chest still counts as being there. A full block below does not; above
+     * allows for a golem perched on the rim of a neighbouring chest or composter, which the last shuffle slides it off.
+     */
+    private static final double LEVEL_BELOW = 0.9, LEVEL_ABOVE = 1.1;
 
 
     private BlockPos chestPos;
@@ -242,6 +247,13 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (++stalled > 400) { done(); return; }
             golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             golem.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new net.minecraft.world.entity.ai.memory.WalkTarget(new BlockPosTracker(BlockPos.containing(spot)), 0.5F, 0));
+            return;
+        }
+        // the spot is at the chest's height and standAt only measures across the ground: under a chest up on a ledge the golem would
+        // otherwise count as there. Walk to the spot itself, up whatever way leads to it.
+        if (spot.y - golem.getY() > LEVEL_BELOW || golem.getY() - spot.y > LEVEL_ABOVE) {
+            if (++stalled > 400) { done(); return; }
+            walkTo(golem, new BlockPosTracker(BlockPos.containing(spot)), 0);
             return;
         }
         if (!standAt(golem, spot, 1.0)) {
