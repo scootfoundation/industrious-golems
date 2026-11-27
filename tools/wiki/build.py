@@ -120,7 +120,7 @@ GOLEMS = [
             "It fells a tree from the top: it <strong>sneezes</strong> up onto the crown, then breaks <strong>one block at a time</strong>: any log level with it up to <strong>3 blocks</strong> away, and only when none is left, the block under its feet. "
             "It cannot be hurt by the drop, since a Mushroom Golem <strong>takes no fall damage</strong>.",
             "It is a little over a block tall, so it cannot walk under leaves that hang at head height. If it gets stuck (under low leaves, boxed in, or unable to get back to its chest), it uses the same sneeze to hop a few blocks toward where it is headed, or toward its chest.",
-            "It <strong>ignores logs you have built with</strong> (and stripped logs), so your house is safe.",
+            "It <strong>ignores logs you have built with</strong> (and stripped logs), so your house is safe. A tree with a build joined to it, logs that stand on something or have no leaves near them away from the trunk, is left standing too.",
             "It plants saplings wherever the ground near the chest suits a tree best (it does not go back to where a tree stood), within <strong>14 blocks</strong> of the chest, keeping saplings at least <strong>5 blocks apart</strong> so trees have room. It plants before it fells: it keeps planting until there is no good ground left, then goes back to cutting. It "
             "leaves a <strong>6-block clearing</strong> around the chest so the chest never gets walled in.",
             "It only plants saplings it has been given or has collected: it never conjures them. A lone dark oak sapling is left alone, because it cannot grow without room for four.",

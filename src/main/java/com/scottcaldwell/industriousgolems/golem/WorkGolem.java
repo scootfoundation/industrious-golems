@@ -238,6 +238,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
+        if (!stowed.isEmpty()) output.store("Stowed", ItemStack.OPTIONAL_CODEC, stowed.copy());
         if (!pack.isEmpty()) output.store("Pack", ItemStack.OPTIONAL_CODEC.listOf(), pack.getItems().stream().map(ItemStack::copy).toList());
     }
 
@@ -247,6 +248,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setChargeTicks(input.getIntOr("ChargeTicks", 0));
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
+        // saved with a stack in flight: the visit is not resumed, so it is simply in the hand again (which is empty)
+        input.read("Stowed", ItemStack.OPTIONAL_CODEC).ifPresent(this::setCarried);
         pack.clearContent();
         input.read("Pack", ItemStack.OPTIONAL_CODEC.listOf()).ifPresent(list -> {
             for (int i = 0; i < list.size() && i < Pack.SIZE; i++) pack.setItem(i, list.get(i));
@@ -276,6 +279,8 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
         super.dropCustomDeathLoot(level, source, killedByPlayer);
         Containers.dropContents(level, this, pack);
+        ItemStack inFlight = takeStowed();
+        if (!inFlight.isEmpty()) spawnAtLocation(level, inFlight);
     }
 
     // ---- carrying -------------------------------------------------------------------------------------------------
@@ -291,6 +296,30 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
 
     public boolean isCarrying() {
         return !carried().isEmpty();
+    }
+
+    /** The stack the hand has let go of on its way into a chest: no longer held, but still the golem's until it lands. */
+    private ItemStack stowed = ItemStack.EMPTY;
+
+    /** Lets go of the carried stack, see {@link #takeStowed} and {@link #unstow}. */
+    public void stow() {
+        stowed = carried().copy();
+        setCarried(ItemStack.EMPTY);
+    }
+
+    /** Hands over the stack in flight (to the chest it has reached). */
+    public ItemStack takeStowed() {
+        ItemStack stack = stowed;
+        stowed = ItemStack.EMPTY;
+        return stack;
+    }
+
+    /** A stack still in flight goes back to the hand (or, if that is no longer free, falls where the golem is). */
+    public void unstow() {
+        ItemStack stack = takeStowed();
+        if (stack.isEmpty()) return;
+        if (!isCarrying()) setCarried(stack);
+        else if (level() instanceof ServerLevel level) spawnAtLocation(level, stack);
     }
 
     /** While suspended the golem does not grab drops as they land; the miner uses it to gather a whole batch at once. */

@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:function",
+  "environment": "industriousgolems:work_hours",
+  "function": "industriousgolems:natural_trees_are_fellable",
+  "max_ticks": 12000,
+  "setup_ticks": 1,
+  "structure": "industriousgolems:arena"
+}

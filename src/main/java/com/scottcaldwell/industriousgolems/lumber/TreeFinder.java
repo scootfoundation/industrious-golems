@@ -31,6 +31,8 @@ public final class TreeFinder {
     /** Highest log above the lowest one; the lumberjack mines down from the top, so it need not reach it from the ground. */
     static final int MAX_HEIGHT = 24;
     private static final int CANDIDATES = 40;
+    /** A branch has a leaf within this many blocks of it, each way. */
+    private static final int BRANCH_LEAVES = 3;
 
     private TreeFinder() { }
 
@@ -77,6 +79,34 @@ public final class TreeFinder {
         return state.is(BlockTags.SUBSTRATE_OVERWORLD);
     }
 
+    /**
+     * Whether some of these logs look built rather than grown. Away from the trunk (more than a block sideways from its foot, which
+     * covers a 2x2 trunk) a tree has only branches: they have leaves about them and rest on nothing but the tree itself. A log that
+     * stands on something else out there, or has no leaf near it, is part of somebody's build, and then the whole cluster is left.
+     */
+    private static boolean joinedToABuild(ServerLevel level, List<BlockPos> logs, BlockPos base) {
+        for (BlockPos log : logs) {
+            if (Math.abs(log.getX() - base.getX()) <= 1 && Math.abs(log.getZ() - base.getZ()) <= 1) continue;
+            BlockPos below = log.below();
+            BlockState under = level.getBlockState(below);
+            if (!isLog(under) && !under.is(BlockTags.LEAVES) && !under.getCollisionShape(level, below).isEmpty()) return true;
+            if (!leavesNear(level, log)) return true;
+        }
+        return false;
+    }
+
+    private static boolean leavesNear(ServerLevel level, BlockPos log) {
+        for (BlockPos pos : BlockPos.betweenClosed(log.offset(-BRANCH_LEAVES, -BRANCH_LEAVES, -BRANCH_LEAVES),
+                log.offset(BRANCH_LEAVES, BRANCH_LEAVES, BRANCH_LEAVES))) {
+            if (isNaturalLeaf(level.getBlockState(pos))) return true;
+        }
+        return false;
+    }
+
+    private static boolean isNaturalLeaf(BlockState state) {
+        return state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.PERSISTENT) && !state.getValue(LeavesBlock.PERSISTENT);
+    }
+
     /** The connected logs around {@code start}, or null when they do not make a fellable tree. */
     static Tree cluster(ServerLevel level, BlockPos start) {
         return cluster(level, start, new HashSet<>());
@@ -119,10 +149,7 @@ public final class TreeFinder {
             if (log.getY() == minY && isGround(level.getBlockState(log.below()))) rooted = true;
             for (Direction dir : Direction.values()) {
                 BlockPos side = log.relative(dir);
-                BlockState state = level.getBlockState(side);
-                if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.PERSISTENT) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                    leaves.add(side);
-                }
+                if (isNaturalLeaf(level.getBlockState(side))) leaves.add(side);
             }
         }
         if (!rooted || leaves.size() < MIN_LEAVES) { rejected.addAll(seen); return null; }
@@ -131,6 +158,7 @@ public final class TreeFinder {
         BlockPos anchor = start;
         logs.sort(Comparator.<BlockPos>comparingInt(BlockPos::getY).thenComparingDouble(p -> p.distSqr(anchor)));
         BlockPos base = logs.get(0);
+        if (joinedToABuild(level, logs, base)) { rejected.addAll(seen); return null; }
         return new Tree(logs, base);
     }
 }

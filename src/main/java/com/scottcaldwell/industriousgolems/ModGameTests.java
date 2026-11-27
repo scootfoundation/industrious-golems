@@ -1,5 +1,7 @@
 package com.scottcaldwell.industriousgolems;
 
+import net.minecraft.data.worldgen.features.TreeFeatures;
+import com.scottcaldwell.industriousgolems.lumber.TreeFinder;
 import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.ChestSpawn;
@@ -119,6 +121,11 @@ public class ModGameTests {
         strictly("golem_sneezes_out_from_under_leaves", ModGameTests::golemSneezesOutFromUnderLeaves);
         strictly("golem_uses_gate_and_shuts_it", ModGameTests::golemUsesGate);
         strictly("golems_share_one_chest", ModGameTests::golemsShareOneChest);
+        strictly("golem_deposits_into_double_chest", ModGameTests::golemDepositsIntoDoubleChest);
+        strictly("golem_keeps_stack_in_flight", ModGameTests::golemKeepsStackInFlight);
+        strictly("herder_has_no_pig_act_for_chickens", ModGameTests::herderHasNoPigActForChickens);
+        strictly("lumberjack_leaves_tree_joined_to_a_build", ModGameTests::lumberjackLeavesTreeJoinedToABuild);
+        strictly("natural_trees_are_fellable", ModGameTests::naturalTreesAreFellable);
         strictly("golems_leave_each_others_targets", ModGameTests::golemsLeaveEachOthersTargets);
         strictly("lumberjack_breaks_one_log_at_a_time", ModGameTests::lumberjackBreaksOneLogAtATime);
         strictly("miner_dig_rules", ModGameTests::minerDigRules);
@@ -300,7 +307,7 @@ public class ModGameTests {
             for (int x = 3; x <= 5; x++) {
                 var state = helper.getBlockState(new BlockPos(x, 2, 5));
                 helper.assertTrue(state.is(Blocks.WHEAT) && state.getValue(CropBlock.AGE) < 7,
-                        "farmer should have replanted at x=" + x + " (plots " + helper.getBlockState(new BlockPos(3, 2, 5)) + helper.getBlockState(new BlockPos(4, 2, 5))
+                        "farmer should have replanted at x=" + x + " (soil " + helper.getBlockState(new BlockPos(3, 1, 5)).getBlock() + helper.getBlockState(new BlockPos(4, 1, 5)).getBlock() + helper.getBlockState(new BlockPos(5, 1, 5)).getBlock() + ", plots " + helper.getBlockState(new BlockPos(3, 2, 5)) + helper.getBlockState(new BlockPos(4, 2, 5))
                                 + helper.getBlockState(new BlockPos(5, 2, 5)) + ", carried " + farmer.carried() + ", ground seeds " + itemsOnGround(helper, Items.WHEAT_SEEDS) + describe(helper, farmer, chest)
                                 + ", chest seeds " + count(chest, Items.WHEAT_SEEDS) + ", pos " + farmer.blockPosition().subtract(helper.absolutePos(BlockPos.ZERO)) + ")");
             }
@@ -364,7 +371,7 @@ public class ModGameTests {
         WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
         helper.succeedWhen(() -> {
             var sheep = alive(helper, Sheep.class);
-            helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared");
+            helper.assertTrue(!sheep.isEmpty() && !sheep.get(0).readyForShearing(), "the sheep should have been sheared: " + sheep.size() + " sheep" + (sheep.isEmpty() ? "" : " at " + sheep.get(0).position().subtract(Vec3.atLowerCornerOf(helper.absolutePos(BlockPos.ZERO)))) + describe(helper, herder, chest));
             helper.assertTrue(total(herder, chest, Items.WOOL.white()) > 0, "the herder should hold or have deposited wool" + describe(helper, herder, chest));
         });
     }
@@ -892,6 +899,118 @@ public class ModGameTests {
         for (var made : List.of(first, second, milker, other, cow)) made.discard();
         helper.succeed();
     }
+
+    /** A double chest is put into like any other. */
+    private static void golemDepositsIntoDoubleChest(GameTestHelper helper) {
+        buildFarm(helper);
+        BlockState right = ModBlocks.HAY_CHEST.get().defaultBlockState().setValue(ChestBlock.FACING, Direction.SOUTH).setValue(ChestBlock.TYPE, ChestType.RIGHT);
+        BlockPos second = COMPOSTER.relative(ChestBlock.getConnectedDirection(right));
+        helper.setBlock(CHEST, Blocks.AIR);
+        helper.setBlock(COMPOSTER, right);
+        helper.setBlock(second, right.setValue(ChestBlock.TYPE, ChestType.LEFT));
+        WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 4));
+        farmer.setCarried(new ItemStack(Items.WHEAT_SEEDS, 5));
+        helper.succeedWhen(() -> {
+            int in = count(helper.getBlockEntity(COMPOSTER, ChestBlockEntity.class), Items.WHEAT_SEEDS)
+                    + count(helper.getBlockEntity(second, ChestBlockEntity.class), Items.WHEAT_SEEDS);
+            helper.assertTrue(in == 5 && !farmer.isCarrying(), "the seeds go into the double chest, " + in + " there, carrying " + farmer.carried());
+        });
+    }
+
+    /** Between the hand letting go and the stack landing in the chest it is still the golem's: saved with it, and dropped if it dies. */
+    private static void golemKeepsStackInFlight(GameTestHelper helper) {
+        buildFarm(helper);
+        WorkGolem jack = spawnLumberjack(helper, AT);
+        jack.setCarried(new ItemStack(Items.OAK_LOG, 3));
+        boolean[] done = {false};
+        int[] seen = {-1, -1};
+        helper.onEachTick(() -> {
+            if (done[0] || !jack.carried().isEmpty()) return;
+            done[0] = true; // the hand has just let go
+            TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess());
+            jack.saveWithoutId(out);
+            WorkGolem copy = ModEntities.LUMBERJACK_GOLEM.get().create(helper.getLevel(), net.minecraft.world.entity.EntitySpawnReason.LOAD);
+            copy.load(TagValueInput.create(ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), out.buildResult()));
+            seen[0] = copy.carried().is(Items.OAK_LOG) ? copy.carried().getCount() : 0;
+            jack.hurtServer(helper.getLevel(), helper.getLevel().damageSources().generic(), 1000.0F);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(done[0] && jack.isRemoved(), "waiting for the golem to let go and die");
+            if (seen[1] < 0) seen[1] = itemsOnGround(helper, Items.OAK_LOG) + count(helper.getBlockEntity(CHEST, ChestBlockEntity.class), Items.OAK_LOG);
+            helper.assertTrue(seen[0] == 3, "a golem saved then has the stack when loaded, got " + seen[0]);
+            helper.assertTrue(seen[1] == 3, "and one that dies then drops it, found " + seen[1]);
+        });
+    }
+
+    /** There are no chicken animations: the herder does the job to a chicken without playing another animal's. */
+    private static void herderHasNoPigActForChickens(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        helper.getBlockEntity(CHEST, ChestBlockEntity.class).setItem(0, new ItemStack(Items.WHEAT_SEEDS, 16));
+        var first = helper.spawn(EntityTypes.CHICKEN, new BlockPos(5, 1, 5));
+        var second = helper.spawn(EntityTypes.CHICKEN, new BlockPos(6, 1, 5));
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        String[] wrong = {null};
+        boolean[] fed = new boolean[2];
+        helper.onEachTick(() -> {
+            if (herder.clip().startsWith("feed-") || herder.clip().startsWith("cull-")) wrong[0] = herder.clip();
+            fed[0] |= first.isInLove();
+            fed[1] |= second.isInLove();
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(fed[0] && fed[1], "both chickens get fed");
+            helper.assertTrue(wrong[0] == null, "played " + wrong[0] + " for a chicken");
+            for (var made : List.of(first, second, herder)) made.discard(); // none left to wander the neighbouring arenas' pens
+        });
+    }
+
+    /** Logs joined to a tree that stand or rest on something away from its trunk are somebody's build: the whole lot is left alone. */
+    private static void lumberjackLeavesTreeJoinedToABuild(GameTestHelper helper) {
+        buildFarm(helper);
+        buildTree(helper, 5, 5);
+        var level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(5, 1, 5));
+        helper.assertTrue(TreeFinder.find(level, foot, foot) != null, "the tree alone is a tree");
+        for (int z = 2; z <= 4; z++) helper.setBlock(new BlockPos(5, 1, z), Blocks.OAK_LOG); // a log wall run up to the trunk
+        helper.setBlock(new BlockPos(5, 2, 2), Blocks.OAK_LOG);
+        var found = TreeFinder.find(level, foot, foot);
+        // clear it all away first: the next arena's lumberjack can see this far
+        for (BlockPos pos : BlockPos.betweenClosed(new BlockPos(3, 1, 1), new BlockPos(7, 5, 7))) helper.setBlock(pos, Blocks.AIR);
+        helper.assertTrue(found == null, "a tree with a wall against it must be left, found " + (found == null ? 0 : found.logs().size()) + " logs to fell");
+        helper.succeed();
+    }
+
+    /** Trees as the world generates them (built high above the arenas, out of any golem's reach) are still recognised as trees. */
+    private static void naturalTreesAreFellable(GameTestHelper helper) {
+        buildFarm(helper);
+        var level = helper.getLevel();
+        var features = level.registryAccess().lookupOrThrow(Registries.FEATURE);
+        BlockPos at = helper.absolutePos(new BlockPos(4, 80, 4));
+        StringBuilder report = new StringBuilder();
+        for (var key : List.of(TreeFeatures.OAK, TreeFeatures.FANCY_OAK, TreeFeatures.BIRCH, TreeFeatures.SPRUCE, TreeFeatures.PINE,
+                TreeFeatures.ACACIA, TreeFeatures.CHERRY, TreeFeatures.JUNGLE_TREE, TreeFeatures.SWAMP_OAK,
+                TreeFeatures.DARK_OAK, TreeFeatures.PALE_OAK, TreeFeatures.AZALEA_TREE, TreeFeatures.MEGA_SPRUCE, TreeFeatures.MEGA_JUNGLE_TREE)) {
+            var feature = features.getOrThrow(key).value();
+            int grown = 0, fellable = 0;
+            for (int seed = 0; seed < 60; seed++) {
+                for (BlockPos soil : BlockPos.betweenClosed(at.offset(-1, -1, -1), at.offset(2, -1, 2))) level.setBlock(soil, Blocks.DIRT.defaultBlockState(), 2);
+                if (feature.place(level, level.getChunkSource().getGenerator(), net.minecraft.util.RandomSource.create(seed), at)) {
+                    grown++;
+                    if (TreeFinder.find(level, at, at) != null) fellable++;
+                }
+                for (BlockPos pos : BlockPos.betweenClosed(at.offset(-14, -2, -14), at.offset(14, 36, 14))) {
+                    if (!level.getBlockState(pos).isAir()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2 | 16);
+                }
+            }
+            report.append(key.identifier().getPath()).append(' ').append(fellable).append('/').append(grown).append("  ");
+            helper.assertTrue(grown > 0, "no " + key.identifier() + " grew");
+        }
+        IndustriousGolems.LOGGER.info("Natural trees recognised: {}", report);
+        helper.assertTrue(report.toString().strip().equals(NATURAL_TREES), "recognised trees changed: " + report);
+        helper.succeed();
+    }
+
+    private static final String NATURAL_TREES = "oak 60/60  fancy_oak 60/60  birch 60/60  spruce 60/60  pine 60/60  acacia 60/60  cherry 60/60  jungle_tree 60/60  "
+            + "swamp_oak 60/60  dark_oak 60/60  pale_oak 60/60  azalea_tree 60/60  mega_spruce 13/60  mega_jungle_tree 17/60"; // (the giants: over the log limit)
 
     private static void golemUsesItsOwnChest(GameTestHelper helper) {
         buildFarm(helper);
@@ -1483,7 +1602,8 @@ public class ModGameTests {
             }
             var level = helper.getLevel();
             helper.assertTrue(jack.getY() <= groundY + 1.5, "back on the ground");
-            helper.assertTrue(level.getBlockState(jack.blockPosition()).getCollisionShape(level, jack.blockPosition()).isEmpty(), "not inside a block");
+            // (standing on top of the chest or composter is fine: it may have walked over one to the tree)
+            helper.assertTrue(level.noCollision(jack, jack.getBoundingBox().deflate(0.05)), "not inside a block, at " + jack.position());
         });
     }
 

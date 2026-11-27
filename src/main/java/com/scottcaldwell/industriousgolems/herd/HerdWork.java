@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.herd;
 
+import net.minecraft.world.entity.animal.pig.Pig;
 import com.scottcaldwell.industriousgolems.behavior.Claims;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import java.util.Set;
@@ -76,7 +77,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             .edge(State.WALK, State.STAGE, "within 4 blocks of the animal")
             .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer (ignored for 30 s)")
             .edge(State.STAGE, State.WALK, "the animal wandered out of reach")
-            .edge(State.STAGE, State.PLAY, "standing on the spot facing the right way (milking needs no spot)")
+            .edge(State.STAGE, State.PLAY, "standing on the spot facing the right way (milking and chickens need no spot)")
             .edge(State.STAGE, State.DONE, "no room to stage it (does the job without the show), the animal is gone, or 20 s without getting nearer")
             .edge(State.PLAY, State.FOLLOW_THROUGH, "the clip reaches the deed's moment")
             .edge(State.PLAY, State.DONE, "the animal vanished first, or the clip ends")
@@ -207,8 +208,14 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         golem.setPickupSuspended(true);
     }
 
-    /** The clip this job plays, or null (milking has none). */
+    /** Whether the animations know this animal: they are drawn for sheep, cows and pigs. */
+    private static boolean hasAct(Animal animal) {
+        return animal instanceof Sheep || animal instanceof Cow || animal instanceof Pig;
+    }
+
+    /** The clip this job plays, or null (milking has none, and neither does anything done to a chicken). */
     private String clipFor(Animal animal) {
+        if (!hasAct(animal)) return null;
         String kind = animal instanceof Sheep ? "sheep" : animal instanceof Cow ? "cow" : "pig";
         return switch (plan.action()) {
             case CULL -> "cull-" + kind;
@@ -224,6 +231,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     /** Where the animal stands relative to the golem for this job: blocks to its right and ahead, and which way it faces (right, ahead components). */
     private double[] layout(Animal animal) {
+        if (!hasAct(animal)) return null;
         int k = kindIndex(animal);
         switch (plan.action()) {
             case CULL -> {
@@ -284,7 +292,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         // in reach: settle on a spot so that the animal, set where the clip wants it, is exactly where the arms go
         machine.to(State.STAGE);
         double[] lay = layout(animal);
-        if (lay == null) { // milking: just stand at the cow
+        if (lay == null) { // milking, or a chicken: just stand by it
             holdStill(golem);
             Face.toward(golem, animal.position());
             frozen = animal;
@@ -317,19 +325,20 @@ public class HerdWork extends TaskRunner<HerdPlan> {
 
     /** Plays the job's clip; the deed itself lands at its moment in it. */
     private void startClip(ServerLevel level, WorkGolem golem, Animal animal) {
-        float at = switch (plan.action()) {
+        float at = !hasAct(animal) ? 0.8F : switch (plan.action()) {
             case CULL -> Anim.T_CULL_HIT + 0.05F;
             case BREED -> Anim.T_FEED_BITE + 0.2F;
             case SHEAR -> Anim.T_SHEAR_AT;
             case MILK -> 0.8F;
         };
-        float len = switch (plan.action()) {
+        String show = clipFor(animal);
+        float len = show == null ? 1.6F : switch (plan.action()) {
             case CULL -> Anim.T_CULL_LEN;
             case BREED -> Anim.T_FEED_LEN;
             case SHEAR -> Anim.T_SHEAR_LEN;
             case MILK -> 1.6F;
         };
-        clip = ClipRun.play(golem, clipFor(animal), len).at(at, () -> {
+        clip = ClipRun.play(golem, show, len).at(at, () -> {
             if (!animal.isAlive()) return;
             machine.to(State.FOLLOW_THROUGH);
             golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);

@@ -63,8 +63,6 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     private Container opened;
     private Anim.Chest spec;
     private Vec3 spot;
-    /** The stack let go of on its way into the chest. */
-    private ItemStack stowed;
 
     public ContainerInteraction() {
         super(Plan.class, DURATION);
@@ -204,7 +202,6 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         spec = Anim.chest(golem.profession().id());
         spot = null;
         approach.reset();
-        stowed = null;
         golem.setPickupSuspended(true); // a free hand while the stack is in the air must not grab something else
         lookAtChest(golem);
     }
@@ -280,7 +277,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         if (put) {
             clip.at(spec.putRelease(), () -> letGo(golem)).at(spec.putDrop(), () -> drop(level, golem));
         } else {
-            clip.at(spec.fetchTake(), () -> takeOut(golem)).at(spec.fetchThrow(), () -> {
+            clip.at(spec.fetchTake(), () -> takeOut(level, golem)).at(spec.fetchThrow(), () -> {
                 if (!machine.is(State.TRANSFERRED)) return;
                 throwOut(level, golem);
                 machine.to(State.THROWN);
@@ -312,11 +309,18 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         machine.to(State.OPEN);
     }
 
+    /**
+     * The chest as it is now, or null if it has been broken. Looked up each time: a double chest is a new combined container on every
+     * lookup, so the one opened earlier cannot be compared with it.
+     */
+    private Container chestNow(ServerLevel level) {
+        return level.getBlockEntity(chestPos) == null ? null : HopperBlockEntity.getContainerAt(level, chestPos);
+    }
+
     /** The hand lets go of the stack. */
     private void letGo(WorkGolem golem) {
         if (!machine.is(State.OPEN)) return;
-        stowed = golem.carried().copy();
-        golem.setCarried(ItemStack.EMPTY);
+        golem.stow(); // (the golem looks after it until it lands: saved with it, dropped if it dies)
         golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         machine.to(State.LET_GO);
     }
@@ -324,19 +328,20 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     /** And it lands in the chest. */
     private void drop(ServerLevel level, WorkGolem golem) {
         if (!machine.is(State.LET_GO)) return;
-        boolean intact = opened != null && HopperBlockEntity.getContainerAt(level, chestPos) == opened; // not broken meanwhile
-        ItemStack rest = intact ? Slots.insert(opened, stowed) : stowed;
-        if (intact) opened.setChanged();
-        stowed = ItemStack.EMPTY;
+        Container chest = chestNow(level);
+        ItemStack stack = golem.takeStowed();
+        ItemStack rest = chest == null ? stack : Slots.insert(chest, stack); // broken meanwhile: back in the hand
+        if (chest != null) chest.setChanged();
         if (!rest.isEmpty()) golem.setCarried(rest);
         machine.to(State.TRANSFERRED);
     }
 
-    private void takeOut(WorkGolem golem) {
+    private void takeOut(ServerLevel level, WorkGolem golem) {
         if (!machine.is(State.OPEN)) return;
-        if (opened != null) {
-            take(ProfessionNeeds.of(golem).need(visit.supply()), visit.accepts(), golem, opened);
-            opened.setChanged();
+        Container chest = chestNow(level);
+        if (chest != null) {
+            take(ProfessionNeeds.of(golem).need(visit.supply()), visit.accepts(), golem, chest);
+            chest.setChanged();
         }
         machine.to(State.TRANSFERRED);
     }
@@ -361,10 +366,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         golem.setPickupSuspended(false);
         golem.setUsingChest(null);
         closeChest(golem); // also covers interruptions (panic, damage, timeout)
-        if (stowed != null && !stowed.isEmpty()) { // let go of a stack the chest never received
-            if (golem.carried().isEmpty()) golem.setCarried(stowed);
-            stowed = null;
-        }
+        golem.unstow(); // let go of a stack the chest never received
         chestPos = null;
     }
 
