@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousgolems.mine;
 
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
@@ -56,9 +57,8 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private final Queue<Trunk.Placement> queue = new ArrayDeque<>();
     private Trunk.Placement current;
     private BlockPos stand;
-    private int stalled;
+    private final Approach approach = new Approach(STALL_TICKS);
     private int progress;
-    private double nearest;
 
     public BuildTrunk() {
         super(Plan.class, 2400);
@@ -71,9 +71,8 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         queue.addAll(plan.builds());
         current = null;
         stand = null;
-        stalled = 0;
+        approach.reset();
         progress = 0;
-        nearest = Double.MAX_VALUE;
         golem.setPickupSuspended(true);
     }
 
@@ -101,8 +100,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         while ((current = queue.poll()) != null) {
             if (golem.packCount(current.part().match()) <= 0) { done(); return; } // short of it: the planner asks the chest for more
             if (!canPlace(level, current)) continue;
-            stalled = 0;
-            nearest = Double.MAX_VALUE;
+            approach.reset();
             stand = null;
             machine.to(State.APPROACH);
             return;
@@ -124,11 +122,10 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
             if (stand == null) { giveUp(golem, time); return; }
         }
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(at)));
-        boolean near = standAt(golem, Vec3.atBottomCenterOf(stand), 0.5) && golem.getEyePosition().distanceTo(Vec3.atCenterOf(at)) <= MineFinder.REACH && clearOf(golem.blockPosition(), at);
-        if (!near) {
-            double distance = golem.position().distanceTo(Vec3.atCenterOf(stand));
-            if (distance < nearest - 0.25) { nearest = distance; stalled = 0; } // a long way is fine so long as it gets nearer
-            if (++stalled > STALL_TICKS) { giveUp(golem, time); return; }
+        Approach.Outcome outcome = approach.stand(golem, Vec3.atBottomCenterOf(stand), 0.5,
+                () -> golem.getEyePosition().distanceTo(Vec3.atCenterOf(at)) <= MineFinder.REACH && clearOf(golem.blockPosition(), at));
+        if (outcome != Approach.Outcome.ARRIVED) {
+            if (outcome == Approach.Outcome.UNREACHABLE) giveUp(golem, time);
             return;
         }
         holdStill(golem);

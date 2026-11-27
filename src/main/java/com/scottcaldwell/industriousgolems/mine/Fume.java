@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems.mine;
 
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
@@ -36,8 +37,7 @@ public class Fume extends TaskRunner<Fume.Plan> {
 
     private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
-    private int stalled;
-    private double nearest;
+    private final Approach approach = new Approach(STALL_TICKS);
 
     public Fume() {
         super(Plan.class, 12000);
@@ -47,8 +47,7 @@ public class Fume extends TaskRunner<Fume.Plan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
         timer = 0;
-        stalled = 0;
-        nearest = Double.MAX_VALUE;
+        approach.reset();
     }
 
     private void done() {
@@ -63,13 +62,13 @@ public class Fume extends TaskRunner<Fume.Plan> {
             case RUN -> {
                 BlockPos chest = golem.jobSite(level);
                 if (chest == null) { done(); return; }
-                double distance = golem.position().distanceTo(Vec3.atCenterOf(chest));
-                if (distance < nearest - 0.25) { nearest = distance; stalled = 0; }
-                if (distance <= 2.4 || ++stalled > STALL_TICKS) {
+                // arrived, or as near as it is going to get: either way it does it here
+                if (approach.walk(golem, new BlockPosTracker(Vec3.atCenterOf(chest)), 1,
+                        () -> golem.position().distanceTo(Vec3.atCenterOf(chest)) <= 2.4) != Approach.Outcome.MOVING) {
                     holdStill(golem);
                     golem.playClip(Anim.S_FUME);
                     machine.to(State.FUME);
-                } else walkTo(golem, new BlockPosTracker(Vec3.atCenterOf(chest)), 1);
+                }
             }
             case FUME -> {
                 holdStill(golem);

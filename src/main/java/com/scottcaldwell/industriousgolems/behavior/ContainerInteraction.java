@@ -57,7 +57,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     private BlockPos chestPos;
     private Plan visit;
     private int timer;
-    private int stalled;
+    private final Approach approach = new Approach(400);
     private Container opened;
     private Anim.Chest spec;
     private Vec3 spot;
@@ -196,7 +196,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             .state(State.CLOSED, "Lid down; the clip is finishing.")
             .state(State.DONE, "(end) Task over. Interruptions close the lid and give back any stack the chest never took.")
             .edge(State.APPROACH, State.REACH, "settled on the spot, at ground level, facing the chest")
-            .edge(State.APPROACH, State.DONE, "no standing room in front, no way there for 20 s, or the chest is gone")
+            .edge(State.APPROACH, State.DONE, "no standing room in front, no nearer for 20 s, or the chest is gone")
             .edge(State.REACH, State.OPEN, "clip reaches the lid-open moment")
             .edge(State.OPEN, State.LET_GO, "put: clip reaches the release moment")
             .edge(State.OPEN, State.TRANSFERRED, "fetch: clip reaches the take moment, a stack moves chest -> hand")
@@ -216,7 +216,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         spec = Anim.chest(golem.profession().id());
         spot = null;
         timer = 0;
-        stalled = 0;
+        approach.reset();
         stowed = null;
         golem.setPickupSuspended(true); // a free hand while the stack is in the air must not grab something else
         lookAtChest(golem);
@@ -247,23 +247,21 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (spot == null && golem.onGround() && Math.abs(golem.getY() - chestPos.getY()) < 0.5) {
                 Vec3 chest = Vec3.atBottomCenterOf(chestPos);
                 double far = golem.position().distanceToSqr(chest);
-                if (far < BESIDE * BESIDE || (far < OVER_FENCE * OVER_FENCE && fenceBetween(golem, chest))) spot = golem.position();
+                if (far < BESIDE * BESIDE || (far < OVER_FENCE * OVER_FENCE && Approach.fenceBetween(golem, chest))) spot = golem.position();
             }
             if (spot == null) { done(); return; }
         }
         // up on top of the chest (its lid is under a block high, so the golem's block position is the chest's own, not the one above):
         // climb down first, the clip needs level ground
         if (golem.getBlockX() == chestPos.getX() && golem.getBlockZ() == chestPos.getZ() && golem.getY() > chestPos.getY() + 0.3) {
-            if (++stalled > 400) { done(); return; }
             golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-            golem.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new net.minecraft.world.entity.ai.memory.WalkTarget(new BlockPosTracker(BlockPos.containing(spot)), 0.5F, 0));
+            if (approach.walk(golem, new BlockPosTracker(BlockPos.containing(spot)), 0, () -> false) == Approach.Outcome.UNREACHABLE) done();
             return;
         }
         // the spot is at the chest's height and standAt only measures across the ground: under a chest up on a ledge the golem would
         // otherwise count as there. Walk to the spot itself, up whatever way leads to it.
         if (spot.y - golem.getY() > LEVEL_BELOW || golem.getY() - spot.y > LEVEL_ABOVE) {
-            if (++stalled > 400) { done(); return; }
-            walkTo(golem, new BlockPosTracker(BlockPos.containing(spot)), 0);
+            if (approach.walk(golem, new BlockPosTracker(BlockPos.containing(spot)), 0, () -> false) == Approach.Outcome.UNREACHABLE) done();
             return;
         }
         // another golem sharing the chest is at it: wait beside it rather than shove for the same spot
@@ -271,8 +269,9 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             holdStill(golem);
             return;
         }
-        if (!standAt(golem, spot, 1.0)) {
-            if (++stalled > 400) done();
+        Approach.Outcome outcome = approach.stand(golem, spot, 1.0);
+        if (outcome != Approach.Outcome.ARRIVED) {
+            if (outcome == Approach.Outcome.UNREACHABLE) done();
             return;
         }
         Face.toward(golem, Vec3.atCenterOf(chestPos));

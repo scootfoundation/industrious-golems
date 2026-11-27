@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousgolems.herd;
 
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.needs.Job;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
@@ -68,16 +69,16 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             .state(State.FOLLOW_THROUGH, "The deed is done (culled, sheared, milked or fed); the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.WALK, State.STAGE, "within 4 blocks of the animal")
-            .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without reaching it")
+            .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer")
             .edge(State.STAGE, State.WALK, "the animal wandered out of reach")
             .edge(State.STAGE, State.PLAY, "standing on the spot facing the right way (milking needs no spot)")
-            .edge(State.STAGE, State.DONE, "no room to stage it (does the job without the show), the animal is gone, or 20 s")
+            .edge(State.STAGE, State.DONE, "no room to stage it (does the job without the show), the animal is gone, or 20 s without getting nearer")
             .edge(State.PLAY, State.FOLLOW_THROUGH, "the clip reaches the deed's moment")
             .edge(State.PLAY, State.DONE, "the animal vanished first, or the clip ends")
             .edge(State.FOLLOW_THROUGH, State.DONE, "the clip ends");
 
     private final Machine.Run<State> machine = GRAPH.run();
-    private long deadline;
+    private final Approach approach = new Approach(APPROACH_TICKS);
     private int timer;
     private Vec3 spot;
     private Animal frozen;
@@ -187,7 +188,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
-        deadline = time + APPROACH_TICKS;
+        approach.reset();
         spot = null;
         frozen = null;
         yaw = 0;
@@ -264,9 +265,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         lookAt(golem, new EntityTracker(animal, true));
         if (golem.distanceToSqr(animal) > REACH_SQR) {
             machine.to(State.WALK);
-            if (time > deadline) { done(); return; }
             spot = null;
-            walkTo(golem, new EntityTracker(animal, false), 3);
+            if (approach.walk(golem, new EntityTracker(animal, false), 3, () -> false) == Approach.Outcome.UNREACHABLE) done();
             return;
         }
         // in reach: settle on a spot so that the animal, set where the clip wants it, is exactly where the arms go
@@ -290,8 +290,9 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             done();
             return;
         }
-        if (!standAt(golem, spot, 1.0)) {
-            if (time > deadline) done();
+        Approach.Outcome outcome = approach.stand(golem, spot, 1.0);
+        if (outcome != Approach.Outcome.ARRIVED) {
+            if (outcome == Approach.Outcome.UNREACHABLE) done();
             return;
         }
         Face.toward(golem, animal.position().multiply(1, 0, 1).add(0, golem.getY(), 0));

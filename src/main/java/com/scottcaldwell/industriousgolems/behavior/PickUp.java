@@ -23,7 +23,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     /** The stone golem picks up only what lies within this many blocks of it; its mine is long, and it takes the diggings as it goes. */
     public static final int MINER_RADIUS = 5;
     private static final double REACH_SQR = 1.2 * 1.2;
-    /** Walking this long without getting hold of the stack means it cannot be reached. */
+    /** Walking this long without getting any nearer the stack means it cannot be reached. */
     private static final int GIVE_UP_TICKS = 240;
     private static final int IGNORE_TICKS = 6000;
 
@@ -37,7 +37,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             .state(State.RISE, "The stack has reached the hand; the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.WALK, State.CROUCH, "settled on the spot")
-            .edge(State.WALK, State.DONE, "stack gone, hand already full, strayed far from the job site, or no path for 12 s (the stack is then ignored for 5 min)")
+            .edge(State.WALK, State.DONE, "stack gone, hand already full, strayed far from the job site, or no nearer for 12 s (the stack is then ignored for 5 min)")
             .edge(State.CROUCH, State.RISE, "the clip reaches its grab time: the stack moves into the hand")
             .edge(State.CROUCH, State.DONE, "the clip ends without a grab (nothing left to take)")
             .edge(State.RISE, State.DONE, "the clip ends");
@@ -47,7 +47,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
 
     private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
-    private int walking;
+    private final Approach approach = new Approach(GIVE_UP_TICKS);
     private Anim.Pick spec;
     private Vec3 spot;
 
@@ -76,7 +76,7 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
         timer = -1;
-        walking = 0;
+        approach.reset();
         spot = null;
         spec = Anim.pick(golem.profession().id());
     }
@@ -108,9 +108,10 @@ public class PickUp extends TaskRunner<PickUp.Plan> {
             spot = item.position().add(away.normalize().scale(spec.dist()));
             if (!Stand.reachable(level, golem, spot)) spot = item.position(); // no room to stand back from it
         }
-        if (walking > 0 && golem.distanceToSqr(item) > (RADIUS + 8) * (RADIUS + 8)) { done(); return; }
-        if (!standAt(golem, spot, 0.9)) {
-            if (++walking > GIVE_UP_TICKS) { // stuck behind something: leave it, so it does not hold up the rest of the work
+        if (golem.distanceToSqr(item) > (RADIUS + 8) * (RADIUS + 8)) { done(); return; }
+        Approach.Outcome outcome = approach.stand(golem, spot, 0.9);
+        if (outcome != Approach.Outcome.ARRIVED) {
+            if (outcome == Approach.Outcome.UNREACHABLE) { // stuck behind something: leave it, so it does not hold up the rest of the work
                 golem.getData(ModAttachments.TASK).ignoreItem(item.getId(), time + IGNORE_TICKS);
                 done();
             }

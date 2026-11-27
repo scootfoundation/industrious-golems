@@ -3,6 +3,7 @@ package com.scottcaldwell.industriousgolems.lumber;
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
 import com.scottcaldwell.industriousgolems.behavior.PickUp;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import net.minecraft.core.BlockPos;
@@ -37,7 +38,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
 
     /** How near the golem gets to the foot of the tree before it sneezes. */
     private static final double SNEEZE_DIST = 3.5;
-    /** Ticks spent trying to get to the foot of the tree before giving up. */
+    /** Ticks without getting any nearer the foot of the tree before giving up. */
     private static final int STALL_TICKS = 600;
 
     /** How far across it reaches for a log level with it, which it breaks before the block under its feet. */
@@ -62,7 +63,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
             .state(State.DESCEND, "Swing done and the block is gone: waiting to land on the next block down.")
             .state(State.DONE, "(end) Task over. If interrupted up in the tree he poofs back to the ground.")
             .edge(State.WALK, State.SNEEZE, "within 3.5 blocks of the tree and there is room on top of the crown")
-            .edge(State.WALK, State.DONE, "no room on top of the crown, or no path for 30 s (tree ignored for 2.5 min)")
+            .edge(State.WALK, State.DONE, "no room on top of the crown, or no nearer for 30 s (tree ignored for 2.5 min)")
             .edge(State.SNEEZE, State.APPEAR, "vanish moment reached: teleports onto the crown")
             .edge(State.APPEAR, State.BREAK, "appear clip ends")
             .edge(State.BREAK, State.DESCEND, "break clip ends")
@@ -76,7 +77,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
     private final List<BlockPos> remaining = new ArrayList<>();
     private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
-    private int stalled;
+    private final Approach approach = new Approach(STALL_TICKS);
     /** The one block this swing breaks, or null. */
     private BlockPos target;
     /** The spot on top of the crown the golem pops out at (its feet), or null when there is none. */
@@ -102,7 +103,7 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
         ground = null;
         falling = 0;
         aim(level);
-        stalled = 0;
+        approach.reset();
         machine.reset();
         timer = 0;
         golem.setPickupSuspended(true); // the drops are left lying until the felling is done, then picked up in turn
@@ -156,9 +157,9 @@ public class FellTree extends TaskRunner<FellTree.FellPlan> {
                 BlockPos base = plan.replant();
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(base)));
                 double dx = golem.getX() - (base.getX() + 0.5), dz = golem.getZ() - (base.getZ() + 0.5);
-                if (Math.sqrt(dx * dx + dz * dz) > SNEEZE_DIST) {
-                    if (++stalled > STALL_TICKS) { giveUp(golem, time); return; }
-                    walkTo(golem, new BlockPosTracker(base), 2);
+                Approach.Outcome outcome = approach.walk(golem, new BlockPosTracker(base), 2, () -> Math.sqrt(dx * dx + dz * dz) <= SNEEZE_DIST);
+                if (outcome != Approach.Outcome.ARRIVED) {
+                    if (outcome == Approach.Outcome.UNREACHABLE) giveUp(golem, time);
                     return;
                 }
                 if (top == null) { giveUp(golem, time); return; } // no room to stand on top

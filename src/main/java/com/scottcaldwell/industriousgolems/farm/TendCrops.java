@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems.farm;
 
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.Face;
@@ -52,7 +53,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
             .state(State.FOLLOW_THROUGH, "The crop is cut (or the seed planted); the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.APPROACH, State.WORKING, "settled on the spot, facing the plot")
-            .edge(State.APPROACH, State.DONE, "the plot is no longer ripe / bare or the hands changed, or no path for 20 s")
+            .edge(State.APPROACH, State.DONE, "the plot is no longer ripe / bare or the hands changed, or no nearer for 20 s")
             .edge(State.WORKING, State.FOLLOW_THROUGH, "the clip reaches the harvest / plant moment")
             .edge(State.WORKING, State.DONE, "the clip ends without the act")
             .edge(State.FOLLOW_THROUGH, State.DONE, "the clip ends");
@@ -64,7 +65,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
-    private int stalled;
+    private final Approach approach = new Approach(STALL_TICKS);
     private Vec3 spot;
 
     public TendCrops() {
@@ -110,7 +111,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     @Override
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
-        stalled = 0;
+        approach.reset();
         spot = null;
         golem.setPickupSuspended(true); // what a crop drops is picked up afterwards, as its own job
     }
@@ -141,8 +142,9 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
             spot = Stand.cardinal(level, pos, golem, Anim.H_CROP_DIST);
             if (spot == null) spot = Vec3.atCenterOf(pos).subtract(0, 0.5, 0); // nowhere to stand back: work from the plot itself
         }
-        if (!standAt(golem, spot, 0.9)) {
-            if (++stalled > STALL_TICKS) done();
+        Approach.Outcome outcome = approach.stand(golem, spot, 0.9);
+        if (outcome != Approach.Outcome.ARRIVED) {
+            if (outcome == Approach.Outcome.UNREACHABLE) done();
             return;
         }
         Face.toward(golem, Vec3.atCenterOf(pos));

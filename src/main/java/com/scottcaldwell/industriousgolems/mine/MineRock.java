@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousgolems.mine;
 
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.behavior.TaskState;
 import com.scottcaldwell.industriousgolems.golem.Anim;
@@ -66,9 +67,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
 
     private final Machine.Run<State> machine = GRAPH.run();
     private MineFinder.Target target;
-    private int stalled;
+    private final Approach approach = new Approach(STALL_TICKS);
     private int progress;
-    private double nearest;
 
     public MineRock() {
         super(MinePlan.class, 2400);
@@ -155,9 +155,8 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         machine.reset();
         target = plan.first();
         machine.to(State.APPROACH);
-        stalled = 0;
+        approach.reset();
         progress = 0;
-        nearest = Double.MAX_VALUE;
         golem.setPickupSuspended(true);
     }
 
@@ -184,13 +183,12 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         BlockPos block = target.block();
         if (!MineFinder.isMineable(level, block, true)) { done(); return; } // already gone, or no longer safe to cut
         lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(block)));
-        if (!standAt(golem, Vec3.atBottomCenterOf(target.stand()), 0.5) || !inReach(level, golem, block)) { // squares up exactly on the spot beside it
-            double distance = golem.position().distanceTo(Vec3.atCenterOf(target.stand()));
-            if (distance < nearest - 0.25) { nearest = distance; stalled = 0; } // a long way is fine so long as it gets nearer
-            if (++stalled > STALL_TICKS) { // cannot get there: leave it alone for a while
-                        golem.getData(ModAttachments.TASK).ignoreBlock(block, time + IGNORE_TICKS);
+        // squares up exactly on the spot beside it
+        Approach.Outcome outcome = approach.stand(golem, Vec3.atBottomCenterOf(target.stand()), 0.5, () -> inReach(level, golem, block));
+        if (outcome != Approach.Outcome.ARRIVED) {
+            if (outcome == Approach.Outcome.UNREACHABLE) { // cannot get there: leave it alone for a while
+                golem.getData(ModAttachments.TASK).ignoreBlock(block, time + IGNORE_TICKS);
                 done();
-                return;
             }
             return;
         }

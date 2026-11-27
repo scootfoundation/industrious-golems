@@ -1,6 +1,7 @@
 package com.scottcaldwell.industriousgolems.mine;
 
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
@@ -37,14 +38,13 @@ public class Cower extends TaskRunner<Cower.Plan> {
             .state(State.RUN, "Running back to the chest.")
             .state(State.COWER, "Crouched by the chest, arms over its head, shaking. Waiting for the mob to go.")
             .state(State.DONE, "(end) Task over.")
-            .edge(State.RUN, State.COWER, "next to the chest (or no way there for 20 s: it cowers where it is)")
+            .edge(State.RUN, State.COWER, "next to the chest (or no nearer for 8 s: it cowers where it is)")
             .edge(State.RUN, State.DONE, "the chest is gone")
             .edge(State.COWER, State.DONE, "no hostile mob has been near for 5 s");
 
     private final Machine.Run<State> machine = GRAPH.run();
     private int calm;
-    private int stalled;
-    private double nearest;
+    private final Approach approach = new Approach(STALL_TICKS);
 
     public Cower() {
         super(Plan.class, 12000);
@@ -67,8 +67,7 @@ public class Cower extends TaskRunner<Cower.Plan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
         calm = 0;
-        stalled = 0;
-        nearest = Double.MAX_VALUE;
+        approach.reset();
         golem.setPickupSuspended(true);
     }
 
@@ -78,13 +77,13 @@ public class Cower extends TaskRunner<Cower.Plan> {
             case RUN -> {
                 BlockPos chest = golem.jobSite(level);
                 if (chest == null) { machine.to(State.DONE); finish(); return; }
-                double distance = golem.position().distanceTo(Vec3.atCenterOf(chest));
-                if (distance < nearest - 0.25) { nearest = distance; stalled = 0; } // a long run is fine so long as it gets nearer
-                if (distance <= 2.2 || ++stalled > STALL_TICKS) {
+                // arrived, or as near as it is going to get: either way it does it here
+                if (approach.walk(golem, new BlockPosTracker(Vec3.atCenterOf(chest)), 1,
+                        () -> golem.position().distanceTo(Vec3.atCenterOf(chest)) <= 2.2) != Approach.Outcome.MOVING) {
                     holdStill(golem);
                     golem.playClip(Anim.S_COWER);
                     machine.to(State.COWER);
-                } else walkTo(golem, new BlockPosTracker(Vec3.atCenterOf(chest)), 1);
+                }
             }
             case COWER -> {
                 holdStill(golem);

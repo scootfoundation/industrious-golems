@@ -2,6 +2,7 @@ package com.scottcaldwell.industriousgolems.lumber;
 
 import com.scottcaldwell.industriousgolems.ModAttachments;
 import com.scottcaldwell.industriousgolems.behavior.Machine;
+import com.scottcaldwell.industriousgolems.behavior.Approach;
 import com.scottcaldwell.industriousgolems.behavior.TaskRunner;
 import com.scottcaldwell.industriousgolems.golem.Anim;
 import com.scottcaldwell.industriousgolems.golem.WorkGolem;
@@ -21,7 +22,7 @@ import net.minecraft.world.phys.Vec3;
 /** Plants the sapling the golem is holding: walks to the spot beside the place, bends down and puts it in. Runs in the exclusive task activity. */
 public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
 
-    /** Ticks spent trying to get to the planting spot before giving up. */
+    /** Ticks without getting any nearer the planting spot before giving up. */
     private static final int STALL_TICKS = 600;
     /** How far from the sapling's centre the golem stands to plant it (9 pixels). */
     private static final double PLANT_DIST = 9.0 / 16.0;
@@ -36,7 +37,7 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
             .state(State.PLANT, "Plant clip playing; the sapling leaves the hand and goes in at the planting moment.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.STEP_UP, State.PLANT, "standing on the spot with a sapling in hand")
-            .edge(State.STEP_UP, State.DONE, "no sapling in hand, the place is taken, no spot to stand, or no path for 30 s (the place is then ignored for 2.5 min)")
+            .edge(State.STEP_UP, State.DONE, "no sapling in hand, the place is taken, no spot to stand, or no nearer for 30 s (the place is then ignored for 2.5 min)")
             .edge(State.PLANT, State.DONE, "plant clip ends");
 
     /** @param at where the sapling goes */
@@ -44,7 +45,7 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
 
     private final Machine.Run<State> machine = GRAPH.run();
     private int timer;
-    private int stalled;
+    private final Approach approach = new Approach(STALL_TICKS);
     private Vec3 spot;
 
     public PlantSapling() {
@@ -55,7 +56,7 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
     protected void begin(ServerLevel level, WorkGolem golem, long time) {
         machine.reset();
         timer = 0;
-        stalled = 0;
+        approach.reset();
         spot = null;
     }
 
@@ -68,8 +69,9 @@ public class PlantSapling extends TaskRunner<PlantSapling.Plan> {
                 if (spot == null) spot = chooseSpot(level, golem, at);
                 if (spot == null) { giveUp(golem, time); return; }
                 lookAt(golem, new BlockPosTracker(Vec3.atCenterOf(at)));
-                if (!standAt(golem, spot, 0.9)) {
-                    if (++stalled > STALL_TICKS) giveUp(golem, time);
+                Approach.Outcome outcome = approach.stand(golem, spot, 0.9);
+                if (outcome != Approach.Outcome.ARRIVED) {
+                    if (outcome == Approach.Outcome.UNREACHABLE) giveUp(golem, time);
                     return;
                 }
                 holdStill(golem);
