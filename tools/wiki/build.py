@@ -96,6 +96,7 @@ GOLEMS = [
         behaviour=[
             "It works the tilled farmland within <strong>10 blocks</strong> of its chest (and two blocks up and down). It never tills soil itself: "
             "you prepare the plots and plant the first generation.",
+            "It never tramples farmland, even when it drops onto a plot.",
             "It walks onto a ripe crop and breaks it, then onto the bare farmland to sow whatever seeds it is holding. It will not sow things that are not seeds.",
             "It is deliberately slow: it plods about at well under the pace of the other golems.",
             "Seeds come from the chest. When it runs out it waits, so keep some seeds in the Hay Chest.",
@@ -142,6 +143,7 @@ GOLEMS = [
         behaviour=[
             "It works the <strong>enclosed pens</strong> (up to 64 floor blocks) with animals in them within <strong>16 blocks</strong> of its chest. "
             "A pen with a gap in the fence is not a pen.",
+            "It only moves an animal a little, on its own level, to line up its work: never through a fence or into a wall. Where there is no room for that, it does the job without the animation.",
             "It shears sheep and milks cows (a cow can be milked about every five minutes), turning each bucket from the chest into a bucket of milk.",
             "It keeps herds to a sensible size: it <strong>breeds</strong> a pen that has more than four floor blocks per animal, using feed from the chest, "
             "and <strong>culls</strong> one that is crowded below 3.5. It never culls a species below two adults.",

@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.golem;
 
+import net.minecraft.world.level.block.FarmlandBlock;
 import com.scottcaldwell.industriousgolems.ModEntities;
 import com.scottcaldwell.industriousgolems.ModProfessions;
 import com.scottcaldwell.industriousgolems.needs.NeedsIndicator;
@@ -350,6 +351,13 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
     public boolean causeFallDamage(double fallDistance, float damageMultiplier, DamageSource source) {
         if (profession().traits().softLanding()) return false;
         return super.causeFallDamage(fallDistance, damageMultiplier, source);
+    }
+
+    /** A golem is heavy enough to trample farmland, and it works on farms: it lands on tilled soil as if it had stepped there. */
+    @Override
+    protected void checkFallDamage(double ya, boolean onGround, BlockState state, BlockPos pos) {
+        if (onGround && state.getBlock() instanceof FarmlandBlock) resetFallDistance();
+        super.checkFallDamage(ya, onGround, state, pos);
     }
 
     @Override

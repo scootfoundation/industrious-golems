@@ -1,6 +1,6 @@
 {
   "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
+  "environment": "industriousgolems:alone_lumberjack_fells_far_tree",
   "function": "industriousgolems:lumberjack_fells_far_tree",
   "max_ticks": 8000,
   "setup_ticks": 1,

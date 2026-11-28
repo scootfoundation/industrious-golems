@@ -121,6 +121,8 @@ public class ModGameTests {
         strictly("golem_sneezes_out_from_under_leaves", ModGameTests::golemSneezesOutFromUnderLeaves);
         strictly("golem_uses_gate_and_shuts_it", ModGameTests::golemUsesGate);
         strictly("golems_share_one_chest", ModGameTests::golemsShareOneChest);
+        strictly("golem_does_not_trample_farmland", ModGameTests::golemDoesNotTrampleFarmland);
+        strictly("herder_holds_the_animal_where_it_was", ModGameTests::herderHoldsTheAnimalWhereItWas);
         strictly("golem_deposits_into_double_chest", ModGameTests::golemDepositsIntoDoubleChest);
         strictly("golem_keeps_stack_in_flight", ModGameTests::golemKeepsStackInFlight);
         strictly("herder_has_no_pig_act_for_chickens", ModGameTests::herderHasNoPigActForChickens);
@@ -671,7 +673,10 @@ public class ModGameTests {
         buildFarm(helper);
         WorkGolem farmer = spawnFarmer(helper, new BlockPos(3, 1, 3));
         farmer.setChargeTicks(60);
-        // a herder has no loom here to claim as a job site
+        // walled in, so it cannot walk to a loom in a neighbouring arena and claim it as a job site
+        for (int y = 1; y <= 2; y++) {
+            for (BlockPos wall : new BlockPos[] {new BlockPos(4, y, 5), new BlockPos(6, y, 5), new BlockPos(5, y, 4), new BlockPos(5, y, 6)}) helper.setBlock(wall, Blocks.STONE);
+        }
         WorkGolem homeless = helper.spawn(ModEntities.HERDER_GOLEM.get(), new BlockPos(5, 1, 5));
         homeless.setChargeTicks(60);
         helper.succeedWhen(() -> {
@@ -1011,6 +1016,46 @@ public class ModGameTests {
 
     private static final String NATURAL_TREES = "oak 60/60  fancy_oak 60/60  birch 60/60  spruce 60/60  pine 60/60  acacia 60/60  cherry 60/60  jungle_tree 60/60  "
             + "swamp_oak 60/60  dark_oak 60/60  pale_oak 60/60  azalea_tree 60/60  mega_spruce 13/60  mega_jungle_tree 17/60"; // (the giants: over the log limit)
+
+    /** A golem is heavy enough to trample farmland as a player does, but never does: dropping onto a field leaves it tilled. */
+    private static void golemDoesNotTrampleFarmland(GameTestHelper helper) {
+        buildFarm(helper);
+        for (int x = 3; x <= 5; x++) {
+            for (int z = 3; z <= 5; z++) helper.setBlock(new BlockPos(x, 1, z), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
+        }
+        WorkGolem farmer = spawnDormantWorker(helper, ModProfessions.FARMER, COMPOSTER, new BlockPos(4, 4, 4));
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(farmer.onGround(), "the golem should have landed");
+            for (int x = 3; x <= 5; x++) {
+                for (int z = 3; z <= 5; z++) helper.assertTrue(helper.getBlockState(new BlockPos(x, 1, z)).is(Blocks.FARMLAND), "trampled at " + x + ", " + z);
+            }
+            helper.succeed();
+        });
+    }
+
+    /** The animal being worked on stays where it is, even if the golem is moved or slips partway through: it is never carried off. */
+    private static void herderHoldsTheAnimalWhereItWas(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        Sheep sheep = helper.spawn(EntityTypes.SHEEP, new BlockPos(5, 1, 5));
+        sheep.setColor(DyeColor.WHITE);
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        Vec3[] held = {null};
+        int[] ticks = {0};
+        double[] strayed = {0};
+        helper.onEachTick(() -> {
+            if (!"shear".equals(herder.clip())) return;
+            if (++ticks[0] == 2) {
+                held[0] = sheep.position();
+                herder.setPos(herder.getX() - 2.0, herder.getY() + 1.5, herder.getZ()); // up and away, as if it slid off something
+            }
+            if (held[0] != null) strayed[0] = Math.max(strayed[0], sheep.position().distanceTo(held[0]));
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(!sheep.readyForShearing(), "waiting for the sheep to be sheared");
+            helper.assertTrue(held[0] != null, "the shearing should have been seen");
+            helper.assertTrue(strayed[0] < 0.5, "the sheep was carried " + strayed[0] + " blocks");
+        });
+    }
 
     private static void golemUsesItsOwnChest(GameTestHelper helper) {
         buildFarm(helper);
@@ -1454,9 +1499,17 @@ public class ModGameTests {
     /** A big flat grass platform high above the arena (the real grove is far larger than the 8x8 arena), with the fletching table and chest on it. */
     private static void skyGrove(GameTestHelper helper) {
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) helper.getLevel().setChunkForced((origin.getX() >> 4) + dx, (origin.getZ() >> 4) + dz, true);
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -4; dz <= 4; dz++) helper.getLevel().setChunkForced((origin.getX() >> 4) + dx, (origin.getZ() >> 4) + dz, true);
         }
+        // These platforms are far bigger than the arenas, so an earlier sky test's grove overlaps this one: clear away what it left
+        // (tests using this must each have their own environment, so that none is running while another clears)
+        for (int x = -45; x <= 55; x++) for (int z = -45; z <= 55; z++) for (int y = SKY + 1; y <= SKY + 10; y++) {
+            BlockPos p = new BlockPos(x, y, z);
+            if (!helper.getBlockState(p).isAir()) helper.setBlock(p, Blocks.AIR);
+        }
+        AABB above = new AABB(Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(-45, SKY, -45))), Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(55, SKY + 12, 55))));
+        helper.getLevel().getEntities((net.minecraft.world.entity.Entity) null, above, e -> !(e instanceof net.minecraft.world.entity.player.Player)).forEach(net.minecraft.world.entity.Entity::discard);
         for (int x = -20; x <= 30; x++) for (int z = -20; z <= 30; z++) helper.setBlock(new BlockPos(x, SKY, z), Blocks.GRASS_BLOCK);
         helper.setBlock(new BlockPos(2, SKY + 1, 2), Blocks.FLETCHING_TABLE);
         helper.setBlock(new BlockPos(4, SKY + 1, 2), Blocks.CHEST);

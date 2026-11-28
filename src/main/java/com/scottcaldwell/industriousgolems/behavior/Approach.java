@@ -7,6 +7,7 @@ import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.behavior.PositionTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.BooleanSupplier;
@@ -108,13 +109,18 @@ public final class Approach {
 
     /** Whether a fence, gate or wall stands on the straight line from the golem to the spot. */
     public static boolean fenceBetween(WorkGolem golem, Vec3 spot) {
-        double dx = spot.x - golem.getX(), dz = spot.z - golem.getZ();
+        return fenceBetween(golem.level(), golem.position(), spot);
+    }
+
+    /** The same for any two points, measured across the ground at the height of the first. */
+    public static boolean fenceBetween(Level level, Vec3 from, Vec3 to) {
+        double dx = to.x - from.x, dz = to.z - from.z;
         int steps = (int) Math.ceil(Math.sqrt(dx * dx + dz * dz) / 0.2);
-        BlockPos own = golem.blockPosition();
+        BlockPos own = BlockPos.containing(from);
         for (int i = 1; i <= steps; i++) {
-            BlockPos at = BlockPos.containing(golem.getX() + dx * i / steps, golem.getY() + 0.1, golem.getZ() + dz * i / steps);
+            BlockPos at = BlockPos.containing(from.x + dx * i / steps, from.y + 0.1, from.z + dz * i / steps);
             if (at.equals(own)) continue;
-            var state = golem.level().getBlockState(at);
+            var state = level.getBlockState(at);
             if (state.is(BlockTags.FENCES) || state.is(BlockTags.FENCE_GATES) || state.is(BlockTags.WALLS)) return true;
         }
         return false;

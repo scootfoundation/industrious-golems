@@ -1,6 +1,6 @@
 {
   "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
+  "environment": "industriousgolems:alone_lumberjack_fetches_far_drop",
   "function": "industriousgolems:lumberjack_fetches_far_drop",
   "max_ticks": 3000,
   "setup_ticks": 1,

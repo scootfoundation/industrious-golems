@@ -1,6 +1,6 @@
 {
   "type": "minecraft:function",
-  "environment": "industriousgolems:work_hours",
+  "environment": "industriousgolems:alone_lumberjack_grove_spacing",
   "function": "industriousgolems:lumberjack_grove_spacing",
   "max_ticks": 400,
   "setup_ticks": 1,

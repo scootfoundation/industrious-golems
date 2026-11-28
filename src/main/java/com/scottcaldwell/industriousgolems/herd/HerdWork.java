@@ -60,6 +60,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     static final int ALWAYS_BREED_BELOW = 3;
     static final long MILK_COOLDOWN = 6000;
     private static final double REACH_SQR = 4.0 * 4.0;
+    /** How far above or below the animal a golem may be and still set it where the clip wants it. */
+    private static final double LEVEL = 0.6;
     private static final int APPROACH_TICKS = 400;
     private static final int IGNORE_TICKS = 600; // short: animals move
 
@@ -88,6 +90,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     private ClipRun clip;
     private Vec3 spot;
     private Animal frozen;
+    /** Where the animal is held while the clip plays; null when it is left alone. */
+    private Vec3 held;
     private float yaw;
 
     public HerdWork() {
@@ -204,6 +208,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         approach.reset();
         spot = null;
         frozen = null;
+        held = null;
         yaw = 0;
         golem.setPickupSuspended(true);
     }
@@ -261,7 +266,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         for (int i = 0; i < 8; i++) {
             float y = i * 45.0F;
             Vec3 off = Face.local(Vec3.ZERO, y, lay[0], lay[1]);
-            Vec3 at = new Vec3(animal.getX() - off.x, golem.getY(), animal.getZ() - off.z);
+            Vec3 at = new Vec3(animal.getX() - off.x, animal.getY(), animal.getZ() - off.z);
             double d = at.distanceToSqr(golem.position());
             if (d >= bestDist || !Stand.reachable(level, golem, at)) continue; // behind a fence, say: no use standing there
             if (d < bestDist) {
@@ -313,6 +318,18 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             if (outcome == Approach.Outcome.UNREACHABLE) giveUp(golem, animal, time);
             return;
         }
+        // where the animal would be held for the clip: only ever where it could have walked to itself, on its own level
+        Vec3 off = Face.local(Vec3.ZERO, yaw, lay[0], lay[1]);
+        Vec3 hold = new Vec3(golem.getX() + off.x, animal.getY(), golem.getZ() + off.z);
+        if (Math.abs(golem.getY() - animal.getY()) > LEVEL || Approach.fenceBetween(level, animal.position(), hold)
+                || !level.noCollision(animal, animal.getBoundingBox().move(hold.subtract(animal.position())).deflate(0.05))) {
+            holdStill(golem); // up on something, or a fence or wall in the way: do the job without the show
+            golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+            perform(level, golem, animal, time);
+            done();
+            return;
+        }
+        held = hold;
         Face.toward(golem, animal.position().multiply(1, 0, 1).add(0, golem.getY(), 0));
         golem.setYRot(yaw);
         golem.setYBodyRot(yaw);
@@ -369,9 +386,8 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             golem.setYBodyRot(yaw);
             golem.setYHeadRot(yaw);
             double[] lay = layout(animal);
-            if (lay != null) {
-                Vec3 at = Face.local(golem.position(), yaw, lay[0], lay[1]);
-                animal.setPos(at.x, golem.getY(), at.z);
+            if (held != null && lay != null) { // held where it was settled at the start, wherever the golem gets to
+                animal.setPos(held.x, held.y, held.z);
                 animal.setDeltaMovement(Vec3.ZERO);
                 Vec3 face = Face.local(Vec3.ZERO, yaw, lay[2], lay[3]);
                 float ay = (float) (Mth.atan2(-face.x, face.z) * Mth.RAD_TO_DEG);
@@ -424,6 +440,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     @Override
     protected void end(ServerLevel level, WorkGolem golem, long time) {
         frozen = null;
+        held = null;
         golem.setPickupSuspended(false);
     }
 }
