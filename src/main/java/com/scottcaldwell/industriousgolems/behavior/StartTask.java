@@ -34,6 +34,7 @@ public class StartTask extends Behavior<WorkGolem> {
         TaskState state = golem.getData(ModAttachments.TASK);
         if (!Tasks.mayWork(golem)) { standUp(golem); return false; }
         if (state.plan != null) return false;
+        if (golem.gates().busy()) return false; // through the gate and shut it before anything else
         long now = level.getGameTime();
         if (!state.planDue(now)) return false;
 

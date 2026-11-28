@@ -50,13 +50,14 @@ public final class Approach {
 
     /** As {@link #stand(WorkGolem, Vec3, double)}, arrived only once {@code ready} holds there too (the block is in reach, say). */
     public Outcome stand(WorkGolem golem, Vec3 spot, double tolerance, BooleanSupplier ready) {
-        if (standAt(golem, spot, tolerance) && ready.getAsBoolean()) return Outcome.ARRIVED;
+        // (never "arrived" with a gate it opened still open: it gets through and shuts it first)
+        if (standAt(golem, spot, tolerance) && ready.getAsBoolean() && !golem.gates().busy()) return Outcome.ARRIVED;
         return progress(golem.position().distanceTo(spot));
     }
 
     /** Walks towards the target until {@code there} holds. */
     public Outcome walk(WorkGolem golem, PositionTracker target, int closeEnough, BooleanSupplier there) {
-        if (there.getAsBoolean()) return Outcome.ARRIVED;
+        if (there.getAsBoolean() && !golem.gates().busy()) return Outcome.ARRIVED;
         walkTo(golem, target, closeEnough);
         return progress(golem.position().distanceTo(target.currentPosition()));
     }

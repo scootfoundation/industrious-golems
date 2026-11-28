@@ -122,7 +122,7 @@ public final class ModProfessions {
 
             ModBlocks.HAY_CHEST::get,
             GolemPattern.column(state -> state.is(BlockTags.FENCES), state -> state.is(Blocks.HAY_BLOCK)),
-            new Traits(Carry.HAND, false, false, false, false, 48.0));
+            new Traits(Carry.HAND, false, false, false, false, false, 48.0));
 
 
 
@@ -156,7 +156,7 @@ public final class ModProfessions {
 
             ModBlocks.TERRACOTTA_CHEST::get,
             GolemPattern.column(state -> state.is(BlockTags.TERRACOTTA), state -> state.is(BlockTags.TERRACOTTA)),
-            Traits.plain());
+            new Traits(Carry.HAND, false, true, false, false, true, 48.0));
 
 
 
@@ -188,7 +188,7 @@ public final class ModProfessions {
 
             ModBlocks.MUSHROOM_CHEST::get,
             GolemPattern.column(state -> state.is(Blocks.RED_MUSHROOM_BLOCK)),
-            new Traits(Carry.HAND, true, true, true, true, 48.0));
+            new Traits(Carry.HAND, true, true, true, true, false, 48.0));
 
 
 
@@ -214,7 +214,7 @@ public final class ModProfessions {
 
             ModBlocks.STONE_CHEST::get,
             GolemPattern.tee(state -> state.is(Blocks.SMOOTH_STONE)),
-            new Traits(Carry.PACK, false, true, false, false, 80.0));
+            new Traits(Carry.PACK, false, true, false, false, false, 80.0));
 
 
 

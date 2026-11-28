@@ -14,14 +14,14 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
  * against {@link #GRAPH}, so a hand-over nobody declared shows up at once.
  */
 public enum GolemMode {
-    DORMANT, UNEMPLOYED, SEARCHING, DEPOSITING, FETCHING_SUPPLY, PICKING_UP, WORKING, PANICKING, RECEIVING, SNEEZING;
+    DORMANT, UNEMPLOYED, SEARCHING, DEPOSITING, FETCHING_SUPPLY, PICKING_UP, WORKING, PANICKING, RECEIVING, SNEEZING, SHOOING;
 
     public static final Machine.Graph<GolemMode> GRAPH = build();
 
     private static Machine.Graph<GolemMode> build() {
         Machine.Graph<GolemMode> g = new Machine.Graph<>("golem", "Every golem: who is in charge",
-                "The top level, shared by all four golems. Being handed an offering and sneezing take the golem over from its brain, in that "
-                        + "order; otherwise the brain's activities pick between these. The task states below say what each task does once it runs.", GolemMode.class)
+                "The top level, shared by all four golems. Being handed an offering sneezing and shooing take the golem over from its brain, in "
+                        + "that order; otherwise the brain's activities pick between these. The task states below say what each task does once it runs.", GolemMode.class)
                 .start(UNEMPLOYED)
                 .state(DORMANT, "No charge: stands where it is and does nothing. Only the core behaviours (swimming, looking) run.")
                 .state(UNEMPLOYED, "Charged but without a chest to work from: wanders and looks for one. Chests are shared, never claimed.")
@@ -33,7 +33,8 @@ public enum GolemMode {
                 .state(WORKING, "Task: the profession's own job (farm, fell trees, dig rock, tend the pen). Which runner has its own diagram.")
                 .state(PANICKING, "Hurt: runs away. Whatever task was running is dropped.")
                 .state(RECEIVING, "Woken with an offering: stands and plays the clip for being handed it. The brain waits.")
-                .state(SNEEZING, "Mushroom golem: sneezing out of a tight spot (it has its own diagram). The brain, and any task, waits.");
+                .state(SNEEZING, "Mushroom golem: sneezing out of a tight spot (it has its own diagram). The brain, and any task, waits.")
+                .state(SHOOING, "Terracotta golem: waving animals back from a gate it is about to open (it has its own diagram). The brain, and any task, waits.");
         g.edge(UNEMPLOYED, SEARCHING, "takes up a chest to work from");
         g.edge(SEARCHING, UNEMPLOYED, "its chest is gone");
         g.edge(DORMANT, SEARCHING, "charged again, with a chest");
@@ -56,11 +57,14 @@ public enum GolemMode {
         g.anyTo(DORMANT, "charge runs out");
         g.anyTo(RECEIVING, "woken with an offering");
         g.anyTo(SNEEZING, "stuck or trapped (golems that sneeze)", DORMANT, RECEIVING);
+        g.anyTo(SHOOING, "about to open a gate with animals close by (golems that shoo)", DORMANT, RECEIVING, SNEEZING);
         g.edge(RECEIVING, SEARCHING, "the clip is over");
+        g.edge(SHOOING, SEARCHING, "the animals have been waved back");
         g.edge(SNEEZING, SEARCHING, "reappeared");
         for (GolemMode after : values()) { // whatever the brain was doing, or starts at once, when it gets the golem back
             if (after != RECEIVING && after != SEARCHING) g.quiet(RECEIVING, after, "the brain takes over again");
             if (after != SNEEZING && after != SEARCHING) g.quiet(SNEEZING, after, "the brain takes over again");
+            if (after != SHOOING && after != SEARCHING) g.quiet(SHOOING, after, "the brain takes over again");
         }
         return g;
     }

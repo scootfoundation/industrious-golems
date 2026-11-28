@@ -124,6 +124,8 @@ public class ModGameTests {
         strictly("golem_does_not_trample_farmland", ModGameTests::golemDoesNotTrampleFarmland);
         strictly("herder_holds_the_animal_where_it_was", ModGameTests::herderHoldsTheAnimalWhereItWas);
         strictly("herder_spares_named_animals", ModGameTests::herderSparesNamedAnimals);
+        strictly("herder_keeps_animals_in_at_gate", ModGameTests::herderKeepsAnimalsInAtGate);
+        strictly("golem_shuts_gate_when_killed", ModGameTests::golemShutsGateWhenKilled);
         strictly("farmer_sows_pitcher_pods", ModGameTests::farmerSowsPitcherPods);
         strictly("farmer_returns_unsowable_seeds", ModGameTests::farmerReturnsUnsowableSeeds);
         strictly("golem_ignores_furnaces", ModGameTests::golemIgnoresFurnaces);
@@ -526,6 +528,21 @@ public class ModGameTests {
         helper.setBlock(new BlockPos(5, 1, 7), Blocks.AIR); // open a gap
         var leaky = HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(7, 1, 7)));
         helper.assertTrue(leaky == null, "a gap in the fence should leak into open ground");
+        helper.setBlock(new BlockPos(5, 1, 7), Blocks.OAK_FENCE);
+        helper.setBlock(new BlockPos(7, 1, 7), Blocks.HAY_BLOCK); // something inside to climb on does not let them out
+        helper.assertTrue(HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(8, 1, 8))) != null, "a hay bale inside the pen");
+        for (int i = 5; i <= 10; i++) {
+            for (int j = 5; j <= 10; j++) {
+                if (i == 5 || i == 10 || j == 5 || j == 10) helper.setBlock(new BlockPos(i, 1, j), Blocks.GRASS_BLOCK);
+            }
+        }
+        helper.assertTrue(HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(8, 1, 8))) == null, "animals jump out of a ring one block high");
+        for (int i = 5; i <= 10; i++) {
+            for (int j = 5; j <= 10; j++) {
+                if (i == 5 || i == 10 || j == 5 || j == 10) helper.setBlock(new BlockPos(i, 2, j), Blocks.GRASS_BLOCK);
+            }
+        }
+        helper.assertTrue(HerdPen.cellsAround(level, helper.absolutePos(new BlockPos(8, 1, 8))) != null, "two high holds them");
         helper.succeed();
     }
 
@@ -1139,6 +1156,58 @@ public class ModGameTests {
         helper.runAtTickTime(900, () -> {
             helper.assertTrue(!built[0], "a post was put inside the cow" + describe(helper, miner, chest));
             helper.succeed();
+        });
+    }
+
+    /** Sheep crowd the gate of the pen: the herder shoos them, goes in, shuts it and only then shears; none gets out. */
+    private static void herderKeepsAnimalsInAtGate(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        BlockPos gate = new BlockPos(3, 1, 5);
+        helper.setBlock(gate, Blocks.OAK_FENCE_GATE.defaultBlockState().setValue(FenceGateBlock.FACING, Direction.EAST));
+        List<Sheep> flock = new java.util.ArrayList<>();
+        for (BlockPos at : List.of(new BlockPos(4, 1, 5), new BlockPos(4, 1, 4), new BlockPos(4, 1, 6))) {
+            Sheep sheep = helper.spawn(EntityTypes.SHEEP, at);
+            sheep.setColor(DyeColor.WHITE);
+            flock.add(sheep);
+        }
+        WorkGolem herder = spawnHerder(helper, new BlockPos(1, 1, 5));
+        double edge = helper.absolutePos(gate).getX() + 0.5;
+        boolean[] shooed = {false}, opened = {false};
+        String[] wrong = {""};
+        helper.onEachTick(() -> {
+            shooed[0] |= "shoo".equals(herder.clip());
+            boolean open = helper.getBlockState(gate).getValue(FenceGateBlock.OPEN);
+            opened[0] |= open;
+            for (Sheep sheep : flock) if (sheep.getX() < edge) wrong[0] = "a sheep got out";
+            if (open && "shear".equals(herder.clip())) wrong[0] = "shearing with the gate open";
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(wrong[0].isEmpty(), wrong[0]);
+            helper.assertTrue(flock.stream().noneMatch(Sheep::readyForShearing), "waiting for all three to be shorn" + describe(helper, herder, helper.getBlockEntity(CHEST, ChestBlockEntity.class)));
+            helper.assertTrue(shooed[0] && opened[0], "it shooed them and went by the gate: shooed " + shooed[0] + ", opened " + opened[0]);
+            helper.assertTrue(!helper.getBlockState(gate).getValue(FenceGateBlock.OPEN), "the gate is shut");
+        });
+    }
+
+    /** Killed in the gateway, it still shuts the gate. */
+    private static void golemShutsGateWhenKilled(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(CHEST, Blocks.AIR);
+        for (int z = 0; z <= 7; z++) helper.setBlock(new BlockPos(4, 1, z), Blocks.OAK_FENCE);
+        BlockPos gate = new BlockPos(4, 1, 5);
+        helper.setBlock(gate, Blocks.OAK_FENCE_GATE.defaultBlockState().setValue(FenceGateBlock.FACING, Direction.EAST));
+        BlockPos site = new BlockPos(6, 1, 2);
+        helper.setBlock(site, ModBlocks.HAY_CHEST.get());
+        WorkGolem golem = spawnWorker(helper, ModProfessions.FARMER, site, new BlockPos(2, 1, 5));
+        golem.setCarried(new ItemStack(Items.WHEAT, 5));
+        boolean[] killed = {false};
+        helper.succeedWhen(() -> {
+            if (!killed[0]) {
+                helper.assertTrue(helper.getBlockState(gate).getValue(FenceGateBlock.OPEN), "waiting for it to open the gate");
+                golem.discard();
+                killed[0] = true;
+            }
+            helper.assertTrue(!helper.getBlockState(gate).getValue(FenceGateBlock.OPEN), "the gate is shut behind it");
         });
     }
 

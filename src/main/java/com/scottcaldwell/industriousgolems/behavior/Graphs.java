@@ -17,7 +17,7 @@ public final class Graphs {
 
     public static List<Machine.Graph<?>> all() {
         return List.of(GolemMode.GRAPH, ContainerInteraction.GRAPH, PickUp.GRAPH, TendCrops.GRAPH, FellTree.GRAPH, PlantSapling.GRAPH, MineRock.GRAPH, BuildTrunk.GRAPH, Cower.GRAPH, com.scottcaldwell.industriousgolems.mine.Fume.GRAPH, HerdWork.GRAPH,
-                com.scottcaldwell.industriousgolems.golem.Sneeze.GRAPH);
+                com.scottcaldwell.industriousgolems.golem.Sneeze.GRAPH, com.scottcaldwell.industriousgolems.golem.Shoo.GRAPH);
     }
 
     /** The diagram page: the template with a navigation bar and one section per machine filled in. */

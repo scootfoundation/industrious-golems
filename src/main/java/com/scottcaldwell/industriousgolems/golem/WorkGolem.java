@@ -81,6 +81,22 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         return control.mode();
     }
 
+    /** Its way through fence gates. */
+    public Gates gates() {
+        return gates;
+    }
+
+    Shoo shoo() {
+        return control.shoo();
+    }
+
+    /** A golem that is killed or discarded shuts the gates it has open; one that is only unloaded remembers them. */
+    @Override
+    public void remove(RemovalReason reason) {
+        if (reason.shouldDestroy() && level() instanceof ServerLevel level) gates.closeAll(level);
+        super.remove(reason);
+    }
+
     public WorkGolem(EntityType<? extends WorkGolem> type, Level level) {
         super(type, level);
         getNavigation().setCanOpenDoors(true);
@@ -239,6 +255,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         output.putInt("ChargeTicks", chargeTicks);
         output.putInt("Craving", cravingIndex());
         output.putInt("LastOffering", lastOffering);
+        gates.save(output);
         if (!stowed.isEmpty()) output.store("Stowed", ItemStack.OPTIONAL_CODEC, stowed.copy());
         if (!pack.isEmpty()) output.store("Pack", ItemStack.OPTIONAL_CODEC.listOf(), pack.getItems().stream().map(ItemStack::copy).toList());
     }
@@ -249,6 +266,7 @@ public class WorkGolem extends AbstractGolem implements ContainerUser {
         setChargeTicks(input.getIntOr("ChargeTicks", 0));
         setCravingIndex(input.getIntOr("Craving", -1));
         lastOffering = input.getIntOr("LastOffering", -1);
+        gates.load(input);
         // saved with a stack in flight: the visit is not resumed, so it is simply in the hand again (which is empty)
         input.read("Stowed", ItemStack.OPTIONAL_CODEC).ifPresent(this::setCarried);
         pack.clearContent();

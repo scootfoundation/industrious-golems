@@ -57,7 +57,8 @@ public final class Anim {
     public static final float S_MINE_LEN = 7.0F, S_MINE_HIT = 3.55F, S_RECEIVE_LEN = 7.0F;
 
     // ---- terracotta golem (herder) ----
-    public static final String T_RECEIVE = "receive-offering";
+    public static final String T_RECEIVE = "receive-offering", T_SHOO = "shoo";
+    public static final float T_SHOO_LEN = 1.6F, T_SHOO_AT = 0.5F, T_SHOO_AGAIN = 1.1F;
     public static final float T_RECEIVE_LEN = 6.0F, T_CULL_LEN = 6.2F, T_CULL_HIT = 1.6F, T_FEED_LEN = 9.0F, T_FEED_BITE = 4.4F, T_SHEAR_LEN = 10.2F, T_SHEAR_AT = 4.6F;
     /** Where the animals stand for each job, in the golem's frame (blocks), as the clips are written for. */
     public static final double T_CULL_PHI = 1.35;

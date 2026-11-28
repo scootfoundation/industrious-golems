@@ -71,14 +71,14 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             "Terracotta golem. Walks to an animal in a pen, stands where the clip wants it (the animal is held where the arms go), "
                     + "and plays the clip for the job; the deed itself lands at a moment in the clip.", State.class)
             .start(State.WALK)
-            .state(State.WALK, "Walking towards the animal, until within 4 blocks.")
+            .state(State.WALK, "Walking towards the animal, until within 4 blocks; where the pen has a gate, until inside it with the gate shut.")
             .state(State.STAGE, "Within reach: choosing and settling onto the spot (one of eight facings) the clip is written for.")
             .state(State.PLAY, "Clip playing, the animal frozen in place; the deed has not happened yet.")
             .state(State.FOLLOW_THROUGH, "The deed is done (culled, sheared, milked or fed); the clip is finishing.")
             .state(State.DONE, "(end) Task over.")
-            .edge(State.WALK, State.STAGE, "within 4 blocks of the animal")
+            .edge(State.WALK, State.STAGE, "within 4 blocks of the animal (inside the pen, gate shut, if it has a gate)")
             .edge(State.WALK, State.DONE, "the animal is gone, or 20 s without getting nearer (ignored for 30 s)")
-            .edge(State.STAGE, State.WALK, "the animal wandered out of reach")
+            .edge(State.STAGE, State.WALK, "the animal wandered out of reach, or the golem is no longer shut in with it")
             .edge(State.STAGE, State.PLAY, "standing on the spot facing the right way (milking and chickens need no spot)")
             .edge(State.STAGE, State.DONE, "no room to stage it (does the job without the show), the animal is gone, or 20 s without getting nearer")
             .edge(State.PLAY, State.FOLLOW_THROUGH, "the clip reaches the deed's moment")
@@ -298,10 +298,14 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         if (!(target instanceof Animal animal) || !animal.isAlive()) { done(); return; }
 
         lookAt(golem, new EntityTracker(animal, true));
-        if (golem.distanceToSqr(animal) > REACH_SQR) {
+        // a pen with a gate is worked from inside it, with the gate shut behind; one without, from over the fence
+        Set<BlockPos> pen = HerdPen.cellsAround(level, animal.blockPosition());
+        boolean gated = pen != null && HerdPen.hasGate(level, pen);
+        boolean inside = !gated || pen.contains(golem.blockPosition()) || pen.contains(golem.blockPosition().above());
+        if (golem.gates().busy() || !inside || golem.distanceToSqr(animal) > REACH_SQR) {
             machine.to(State.WALK);
             spot = null;
-            if (approach.walk(golem, new EntityTracker(animal, false), 3, () -> false) == Approach.Outcome.UNREACHABLE) giveUp(golem, animal, time);
+            if (approach.walk(golem, new EntityTracker(animal, false), gated ? 1 : 3, () -> false) == Approach.Outcome.UNREACHABLE) giveUp(golem, animal, time);
             return;
         }
         // in reach: settle on a spot so that the animal, set where the clip wants it, is exactly where the arms go

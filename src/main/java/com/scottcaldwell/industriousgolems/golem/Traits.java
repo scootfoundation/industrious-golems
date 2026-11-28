@@ -9,12 +9,8 @@ package com.scottcaldwell.industriousgolems.golem;
  * @param strolls       wanders about near its chest when it has nothing to do (otherwise it stands)
  * @param sneezes       gets out of tight spots by sneezing, see {@link Sneeze}
  * @param sitsWhenFull  sits down with what it holds when there is nowhere to put it
+ * @param shoosAnimals  waves animals away from a gate before opening it, see {@link Shoo}
  * @param pathRange     how far it can find a path, in blocks
  */
-public record Traits(Carry carry, boolean softLanding, boolean strolls, boolean sneezes, boolean sitsWhenFull, double pathRange) {
-
-    /** A golem with nothing special about it: one stack in the hand, strolls when idle. */
-    public static Traits plain() {
-        return new Traits(Carry.HAND, false, true, false, false, 48.0);
-    }
+public record Traits(Carry carry, boolean softLanding, boolean strolls, boolean sneezes, boolean sitsWhenFull, boolean shoosAnimals, double pathRange) {
 }

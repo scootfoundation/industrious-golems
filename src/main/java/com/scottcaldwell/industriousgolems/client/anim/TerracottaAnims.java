@@ -366,6 +366,17 @@ public final class TerracottaAnims {
             P.larm.rz -= 0.03 * Math.sin(t * 0.9);
         });
 
+        // ---- shooing: both arms out low in front, sweeping apart twice ----
+        Map<String, Double> in = p("rx", -0.75, "lx", -0.75, "rz", -0.4, "lz", -0.4, "hx", 0.3);
+        Map<String, Double> out = p("rx", -1.2, "lx", -1.2, "rz", 0.55, "lz", 0.55, "hx", 0.15);
+        tat("shoo", 1.6, false, 0, tfrm(TZERO,
+                e(0.0, TZERO),
+                e(0.05, in, 0.25, "all"),
+                e(0.4, out, 0.18, "all"),
+                e(0.7, in, 0.2, "all"),
+                e(1.0, out, 0.18, "all"),
+                e(1.3, mix(ringAll(0), p("rx", 0, "lx", 0, "rz", 0, "lz", 0, "hx", 0)), 0.25, "all")), null);
+
         // ---- offerings ----
         Fr[] await = tfrm(TZERO,
                 e(0.0, mix(T_CARRY, p("hx", 0.15))),

@@ -142,7 +142,10 @@ GOLEMS = [
         summary="The Terracotta Golem is the herder. It shears sheep, milks cows and looks after the animals in the pens near its chest.",
         behaviour=[
             "It works the <strong>enclosed pens</strong> (up to 64 floor blocks) with animals in them within <strong>16 blocks</strong> of its chest. "
-            "A pen with a gap in the fence is not a pen.",
+            "A pen has to hold its animals: a <strong>fence, wall or shut gate</strong>, or a side at least <strong>two blocks high</strong>, all the way round. "
+            "A gap, or a side only one block high (animals can jump that), means it is not a pen, so wild animals in a hollow are left alone.",
+            "Where a pen has a gate, it goes in and <strong>shuts the gate behind it before it does anything</strong>. If animals are crowding the gate it first <strong>shoos them back</strong>, "
+            "waving its arms (no animal is hurt), and while the gate is open they are held away from it.",
             "It only moves an animal a little, on its own level, to line up its work: never through a fence or into a wall. Where there is no room for that, it does the job without the animation.",
             "It shears sheep and milks cows (a cow can be milked about every five minutes), turning each bucket from the chest into a bucket of milk.",
             "It keeps herds to a sensible size: it <strong>breeds</strong> a pen that has more than four floor blocks per animal, using feed from the chest, "
@@ -492,7 +495,7 @@ Supplies come out of the chest the same way.</p>
 %(made)s
 %(usesblock)s
 <h2 id="notes">Notes</h2>
-<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby. It only uses <strong>chests, barrels and shulker boxes</strong>: never a furnace, hopper or other block with an inventory.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
+<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby. It only uses <strong>chests, barrels and shulker boxes</strong>: never a furnace, hopper or other block with an inventory.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in. Animals are held back from a gate while a golem has it open, and a golem finishes getting through before it starts anything else.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
 
 <h2>Other golems</h2>
 <div class="gcards">%(others)s</div>
