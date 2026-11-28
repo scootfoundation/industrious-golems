@@ -25,7 +25,6 @@ import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -33,7 +32,9 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -91,24 +92,39 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         BlockPos site = golem.jobSite(level);
         if (site == null || !EventHooks.canEntityGrief(level, golem)) return Stream.empty();
         if (golem.isCarrying()) {
-            if (!ProfessionNeeds.of(golem).isSupply("seeds", golem.carried())) return Stream.empty();
-            return Jobs.of(() -> nearest(level, site, golem, false).map(p -> Job.now(new CropPlan(Kind.SOW, p))).orElse(null));
+            ItemStack seeds = golem.carried();
+            if (!ProfessionNeeds.of(golem).isSupply("seeds", seeds)) return Stream.empty();
+            // only plots these seeds will take on; with none, they go back to the chest
+            return Jobs.of(() -> nearest(level, site, golem, p -> isBareFarmland(level, p) && takes(level, p, seeds))
+                    .map(p -> Job.now(new CropPlan(Kind.SOW, p))).orElse(null));
         }
         return Jobs.of(
-                () -> nearest(level, site, golem, true).map(p -> Job.now(new CropPlan(Kind.REAP, p))).orElse(null),
-                () -> nearest(level, site, golem, false).isPresent() ? Job.needing("seeds") : null);
+                () -> nearest(level, site, golem, p -> isRipe(level.getBlockState(p))).map(p -> Job.now(new CropPlan(Kind.REAP, p))).orElse(null),
+                () -> {
+                    List<BlockPos> bare = plots(level, site, golem, p -> isBareFarmland(level, p)).toList();
+                    return bare.isEmpty() ? null : Job.needing("seeds", stack -> bare.stream().anyMatch(p -> takes(level, p, stack)));
+                });
     }
 
-    private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, boolean ripe) {
-        BlockPos from = golem.blockPosition();
+    /** The plots round the job site that match and are this golem's to work. */
+    private static Stream<BlockPos> plots(ServerLevel level, BlockPos center, WorkGolem golem, Predicate<BlockPos> match) {
         Set<Object> taken = Claims.others(level, golem);
         TaskState state = golem.getData(ModAttachments.TASK);
         long now = level.getGameTime();
         return BlockPos.betweenClosedStream(center.offset(-RADIUS, -HEIGHT, -RADIUS), center.offset(RADIUS, HEIGHT, RADIUS))
-                .filter(p -> ripe ? isRipe(level.getBlockState(p)) : isBareFarmland(level, p))
+                .filter(match)
                 .map(BlockPos::immutable)
-                .filter(p -> !taken.contains(p) && !state.ignoresBlock(p, now))
-                .min(Comparator.comparingDouble(p -> p.distSqr(from)));
+                .filter(p -> !taken.contains(p) && !state.ignoresBlock(p, now));
+    }
+
+    private static Optional<BlockPos> nearest(ServerLevel level, BlockPos center, WorkGolem golem, Predicate<BlockPos> match) {
+        BlockPos from = golem.blockPosition();
+        return plots(level, center, golem, match).min(Comparator.comparingDouble(p -> p.distSqr(from)));
+    }
+
+    /** Whether what this seed plants would grow here (enough light, the right soil). */
+    private static boolean takes(ServerLevel level, BlockPos pos, ItemStack seeds) {
+        return seeds.getItem() instanceof BlockItem item && item.getBlock().defaultBlockState().canSurvive(level, pos);
     }
 
     private static boolean isRipe(BlockState state) {
@@ -175,17 +191,16 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
     private boolean stillWorthIt(ServerLevel level, WorkGolem golem) {
         return plan.kind() == Kind.REAP
                 ? isRipe(level.getBlockState(plan.pos())) && !golem.isCarrying()
-                : isBareFarmland(level, plan.pos()) && golem.isCarrying();
+                : isBareFarmland(level, plan.pos()) && golem.isCarrying() && takes(level, plan.pos(), golem.carried());
     }
 
     private void sow(ServerLevel level, WorkGolem golem, BlockPos pos) {
         ItemStack stack = golem.carried();
-        if (!(stack.getItem() instanceof BlockItem item)) return;
-        Block block = item.getBlock();
-        if (!(block instanceof CropBlock)) return;
-        BlockState crop = block.defaultBlockState();
-        if (!crop.canSurvive(level, pos)) return;
-        level.setBlockAndUpdate(pos, crop);
+        if (!takes(level, pos, stack) || !(stack.getItem() instanceof BlockItem item)) {
+            golem.getData(ModAttachments.TASK).ignoreBlock(pos, level.getGameTime() + IGNORE_TICKS);
+            return;
+        }
+        level.setBlockAndUpdate(pos, item.getBlock().defaultBlockState());
         level.playSound(null, pos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0F, 1.0F);
         stack.shrink(1);
         if (stack.isEmpty()) golem.setCarried(ItemStack.EMPTY);

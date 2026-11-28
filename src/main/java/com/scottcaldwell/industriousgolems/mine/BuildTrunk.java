@@ -19,6 +19,7 @@ import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayDeque;
@@ -33,6 +34,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
 
     private static final int STALL_TICKS = 160;
     private static final int IGNORE_TICKS = 6000;
+    private static final int OCCUPIED_TICKS = 100;
 
     public record Plan(List<Trunk.Placement> builds) implements Task {
         @Override public java.util.Collection<?> claims() { return builds.stream().map(Trunk.Placement::pos).toList(); }
@@ -102,6 +104,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         while ((current = queue.poll()) != null) {
             if (golem.pack().count(current.part().match()) <= 0) { done(); return; } // short of it: the planner asks the chest for more
             if (!canPlace(level, current)) continue;
+            if (occupied(level, golem, current)) { leaveBriefly(level, golem); continue; }
             approach.reset();
             stand = null;
             machine.to(State.APPROACH);
@@ -114,6 +117,17 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     private static boolean canPlace(ServerLevel level, Trunk.Placement placement) {
         BlockState state = level.getBlockState(placement.pos());
         return state.getCollisionShape(level, placement.pos()).isEmpty() && (state.getFluidState().isEmpty() || placement.part() == Kit.COBBLE);
+    }
+
+    /** Someone is standing where this block would be solid: a player, an animal, another golem. */
+    private static boolean occupied(ServerLevel level, WorkGolem golem, Trunk.Placement placement) {
+        if (placement.part() == Kit.TORCH) return false;
+        return !level.getEntities(golem, new AABB(placement.pos()).deflate(0.05), e -> e.blocksBuilding && !e.isSpectator()).isEmpty();
+    }
+
+    /** Not this one for a few seconds: whoever is there gets a chance to move. */
+    private void leaveBriefly(ServerLevel level, WorkGolem golem) {
+        golem.getData(ModAttachments.TASK).ignoreBlock(current.pos(), level.getGameTime() + OCCUPIED_TICKS);
     }
 
     private void approach(ServerLevel level, WorkGolem golem, long time) {
@@ -148,8 +162,10 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
     }
 
     private void place(ServerLevel level, WorkGolem golem) {
+        boolean occupied = occupied(level, golem, current);
+        if (occupied) leaveBriefly(level, golem);
         ItemStack item = golem.pack().takeOne(current.part().match());
-        if (!item.isEmpty() && canPlace(level, current)) {
+        if (!item.isEmpty() && !occupied && canPlace(level, current)) {
             BlockState base = current.part().state(item);
             if (current.facing() != null && base.hasProperty(HorizontalDirectionalBlock.FACING)) base = base.setValue(HorizontalDirectionalBlock.FACING, current.facing());
             BlockState state = Block.updateFromNeighbourShapes(base, level, current.pos());

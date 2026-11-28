@@ -1,0 +1,15 @@
+{
+  "values": [
+    "industriousgolems:hay_chest",
+    "industriousgolems:mushroom_chest",
+    "industriousgolems:terracotta_chest",
+    "industriousgolems:stone_chest",
+    "minecraft:chest",
+    "minecraft:trapped_chest",
+    "minecraft:barrel",
+    "#minecraft:copper_chests",
+    "#minecraft:shulker_boxes",
+    "#c:chests",
+    "#c:barrels"
+  ]
+}

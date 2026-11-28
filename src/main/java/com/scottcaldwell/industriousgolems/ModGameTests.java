@@ -123,6 +123,11 @@ public class ModGameTests {
         strictly("golems_share_one_chest", ModGameTests::golemsShareOneChest);
         strictly("golem_does_not_trample_farmland", ModGameTests::golemDoesNotTrampleFarmland);
         strictly("herder_holds_the_animal_where_it_was", ModGameTests::herderHoldsTheAnimalWhereItWas);
+        strictly("herder_spares_named_animals", ModGameTests::herderSparesNamedAnimals);
+        strictly("farmer_sows_pitcher_pods", ModGameTests::farmerSowsPitcherPods);
+        strictly("farmer_returns_unsowable_seeds", ModGameTests::farmerReturnsUnsowableSeeds);
+        strictly("golem_ignores_furnaces", ModGameTests::golemIgnoresFurnaces);
+        strictly("miner_does_not_build_into_animals", ModGameTests::minerDoesNotBuildIntoAnimals);
         strictly("golem_deposits_into_double_chest", ModGameTests::golemDepositsIntoDoubleChest);
         strictly("golem_keeps_stack_in_flight", ModGameTests::golemKeepsStackInFlight);
         strictly("herder_has_no_pig_act_for_chickens", ModGameTests::herderHasNoPigActForChickens);
@@ -1054,6 +1059,86 @@ public class ModGameTests {
             helper.assertTrue(!sheep.readyForShearing(), "waiting for the sheep to be sheared");
             helper.assertTrue(held[0] != null, "the shearing should have been seen");
             helper.assertTrue(strayed[0] < 0.5, "the sheep was carried " + strayed[0] + " blocks");
+        });
+    }
+
+    /** Six name-tagged cows crowd the pen: the herder has nothing it may cull. */
+    private static void herderSparesNamedAnimals(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        for (int i = 0; i < 6; i++) {
+            helper.spawn(EntityTypes.COW, new BlockPos(4 + i % 4, 1, 4 + i / 2)).setCustomName(net.minecraft.network.chat.Component.literal("Daisy " + i));
+        }
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        helper.runAtTickTime(600, () -> {
+            helper.assertTrue(alive(helper, Cow.class).size() == 6, "named cows were culled, " + alive(helper, Cow.class).size() + " left");
+            helper.assertTrue(HerdWork.jobs(helper.getLevel(), herder).noneMatch(job -> job.plan() instanceof com.scottcaldwell.industriousgolems.herd.HerdPlan p
+                    && p.action() == com.scottcaldwell.industriousgolems.herd.HerdPlan.Action.CULL), "no cull is even planned");
+            helper.succeed();
+        });
+    }
+
+    /** Pitcher pods grow a crop of their own kind; the farmer sows them like any seed. */
+    private static void farmerSowsPitcherPods(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
+        WorkGolem farmer = spawnFarmer(helper, AT);
+        farmer.setCarried(new ItemStack(Items.PITCHER_POD));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(new BlockPos(3, 2, 5)).is(Blocks.PITCHER_CROP), "the pod is sown");
+            helper.assertTrue(!farmer.isCarrying(), "and used up");
+        });
+    }
+
+    /** The whole room is dark: nothing sown here would grow, so the seeds go back to the chest without a try. */
+    private static void farmerReturnsUnsowableSeeds(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(new BlockPos(3, 1, 5), Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
+        for (int x = -1; x <= 8; x++) {
+            for (int z = -1; z <= 8; z++) helper.setBlock(new BlockPos(x, 4, z), Blocks.STONE);
+        }
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        WorkGolem farmer = spawnFarmer(helper, AT);
+        boolean[] tried = {false};
+        helper.onEachTick(() -> tried[0] |= Anim.H_REPLANT.equals(farmer.clip()));
+        helper.runAtTickTime(20, () -> farmer.setCarried(new ItemStack(Items.WHEAT_SEEDS, 4))); // (once the light has caught up)
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(chest, Items.WHEAT_SEEDS) == 4, "the seeds are put away" + describe(helper, farmer, chest));
+            helper.assertTrue(!tried[0], "it tried to sow in the dark");
+        });
+    }
+
+    /** A furnace and a hopper by the job site are not storage: nothing is put in them or taken out. */
+    private static void golemIgnoresFurnaces(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(CHEST, Blocks.AIR);
+        BlockPos furnace = CHEST, hopper = new BlockPos(2, 1, 4);
+        helper.setBlock(furnace, Blocks.FURNACE);
+        helper.setBlock(hopper, Blocks.HOPPER);
+        Container a = helper.getBlockEntity(furnace, net.minecraft.world.level.block.entity.FurnaceBlockEntity.class);
+        Container b = helper.getBlockEntity(hopper, net.minecraft.world.level.block.entity.HopperBlockEntity.class);
+        WorkGolem farmer = spawnFarmer(helper, AT);
+        farmer.setCarried(new ItemStack(Items.WHEAT, 5));
+        helper.runAtTickTime(300, () -> {
+            helper.assertTrue(count(a, Items.WHEAT) == 0 && count(b, Items.WHEAT) == 0, "wheat went into a furnace or hopper");
+            helper.assertTrue(farmer.carried().getCount() == 5, "it keeps hold of the wheat");
+            helper.succeed();
+        });
+    }
+
+    /** A cow stands where a support post goes: no fence is put inside it. */
+    private static void minerDoesNotBuildIntoAnimals(GameTestHelper helper) {
+        buildMine(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
+        stockKit(chest, 8);
+        BlockPos post = new BlockPos(9, 1, 5);
+        var cow = helper.spawn(EntityTypes.COW, post);
+        cow.setNoAi(true);
+        WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
+        boolean[] built = {false};
+        helper.onEachTick(() -> built[0] |= helper.getBlockState(post).is(net.minecraft.tags.BlockTags.FENCES));
+        helper.runAtTickTime(900, () -> {
+            helper.assertTrue(!built[0], "a post was put inside the cow" + describe(helper, miner, chest));
+            helper.succeed();
         });
     }
 

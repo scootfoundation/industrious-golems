@@ -134,12 +134,17 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         }
         List<Job> jobs = new ArrayList<>();
 
-        // too crowded: cull the most numerous species, but always keep a breeding pair
+        // too crowded: cull the most numerous species, but always keep a breeding pair, and never a player's pet or mount
         if (bareHanded && (total - spoken) * CELLS_PER_ANIMAL > cells) {
             List<Animal> crowded = null;
+            int most = MIN_ADULTS;
             for (List<Animal> group : adults.values()) {
                 List<Animal> species = group.stream().filter(a -> !taken.contains(a.getId())).toList();
-                if (species.size() > MIN_ADULTS && (crowded == null || species.size() > crowded.size())) crowded = species;
+                List<Animal> spare = species.stream().filter(HerdWork::cullable).toList();
+                if (species.size() > most && !spare.isEmpty()) {
+                    crowded = spare;
+                    most = species.size();
+                }
             }
             Animal victim = crowded == null ? null : nearest(golem, crowded, null);
             if (victim != null) jobs.add(Job.now(new HerdPlan(HerdPlan.Action.CULL, victim.getId())));
@@ -189,6 +194,11 @@ public class HerdWork extends TaskRunner<HerdPlan> {
             }
         }
         return jobs;
+    }
+
+    /** Whether the herder may kill it: a player's name tag, lead or saddle marks one to be left alone. */
+    private static boolean cullable(Animal animal) {
+        return !animal.hasCustomName() && !animal.isLeashed() && !animal.isSaddled();
     }
 
     private static Animal nearest(WorkGolem golem, List<Animal> animals, Animal exclude) {
@@ -404,7 +414,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         ItemStack carried = golem.carried();
         switch (plan.action()) {
             case CULL -> {
-                if (golem.isCarrying()) return false;
+                if (golem.isCarrying() || !cullable(animal)) return false; // (named or leashed since it was picked)
                 animal.hurtServer(level, level.damageSources().mobAttack(golem), animal.getMaxHealth() * 2);
                 return true;
             }

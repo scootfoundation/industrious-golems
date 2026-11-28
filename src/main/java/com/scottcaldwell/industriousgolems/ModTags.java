@@ -20,6 +20,9 @@ public final class ModTags {
     public static final TagKey<Block> MINER_STONE = block("miner_stone");
     public static final TagKey<Block> MINER_ORES = block("miner_ores");
 
+    /** The blocks a golem will fetch supplies from and put things away in: chests, barrels and the like, never a furnace or hopper. */
+    public static final TagKey<Block> GOLEM_STORAGE = block("golem_storage");
+
     private static TagKey<Item> item(String name) {
         return TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(IndustriousGolems.MODID, name));
     }

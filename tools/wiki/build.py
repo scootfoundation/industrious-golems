@@ -97,7 +97,7 @@ GOLEMS = [
             "It works the tilled farmland within <strong>10 blocks</strong> of its chest (and two blocks up and down). It never tills soil itself: "
             "you prepare the plots and plant the first generation.",
             "It never tramples farmland, even when it drops onto a plot.",
-            "It walks onto a ripe crop and breaks it, then onto the bare farmland to sow whatever seeds it is holding. It will not sow things that are not seeds.",
+            "It walks onto a ripe crop and breaks it, then onto the bare farmland to sow whatever seeds it is holding. It will not sow things that are not seeds, and where nothing would grow (too dark, say) it puts the seeds back.",
             "It is deliberately slow: it plods about at well under the pace of the other golems.",
             "Seeds come from the chest. When it runs out it waits, so keep some seeds in the Hay Chest.",
         ],
@@ -146,7 +146,7 @@ GOLEMS = [
             "It only moves an animal a little, on its own level, to line up its work: never through a fence or into a wall. Where there is no room for that, it does the job without the animation.",
             "It shears sheep and milks cows (a cow can be milked about every five minutes), turning each bucket from the chest into a bucket of milk.",
             "It keeps herds to a sensible size: it <strong>breeds</strong> a pen that has more than four floor blocks per animal, using feed from the chest, "
-            "and <strong>culls</strong> one that is crowded below 3.5. It never culls a species below two adults.",
+            "and <strong>culls</strong> one that is crowded below 3.5. It never culls a species below two adults, and it <strong>never culls an animal with a name tag, a saddle or a lead</strong>.",
             "Wool, milk, meat, leather, feathers and eggs go to the chest.",
         ],
         notes=["Give it plenty of feed and buckets: without feed it cannot breed, without buckets it cannot milk."],
@@ -157,7 +157,7 @@ GOLEMS = [
         texture="stone_golem", chest="stone", job="Stone Chest", body="smooth_stone", build="a <b>carved pumpkin</b> on a <b>T of smooth stone</b>, like an iron golem", job_vanilla="stonecutter",
         recipe=["chest", "stonecutter", "smooth_stone"],
         consumes=[("oak_fence", "Fences and planks (any wood) for braces"), ("torch", "Torches, one on each brace"), ("cobblestone", "Cobblestone, to floor over gaps and plug liquid")],
-        produces=["cobblestone", "granite", "diorite", "andesite", "tuff", "cobbled_deepslate", "coal", "raw_iron", "raw_copper", "raw_gold", "redstone", "lapis_lazuli", "diamond", "emerald", "quartz", "amethyst_shard", "clay_ball", "calcite"],
+        produces=["cobblestone", "flint", "granite", "diorite", "andesite", "tuff", "cobbled_deepslate", "coal", "raw_iron", "raw_copper", "raw_gold", "redstone", "lapis_lazuli", "diamond", "emerald", "quartz", "amethyst_shard", "clay_ball", "calcite"],
         offerings=[("nautilus_shell", "drowned, fishing"), ("prismarine_crystals", "ocean monuments"), ("echo_shard", "ancient cities"), ("disc_fragment_5", "ancient cities"),
                    ("chorus_fruit", "the End"), ("phantom_membrane", "phantoms"), ("ghast_tear", "ghasts"), ("breeze_rod", "breezes")],
         summary="The Stone Golem is the miner. Put its chest on the floor where you want a mine and it will dig a hub room and four straight trunk tunnels out of it, propped and lit like a mineshaft.",
@@ -169,6 +169,7 @@ GOLEMS = [
             "Each time it breaks a block it picks up the drops within five blocks before it carries on.",
             "Short gaps in the floor (up to five blocks) are bridged with cobblestone. Water or lava that would flood the tunnel is <strong>plugged with cobblestone</strong>, and a plug in the way ends that trunk. A long drop or a block it does not dig ends a trunk too, and it leaves caves it breaks into open for you to explore.",
             "Sand and gravel overhead are dug out a block at a time as they fall into the tunnel.",
+            "It never puts a block where a player or an animal is standing; it waits for them to move.",
             "It never fights. A <strong>hostile mob</strong> within ten blocks (a creeper: sixteen) sends it running back to its chest to cower, arms over its head, shaking, until the mob has gone.",
             "It works <strong>ore showing in the walls</strong> before plain rock, and what each block opens up shows the next, so it follows a vein as far as it can reach it. It never digs the floor, and it leaves <strong>ancient debris</strong> and obsidian for you (bare hands cannot get them).",
             "Besides stone and the usual ores it digs <strong>nether quartz and nether gold, amethyst and calcite, clay, dirt, deepslate, basalt, blackstone and dripstone</strong>. It digs bare-handed and drops what an <strong>iron pickaxe</strong> would give.",
@@ -491,7 +492,7 @@ Supplies come out of the chest the same way.</p>
 %(made)s
 %(usesblock)s
 <h2 id="notes">Notes</h2>
-<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
+<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby. It only uses <strong>chests, barrels and shulker boxes</strong>: never a furnace, hopper or other block with an inventory.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
 
 <h2>Other golems</h2>
 <div class="gcards">%(others)s</div>

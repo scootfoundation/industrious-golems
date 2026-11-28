@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_does_not_build_into_animals",
+  "environment": "industriousgolems:alone_miner_does_not_build_into_animals",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 6000
+}

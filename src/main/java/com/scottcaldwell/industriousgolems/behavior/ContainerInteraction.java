@@ -1,5 +1,6 @@
 package com.scottcaldwell.industriousgolems.behavior;
 
+import com.scottcaldwell.industriousgolems.ModTags;
 import com.scottcaldwell.industriousgolems.golem.Pack;
 import com.scottcaldwell.industriousgolems.golem.Slots;
 import com.scottcaldwell.industriousgolems.block.GolemChestBlock;
@@ -126,7 +127,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
         double bestDist = 0;
         for (BlockPos p : BlockPos.betweenClosed(site.offset(-SEARCH_RADIUS, -2, -SEARCH_RADIUS),
                 site.offset(SEARCH_RADIUS, 2, SEARCH_RADIUS))) {
-            if (level.getBlockEntity(p) == null) continue;
+            if (level.getBlockEntity(p) == null || !level.getBlockState(p).is(ModTags.GOLEM_STORAGE)) continue;
             Container c = HopperBlockEntity.getContainerAt(level, p);
             if (c == null || !usable.test(c)) continue;
             BlockState state = level.getBlockState(p);
