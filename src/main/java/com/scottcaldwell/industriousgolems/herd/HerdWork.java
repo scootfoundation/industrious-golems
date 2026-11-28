@@ -101,7 +101,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
     // ---- choosing work ----------------------------------------------------------------------------------------
 
     /**
-     * The herding jobs the golem could do, best first, pen by pen. Cull, shear, milk, breed: each is offered if the pen calls for it, as
+     * The herding jobs the golem could do, best first. Cull and breed (the numbers) before shear and milk: each is offered if a pen calls for it, as
      * doable now when the hand already holds what it takes (nothing for culling and shearing, a bucket for milking, feed for breeding), or,
      * with a free hand, as a job that needs the bucket or the feed fetched first. Whether the chest has them is not asked here: that is
      * the dispatcher's business, and a job it cannot supply simply does not hold up the ones after it.
@@ -114,8 +114,20 @@ public class HerdWork extends TaskRunner<HerdPlan> {
         boolean bucket = needs.isSupply("bucket", carried);
         boolean feed = needs.isSupply("feed", carried);
         if (golem.isCarrying() && !bucket && !feed) return Stream.empty(); // something to take to the chest first
-        return Stream.of(site).flatMap(at -> HerdPen.find(level, at).stream())
-                .flatMap(pen -> jobsFor(level, golem, pen, bucket, feed).stream());
+        // keeping the numbers right comes before anything else, in whichever pen: culling, then breeding, then wool and milk
+        return Stream.of(site).flatMap(at -> HerdPen.find(level, at).stream()
+                .flatMap(pen -> jobsFor(level, golem, pen, bucket, feed).stream())
+                .sorted(Comparator.comparingInt(HerdWork::rank)));
+    }
+
+    private static int rank(Job job) {
+        if (job.needsSupply()) return job.supply().equals("feed") ? 1 : 3;
+        return switch (((HerdPlan) job.plan()).action()) {
+            case CULL -> 0;
+            case BREED -> 1;
+            case SHEAR -> 2;
+            case MILK -> 3;
+        };
     }
 
     private static List<Job> jobsFor(ServerLevel level, WorkGolem golem, HerdPen pen, boolean bucket, boolean feed) {
@@ -190,7 +202,7 @@ public class HerdWork extends TaskRunner<HerdPlan> {
                 Animal pick = nearest(golem, candidates, null);
                 if (pick == null) continue;
                 // fetching: only feed this species eats will do (a cow cannot be fed carrots)
-                jobs.add(feed ? Job.now(new HerdPlan(HerdPlan.Action.BREED, pick.getId())) : Job.needing("feed", pick::isFood));
+                jobs.add(feed ? Job.now(new HerdPlan(HerdPlan.Action.BREED, pick.getId())) : Job.pressingNeed("feed", pick::isFood));
             }
         }
         return jobs;

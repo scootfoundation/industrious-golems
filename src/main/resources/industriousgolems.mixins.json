@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.scottcaldwell.industriousgolems.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CompoundContainerAccessor",
+    "TransportItemsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

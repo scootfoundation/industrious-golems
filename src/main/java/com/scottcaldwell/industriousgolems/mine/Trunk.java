@@ -263,6 +263,7 @@ public final class Trunk {
         java.util.Set<BlockPos> inside = new java.util.HashSet<>();
         for (Cell cell : cells) inside.add(cell.pos());
         boolean blocked = false;
+        boolean setAside = false; // rock the golem could not get to for now: the rest is still dug
         for (Cell cell : cells) {
             BlockPos pos = cell.pos();
             if (!level.isLoaded(pos)) return new Result(true, List.of(), List.of());
@@ -282,8 +283,9 @@ public final class Trunk {
                 case AIR -> {
                     if (open(level, pos, state)) continue;
                     if (!state.getFluidState().isEmpty() && !ignored.test(pos)) { plugs.add(new Placement(pos, Kit.COBBLE)); blocked = true; }
-                    else if (MineFinder.isRock(state) && !ignored.test(pos)) dig.add(pos);
-                    else blocked = true;
+                    else if (!MineFinder.isRock(state)) blocked = true;
+                    else if (ignored.test(pos)) setAside = true;
+                    else dig.add(pos);
                 }
                 case POST, BEAM, TORCH -> {
                     Role role = cell.role();
@@ -304,6 +306,7 @@ public final class Trunk {
                 }
             }
         }
+        if (setAside && dig.isEmpty()) blocked = true; // nothing else left here, and no going on past it
         // liquid just outside the slice, which would flow in once the rock between is dug
         for (Cell cell : cells) {
             if (cell.role() == Role.FLOOR) continue;

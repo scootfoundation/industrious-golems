@@ -112,7 +112,8 @@ public final class ModProfessions {
 
             ), s -> s.is(Items.WHEAT) || s.is(Items.BEETROOT) || s.is(Items.MELON_SLICE) || s.is(Items.PUMPKIN)
 
-                    || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES) || s.is(Items.CARROT) || s.is(Items.POTATO),
+                    || s.is(Items.MELON) || s.is(Items.SWEET_BERRIES) || s.is(Items.CARROT) || s.is(Items.POTATO)
+                    || s.is(Items.POISONOUS_POTATO) || s.is(Items.TORCHFLOWER) || s.is(Items.PITCHER_PLANT),
 
                     new ProfessionNeeds.Work(TendCrops::jobs, TendCrops::new)),
 

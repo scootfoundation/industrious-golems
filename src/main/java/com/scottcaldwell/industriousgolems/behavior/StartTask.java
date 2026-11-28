@@ -25,8 +25,8 @@ public class StartTask extends Behavior<WorkGolem> {
     }
 
     /**
-     * The profession lists the jobs it could do, best first (see {@link Job}); this takes them in this order: the first that can start with
-     * the hand as it is, then topping up the carried stack from more of the same lying about, putting it in the chest, picking up a stack
+     * The profession lists the jobs it could do, best first (see {@link Job}); this takes them in this order: fetching the supply of a
+     * pressing job listed ahead of anything that could start, the first that can start with the hand as it is, then topping up the carried stack from more of the same lying about, putting it in the chest, picking up a stack
      * lying about, fetching the supply of the first job that needs one the chest can give, and last the first job that waits on all of those.
      */
     @Override
@@ -40,7 +40,15 @@ public class StartTask extends Behavior<WorkGolem> {
 
         JobList jobs = new JobList(ProfessionNeeds.of(golem).work().jobs().jobs(level, golem).iterator());
         Job ready = jobs.first(Job::ready);
-        Task plan = ready == null ? null : ready.plan();
+        Task plan = null;
+        if (!golem.isCarrying()) {
+            for (Job job : jobs) {
+                if (job == ready) break;
+                if (job.pressing()) plan = ContainerInteraction.planSupply(level, golem, new JobList(java.util.List.of(job).iterator()));
+                if (plan != null) break;
+            }
+        }
+        if (plan == null && ready != null) plan = ready.plan();
         if (plan == null && golem.isCarrying()) plan = PickUp.plan(level, golem); // top up the stack in hand first
         if (plan == null) plan = ContainerInteraction.planDeposit(level, golem);
         if (plan == null) plan = PickUp.plan(level, golem);

@@ -124,6 +124,9 @@ public class ModGameTests {
         strictly("golem_does_not_trample_farmland", ModGameTests::golemDoesNotTrampleFarmland);
         strictly("herder_holds_the_animal_where_it_was", ModGameTests::herderHoldsTheAnimalWhereItWas);
         strictly("herder_spares_named_animals", ModGameTests::herderSparesNamedAnimals);
+        strictly("copper_golem_supplies_golem_chest", ModGameTests::copperGolemSuppliesGolemChest);
+        strictly("farmer_harvests_other_crops", ModGameTests::farmerHarvestsOtherCrops);
+        strictly("herder_breeds_before_shearing", ModGameTests::herderBreedsBeforeShearing);
         strictly("herder_keeps_animals_in_at_gate", ModGameTests::herderKeepsAnimalsInAtGate);
         strictly("golem_shuts_gate_when_killed", ModGameTests::golemShutsGateWhenKilled);
         strictly("farmer_sows_pitcher_pods", ModGameTests::farmerSowsPitcherPods);
@@ -503,7 +506,7 @@ public class ModGameTests {
         helper.succeedWhen(() -> {
             if (never != null && herder.carried().is(never)) carriedUseless[0] = true;
             helper.assertTrue(!carriedUseless[0], "the herder took something nothing here can use");
-            if (milks) helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) > 0, "a cow should have been milked");
+            if (milks) helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) > 0, "a cow should have been milked" + describe(helper, herder, chest));
             if (feeds) helper.assertTrue(total(herder, chest, Items.WHEAT) < wheat0, "the cows should have been fed");
             if (!milks && !feeds) helper.assertTrue(helper.getTick() >= 600, "idle: waiting to see that it stays idle");
             if (!milks) helper.assertTrue(total(herder, chest, Items.MILK_BUCKET) == 0, "nothing to milk with, or the cows are not ready");
@@ -1210,6 +1213,75 @@ public class ModGameTests {
                 killed[0] = true;
             }
             helper.assertTrue(!helper.getBlockState(gate).getValue(FenceGateBlock.OPEN), "the gate is shut behind it");
+        });
+    }
+
+    /** A copper golem holding wheat seeds takes them to the hay chest, though an empty ordinary chest is nearer. */
+    private static void copperGolemSuppliesGolemChest(GameTestHelper helper) {
+        buildFarm(helper);
+        helper.setBlock(COMPOSTER, Blocks.AIR);
+        BlockPos hay = new BlockPos(6, 1, 6);
+        helper.setBlock(hay, ModBlocks.HAY_CHEST.get());
+        var courier = helper.spawn(EntityTypes.COPPER_GOLEM, new BlockPos(4, 1, 3));
+        courier.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new ItemStack(Items.WHEAT_SEEDS, 12));
+        Container own = helper.getBlockEntity(hay, ChestBlockEntity.class);
+        Container plain = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(count(own, Items.WHEAT_SEEDS) == 12, "the seeds go to the hay chest: it has " + count(own, Items.WHEAT_SEEDS)
+                    + ", the plain chest " + count(plain, Items.WHEAT_SEEDS) + ", in hand " + courier.getMainHandItem());
+            helper.assertTrue(count(plain, Items.WHEAT_SEEDS) == 0, "none in the plain chest");
+        });
+    }
+
+    /** Melons and pumpkins off their stems, torchflowers, pitcher plants and berries; a pumpkin merely set down stays. */
+    private static void farmerHarvestsOtherCrops(GameTestHelper helper) {
+        buildFarm(helper);
+        var wet = Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7);
+        BlockPos melon = new BlockPos(1, 1, 5), pumpkin = new BlockPos(3, 1, 5), flower = new BlockPos(5, 1, 5), pitcher = new BlockPos(7, 1, 5);
+        BlockPos berries = new BlockPos(6, 1, 2), ornament = new BlockPos(1, 1, 1);
+        helper.setBlock(melon, Blocks.MELON);
+        helper.setBlock(melon.south().below(), wet);
+        helper.setBlock(melon.south(), Blocks.ATTACHED_MELON_STEM.defaultBlockState().setValue(net.minecraft.world.level.block.HorizontalDirectionalBlock.FACING, Direction.NORTH));
+        helper.setBlock(pumpkin, Blocks.PUMPKIN);
+        helper.setBlock(pumpkin.south().below(), wet);
+        helper.setBlock(pumpkin.south(), Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState().setValue(net.minecraft.world.level.block.HorizontalDirectionalBlock.FACING, Direction.NORTH));
+        helper.setBlock(flower.below(), wet);
+        helper.setBlock(flower, Blocks.TORCHFLOWER);
+        helper.setBlock(pitcher.below(), wet);
+        helper.setBlock(pitcher, Blocks.PITCHER_CROP.defaultBlockState().setValue(net.minecraft.world.level.block.PitcherCropBlock.AGE, 4));
+        helper.setBlock(pitcher.above(), Blocks.PITCHER_CROP.defaultBlockState().setValue(net.minecraft.world.level.block.PitcherCropBlock.AGE, 4)
+                .setValue(net.minecraft.world.level.block.PitcherCropBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER));
+        helper.setBlock(berries.below(), Blocks.GRASS_BLOCK);
+        helper.setBlock(berries, Blocks.SWEET_BERRY_BUSH.defaultBlockState().setValue(net.minecraft.world.level.block.SweetBerryBushBlock.AGE, 3));
+        helper.setBlock(ornament, Blocks.PUMPKIN);
+        WorkGolem farmer = spawnFarmer(helper, AT);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(!helper.getBlockState(melon).is(Blocks.MELON), "the melon" + describe(helper, farmer, chest));
+            helper.assertTrue(!helper.getBlockState(pumpkin).is(Blocks.PUMPKIN), "the pumpkin" + describe(helper, farmer, chest));
+            helper.assertTrue(!helper.getBlockState(flower).is(Blocks.TORCHFLOWER), "the torchflower" + describe(helper, farmer, chest));
+            helper.assertTrue(!helper.getBlockState(pitcher).is(Blocks.PITCHER_CROP), "the pitcher plant" + describe(helper, farmer, chest));
+            var bush = helper.getBlockState(berries);
+            helper.assertTrue(bush.is(Blocks.SWEET_BERRY_BUSH) && bush.getValue(net.minecraft.world.level.block.SweetBerryBushBlock.AGE) < 3, "the berries picked, the bush left" + describe(helper, farmer, chest));
+            helper.assertTrue(total(farmer, chest, Items.PUMPKIN) >= 1 && total(farmer, chest, Items.PITCHER_PLANT) >= 1 && total(farmer, chest, Items.SWEET_BERRIES) >= 2, "and brought in" + describe(helper, farmer, chest));
+            helper.assertTrue(helper.getBlockState(ornament).is(Blocks.PUMPKIN), "a pumpkin with no stem is left alone");
+        });
+    }
+
+    /** Two pigs with room to breed and a sheep ready to shear, carrots in the chest: the herd's numbers come first. */
+    private static void herderBreedsBeforeShearing(GameTestHelper helper) {
+        buildHerdFarm(helper);
+        Container chest = helper.getBlockEntity(CHEST, ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.CARROT, 64));
+        var pigs = List.of(helper.spawn(EntityTypes.PIG, new BlockPos(5, 1, 5)), helper.spawn(EntityTypes.PIG, new BlockPos(7, 1, 6)));
+        Sheep sheep = helper.spawn(EntityTypes.SHEEP, new BlockPos(5, 1, 7));
+        sheep.setColor(DyeColor.WHITE);
+        WorkGolem herder = spawnHerder(helper, new BlockPos(2, 1, 4));
+        boolean[] shornFirst = {false};
+        helper.onEachTick(() -> shornFirst[0] |= !sheep.readyForShearing() && alive(helper, Pig.class).size() < 3 && pigs.stream().noneMatch(Animal::isInLove));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(alive(helper, Pig.class).size() >= 3, "waiting for a piglet" + describe(helper, herder, chest));
+            helper.assertTrue(!shornFirst[0], "the sheep was shorn before the pigs were fed");
         });
     }
 

@@ -14,17 +14,18 @@ import net.minecraft.world.item.ItemStack;
  * @param supply    the id of the {@link Need} to fetch from a container before this job can be done, or null when the hand is already right
  * @param accepts   with a supply: which of the container's stacks will do (a cow cannot be fed carrots, say)
  * @param tidyFirst the job only comes after anything carried is put away and anything lying about picked up
+ * @param pressing  with a supply: worth fetching before doing any job listed after it, even one that could start at once
  */
-public record Job(Task plan, String supply, Predicate<ItemStack> accepts, boolean tidyFirst) {
+public record Job(Task plan, String supply, Predicate<ItemStack> accepts, boolean tidyFirst, boolean pressing) {
 
     /** Doable now, with the hand as it is. */
     public static Job now(Task plan) {
-        return new Job(plan, null, s -> true, false);
+        return new Job(plan, null, s -> true, false, false);
     }
 
     /** Doable with a free hand, but only once everything carried or lying about is dealt with. */
     public static Job whenTidy(Task plan) {
-        return new Job(plan, null, s -> true, true);
+        return new Job(plan, null, s -> true, true, false);
     }
 
     /** Doable once the golem holds a stack of this supply; any stack of it will do. */
@@ -34,7 +35,12 @@ public record Job(Task plan, String supply, Predicate<ItemStack> accepts, boolea
 
     /** Doable once the golem holds a stack of this supply that {@code accepts}. */
     public static Job needing(String supply, Predicate<ItemStack> accepts) {
-        return new Job(null, supply, accepts, false);
+        return new Job(null, supply, accepts, false, false);
+    }
+
+    /** As {@link #needing(String, Predicate)}, but nothing listed after it is started while the chest can supply it. */
+    public static Job pressingNeed(String supply, Predicate<ItemStack> accepts) {
+        return new Job(null, supply, accepts, false, true);
     }
 
     /** Whether the plan can be started as soon as the hand is in order. */

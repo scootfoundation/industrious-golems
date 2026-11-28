@@ -87,7 +87,7 @@ GOLEMS = [
         texture="hay_golem", chest="hay", job="Hay Chest", body="hay_block", build="a <b>carved pumpkin</b> on a <b>fence</b> (any kind) on a <b>hay bale</b>", job_vanilla="composter",
         recipe=["chest", "composter", "hay_block"],
         consumes=[("wheat_seeds", "Seeds, carrots, potatoes and the other plantable crops")],
-        produces=["wheat", "carrot", "potato", "beetroot", "melon_slice", "pumpkin", "sweet_berries"],
+        produces=["wheat", "carrot", "potato", "poisonous_potato", "beetroot", "melon_slice", "pumpkin", "sweet_berries", "torchflower", "pitcher_plant"],
         offerings=[("slime_ball", "slimes"), ("glow_ink_sac", "glow squid"), ("pufferfish", "warm oceans"), ("cobweb", "mineshafts"),
                    ("rabbit_foot", "rabbits"), ("cactus_flower", "cacti"), ("pointed_dripstone", "dripstone caves"),
                    ("glow_berries", "lush caves")],
@@ -97,6 +97,7 @@ GOLEMS = [
             "It works the tilled farmland within <strong>10 blocks</strong> of its chest (and two blocks up and down). It never tills soil itself: "
             "you prepare the plots and plant the first generation.",
             "It never tramples farmland, even when it drops onto a plot.",
+            "Besides ordinary crops it takes <strong>melons and pumpkins</strong> still joined to their stem (one set down as a block is left alone), grown <strong>torchflowers and pitcher plants</strong>, and picks <strong>sweet berry bushes</strong> in full fruit.",
             "It walks onto a ripe crop and breaks it, then onto the bare farmland to sow whatever seeds it is holding. It will not sow things that are not seeds, and where nothing would grow (too dark, say) it puts the seeds back.",
             "It is deliberately slow: it plods about at well under the pace of the other golems.",
             "Seeds come from the chest. When it runs out it waits, so keep some seeds in the Hay Chest.",
@@ -148,6 +149,7 @@ GOLEMS = [
             "waving its arms (no animal is hurt), and while the gate is open they are held away from it.",
             "It only moves an animal a little, on its own level, to line up its work: never through a fence or into a wall. Where there is no room for that, it does the job without the animation.",
             "It shears sheep and milks cows (a cow can be milked about every five minutes), turning each bucket from the chest into a bucket of milk.",
+            "<strong>The numbers come first</strong>: culling and breeding, in any of its pens, before shearing and milking. Cows and sheep breed on wheat, chickens on seeds, but <strong>pigs only on carrots, potatoes or beetroot</strong>.",
             "It keeps herds to a sensible size: it <strong>breeds</strong> a pen that has more than four floor blocks per animal, using feed from the chest, "
             "and <strong>culls</strong> one that is crowded below 3.5. It never culls a species below two adults, and it <strong>never culls an animal with a name tag, a saddle or a lead</strong>.",
             "Wool, milk, meat, leather, feathers and eggs go to the chest.",
@@ -496,7 +498,7 @@ Supplies come out of the chest the same way.</p>
 %(made)s
 %(usesblock)s
 <h2 id="notes">Notes</h2>
-<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby. It only uses <strong>chests, barrels and shulker boxes</strong>: never a furnace, hopper or other block with an inventory.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in. Animals are held back from a gate while a golem has it open, and a golem finishes getting through before it starts anything else.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
+<ul>%(notes)s<li>A golem prefers its own chest to any other chest nearby. It only uses <strong>chests, barrels and shulker boxes</strong>: never a furnace, hopper or other block with an inventory.</li><li><strong>Fence gates.</strong> Golems walk through shut fence gates, opening them and shutting them behind themselves, so a chest can stand outside the pen or field its golem works in. Animals are held back from a gate while a golem has it open, and a golem finishes getting through before it starts anything else.</li><li><strong>Copper golems.</strong> A vanilla copper golem carrying something a work golem works with (seeds, saplings, buckets, animal feed, fences, planks, torches, cobblestone) takes it to that golem's chest first, until the chest holds a full stack of it.</li><li><strong>Copper chests.</strong> If a vanilla <strong>copper chest</strong> is within 3 blocks of the golem's chest, the golem puts what it <em>produces</em> there instead, so copper golems can carry it on to wherever it belongs. What it also works with itself (seeds, saplings) still goes in its own chest, and with no copper chest nearby, or none with room, everything goes in its own chest as before. (The Stone Golem does not do this yet: its diggings go into its own chest.)</li></ul>
 
 <h2>Other golems</h2>
 <div class="gcards">%(others)s</div>

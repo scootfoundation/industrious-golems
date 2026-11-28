@@ -9,6 +9,9 @@ Work golems that farm, fell trees and herd animals: they claim a job site, keep 
 nearby chests, and produce resources while the player builds the infrastructure around them.
 '''
 
+[[mixins]]
+config="industriousgolems.mixins.json"
+
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"

@@ -17,6 +17,13 @@ import com.scottcaldwell.industriousgolems.needs.Job;
 import com.scottcaldwell.industriousgolems.needs.Jobs;
 import com.scottcaldwell.industriousgolems.needs.ProfessionNeeds;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.PitcherCropBlock;
+import net.minecraft.world.level.block.SweetBerryBushBlock;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -39,7 +46,7 @@ import java.util.stream.Stream;
 
 /**
  * Works the pre-tilled soil around the job site one plant at a time. The golem steps up to the plot it is working: it
- * breaks a ripe crop, which drops its yield as it would for a player, or sows the seeds it carries on bare farmland. It carries a single stack, so it reaps with a free hand (the drops are picked up, stack by
+ * breaks a ripe crop (or a melon or pumpkin grown from a stem, or picks a berry bush), which yields as it would for a player, or sows the seeds it carries on bare farmland. It carries a single stack, so it reaps with a free hand (the drops are picked up, stack by
  * stack, and taken to the chest elsewhere) and sows whatever seeds it is holding. Runs in the exclusive task activity.
  * It stands a little way off the plant, facing it, as the hay golem's animations are written for.
  */
@@ -99,7 +106,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
                     .map(p -> Job.now(new CropPlan(Kind.SOW, p))).orElse(null));
         }
         return Jobs.of(
-                () -> nearest(level, site, golem, p -> isRipe(level.getBlockState(p))).map(p -> Job.now(new CropPlan(Kind.REAP, p))).orElse(null),
+                () -> nearest(level, site, golem, p -> isRipe(level, p)).map(p -> Job.now(new CropPlan(Kind.REAP, p))).orElse(null),
                 () -> {
                     List<BlockPos> bare = plots(level, site, golem, p -> isBareFarmland(level, p)).toList();
                     return bare.isEmpty() ? null : Job.needing("seeds", stack -> bare.stream().anyMatch(p -> takes(level, p, stack)));
@@ -127,8 +134,42 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
         return seeds.getItem() instanceof BlockItem item && item.getBlock().defaultBlockState().canSurvive(level, pos);
     }
 
-    private static boolean isRipe(BlockState state) {
-        return state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state);
+    /**
+     * Ready to take: a full-grown crop; a torchflower or pitcher plant standing on farmland; a melon or pumpkin its stem is still joined
+     * to (so one set down as a block is left alone); or a berry bush in full fruit.
+     */
+    private static boolean isRipe(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof CropBlock crop) return crop.isMaxAge(state);
+        if (state.is(Blocks.TORCHFLOWER)) return level.getBlockState(pos.below()).is(Blocks.FARMLAND);
+        if (state.is(Blocks.PITCHER_CROP)) {
+            return state.getValue(PitcherCropBlock.HALF) == DoubleBlockHalf.LOWER && state.getValue(PitcherCropBlock.AGE) == PitcherCropBlock.MAX_AGE;
+        }
+        if (state.is(Blocks.SWEET_BERRY_BUSH)) return state.getValue(SweetBerryBushBlock.AGE) == SweetBerryBushBlock.MAX_AGE;
+        if (state.is(Blocks.MELON)) return stemJoined(level, pos, Blocks.ATTACHED_MELON_STEM);
+        if (state.is(Blocks.PUMPKIN)) return stemJoined(level, pos, Blocks.ATTACHED_PUMPKIN_STEM);
+        return false;
+    }
+
+    private static boolean stemJoined(ServerLevel level, BlockPos fruit, Block stem) {
+        for (Direction side : Direction.Plane.HORIZONTAL) {
+            BlockState beside = level.getBlockState(fruit.relative(side));
+            if (beside.is(stem) && beside.getValue(HorizontalDirectionalBlock.FACING) == side.getOpposite()) return true;
+        }
+        return false;
+    }
+
+    /** Takes what is ripe: a bush is picked and left to fruit again, anything else is broken as a player would break it. */
+    private static void reap(ServerLevel level, WorkGolem golem, BlockPos pos) {
+        if (!isRipe(level, pos)) return;
+        BlockState state = level.getBlockState(pos);
+        if (!state.is(Blocks.SWEET_BERRY_BUSH)) {
+            level.destroyBlock(pos, true, golem);
+            return;
+        }
+        Block.popResource(level, pos, new ItemStack(Items.SWEET_BERRIES, 2 + level.getRandom().nextInt(2)));
+        level.playSound(null, pos, SoundEvents.SWEET_BERRY_BUSH_PICK_BERRIES, SoundSource.BLOCKS, 1.0F, 1.0F);
+        level.setBlockAndUpdate(pos, state.setValue(SweetBerryBushBlock.AGE, 1));
     }
 
     private static boolean isBareFarmland(ServerLevel level, BlockPos pos) {
@@ -177,7 +218,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
                 .at(reap ? Anim.H_HARVEST_AT : Anim.H_REPLANT_AT, () -> {
                     machine.to(State.FOLLOW_THROUGH);
                     golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                    if (reap) level.destroyBlock(pos, true, golem); // drops like a player's break
+                    if (reap) reap(level, golem, pos);
                     else sow(level, golem, pos);
                 });
         machine.to(State.WORKING);
@@ -190,7 +231,7 @@ public class TendCrops extends TaskRunner<TendCrops.CropPlan> {
 
     private boolean stillWorthIt(ServerLevel level, WorkGolem golem) {
         return plan.kind() == Kind.REAP
-                ? isRipe(level.getBlockState(plan.pos())) && !golem.isCarrying()
+                ? isRipe(level, plan.pos()) && !golem.isCarrying()
                 : isBareFarmland(level, plan.pos()) && golem.isCarrying() && takes(level, plan.pos(), golem.carried());
     }
 

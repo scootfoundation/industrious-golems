@@ -51,6 +51,15 @@ public record ProfessionNeeds(List<Need> needs, Predicate<ItemStack> outputs, Wo
         return null;
     }
 
+    /** Whether the golem works with this itself (a supply, or part of a kit), as against only producing it. */
+    public boolean isInput(ItemStack stack) {
+        for (Need need : needs) {
+            if (need.match().test(stack)) return true;
+            for (Need.Part part : need.parts()) if (part.match().test(stack)) return true;
+        }
+        return false;
+    }
+
     /** Whether the stack is one of this profession's supplies, with this id. */
     public boolean isSupply(String id, ItemStack stack) {
         Need need = need(id);

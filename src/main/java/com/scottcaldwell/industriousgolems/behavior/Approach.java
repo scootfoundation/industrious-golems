@@ -8,6 +8,7 @@ import net.minecraft.world.entity.ai.behavior.PositionTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.function.BooleanSupplier;
@@ -93,7 +94,9 @@ public final class Approach {
         double dx = spot.x - golem.getX(), dz = spot.z - golem.getZ();
         double d = Math.sqrt(dx * dx + dz * dz);
         // (within the block the walk would end in, the last bit is a shuffle; never through a fence, which it goes round by the gate)
-        if (d <= Math.max(tolerance, 1.25) && !fenceBetween(golem, spot)) {
+        boolean intoBlock = d > 0.03 && intoBlock(golem, dx / d * Math.min(0.1, d), dz / d * Math.min(0.1, d));
+        if (intoBlock && d <= 0.35) return true; // as near as it can get without going into a block
+        if (d <= Math.max(tolerance, 1.25) && !intoBlock && !fenceBetween(golem, spot)) {
             golem.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             golem.getNavigation().stop();
             if (d > 0.03) { // a last shuffle onto the exact spot
@@ -106,6 +109,17 @@ public final class Approach {
         }
         walkTo(golem, new BlockPosTracker(BlockPos.containing(spot.x, golem.getY(), spot.z)), 0);
         return false;
+    }
+
+    /**
+     * Whether shifting the golem by this much would put its upper body into a block, where it would be stuck and suffocate: the last
+     * shuffle moves it directly, so it has to look first, and goes round by its path instead. Only what is a block or more above its
+     * feet counts (brushing a chest or a step is fine, and some clips want just that), and a golem already inside something may move
+     * any way it likes.
+     */
+    private static boolean intoBlock(WorkGolem golem, double dx, double dz) {
+        AABB upper = golem.getBoundingBox().setMinY(golem.getY() + 1.01).deflate(0.001);
+        return golem.level().noCollision(golem, upper) && !golem.level().noCollision(golem, upper.move(dx, 0, dz));
     }
 
     /** Whether a fence, gate or wall stands on the straight line from the golem to the spot. */

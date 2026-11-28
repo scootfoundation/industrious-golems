@@ -82,7 +82,7 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     public static Plan planDeposit(ServerLevel level, WorkGolem golem) {
         ItemStack carried = golem.carried();
         if (carried.isEmpty()) return null;
-        BlockPos pos = best(level, golem, chest -> Slots.fits(chest, carried), true, isInput(golem, carried));
+        BlockPos pos = best(level, golem, chest -> Slots.fits(chest, carried), true, ProfessionNeeds.of(golem).isInput(carried)); // what it works with stays in its own chest
         return pos == null ? null : new Plan(pos, null);
     }
 
@@ -101,15 +101,6 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
             if (pos != null) return new Plan(pos, need.id(), job.accepts());
         }
         return null;
-    }
-
-    /** Whether the golem works with this itself (a supply or part of a kit), so that it belongs in its own chest rather than being sent on. */
-    private static boolean isInput(WorkGolem golem, ItemStack stack) {
-        for (Need need : ProfessionNeeds.of(golem).needs()) {
-            if (need.match().test(stack)) return true;
-            for (Need.Part part : need.parts()) if (part.match().test(stack)) return true;
-        }
-        return false;
     }
 
     private static BlockPos best(ServerLevel level, WorkGolem golem, java.util.function.Predicate<Container> usable,
@@ -351,10 +342,12 @@ public class ContainerInteraction extends TaskRunner<ContainerInteraction.Plan> 
     private void throwOut(ServerLevel level, WorkGolem golem) {
         ItemStack stack = golem.carried();
         if (stack.isEmpty()) return;
+        // reaching over a fence, or about to fling it over one: it keeps hold, or it might never get it back
+        Vec3 land = Face.local(golem.position(), golem.getYRot(), spec.landX(), spec.landZ());
+        if (Approach.fenceBetween(golem, Vec3.atBottomCenterOf(chestPos)) || Approach.fenceBetween(golem, land)) return;
         golem.setCarried(ItemStack.EMPTY);
         golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         Vec3 from = Face.local(golem.position().add(0, 1.0, 0), golem.getYRot(), 0.3, 0.8);
-        Vec3 land = Face.local(golem.position(), golem.getYRot(), spec.landX(), spec.landZ());
         ItemEntity drop = new ItemEntity(level, from.x, from.y, from.z, stack);
         double flight = 11.0;
         drop.setDeltaMovement((land.x - from.x) / flight * 0.95, 0.3, (land.z - from.z) / flight * 0.95);
