@@ -36,7 +36,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * Digs one rock of the mine (see {@link Trunk} for which): walk up beside it, wind up and strike it, and it breaks as the fist lands. The rock yields
+ * Digs a column of the mine (see {@link Trunk} for where): walk up beside it, wind up and bring a fist down through it, each block breaking
+ * as the fist passes. A swing takes the blocks wanted from the golem's feet up, three high (four in the hub, whose top row it could not
+ * reach again once the rock under it is gone). The rock yields
  * what an iron pickaxe would get from it, left lying for the golem to pick up (see PickUp).
  *
  * <p>{@link #jobs} is the miner's whole decision, in this order, the first it can do: run from a hostile mob to the chest; seal liquid with
@@ -51,23 +53,26 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     private static final int STALL_TICKS = 160;
     private static final int IGNORE_TICKS = 6000;
 
-    /** The block chosen by {@link #jobs}, and where to stand to strike it. */
-    public record MinePlan(MineFinder.Target first) implements Task {
-        @Override public java.util.Collection<?> claims() { return java.util.List.of(first.block()); }
+    /** How far above its feet a swing reaches. */
+    private static final int REACH_UP = 3;
+
+    /** The block chosen by {@link #jobs}, where to stand to strike it, and the column that goes with it. */
+    public record MinePlan(MineFinder.Target first, List<BlockPos> column) implements Task {
+        @Override public java.util.Collection<?> claims() { return column; }
     }
 
     private enum State { APPROACH, SWING, SETTLE, DONE }
 
-    public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("mine-rock", "Miner: dig a block",
-            "Stone golem. Digs one exposed block bare-handed, leaving the drops lying; the pick-up task then takes them into its pack.", State.class)
+    public static final Machine.Graph<State> GRAPH = new Machine.Graph<>("mine-rock", "Miner: dig a column",
+            "Stone golem. Digs a column of rock three high bare-handed with one swing, leaving the drops lying; the pick-up task then takes them into its pack.", State.class)
             .start(State.APPROACH)
             .state(State.APPROACH, "Walking to the open floor beside the block, looking at it.")
-            .state(State.SWING, "Beside it: the smash clip plays and the block breaks as the fist lands.")
-            .state(State.SETTLE, "The block is gone and the golem is settling from the blow.")
+            .state(State.SWING, "Beside it: the smash clip plays and the blocks break one after another as the fist comes down through them.")
+            .state(State.SETTLE, "The column is gone and the golem is settling from the blow.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.APPROACH, State.SWING, "beside the block with a clear line to it")
             .edge(State.APPROACH, State.DONE, "the block is already gone or no longer safe to cut, or unreachable for 8 s (ignored for 5 min)")
-            .edge(State.SWING, State.SETTLE, "hit moment: the block breaks, the drops fall")
+            .edge(State.SWING, State.SETTLE, "the fist lands: the last of the column breaks")
             .edge(State.SETTLE, State.DONE, "the swing has settled")
             .anyTo(State.DONE, "a hostile mob comes near: the golem drops what it is doing to cower", State.DONE);
 
@@ -83,7 +88,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
     // ---- choosing work ----------------------------------------------------------------------------------------
 
     /** What the mine needs next, and whether the golem has what it takes to do it. */
-    private record Work(Trunk.Step step, BlockPos stand, boolean supplied) { }
+    private record Work(Trunk.Step step, BlockPos stand, List<BlockPos> column, boolean supplied) { }
 
     /**
      * The jobs in the order the golem prefers them; see the class comment. Each is worked out only when the ones before it fall through.
@@ -110,7 +115,7 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
                     Work w = work.get();
                     if (w == null || w.step().plug() || !w.supplied()) return null;
                     if (!w.step().digs()) return Job.whenTidy(new BuildTrunk.Plan(w.step().builds()));
-                    return Job.whenTidy(new MinePlan(new MineFinder.Target(w.step().dig(), w.stand())));
+                    return Job.whenTidy(new MinePlan(new MineFinder.Target(w.step().dig(), w.stand()), w.column()));
                 },
                 // then off to the chest: for what it lacks, or to put the diggings away
                 () -> needsChest(golem, work.get()) ? Job.needing("kit") : null,
@@ -131,9 +136,21 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
                 state.ignoreBlock(step.dig(), now + IGNORE_TICKS);
                 return null;
             }
-            return new Work(step, stand, golem.pack().fitsAll(drops(level, golem, step.dig())));
+            List<BlockPos> column = column(level, step, stand, pos -> state.ignoresBlock(pos, now));
+            List<ItemStack> yield = column.stream().flatMap(p -> drops(level, golem, p).stream()).toList();
+            return new Work(step, stand, column, golem.pack().fitsAll(yield));
         }
-        return new Work(step, null, golem.pack().count(step.builds().get(0).part().match()) > 0);
+        return new Work(step, null, List.of(), golem.pack().count(step.builds().get(0).part().match()) > 0);
+    }
+
+    /** The wanted blocks above and below the chosen one that a swing from {@code stand} takes too, top first. */
+    private static List<BlockPos> column(ServerLevel level, Trunk.Step step, BlockPos stand, java.util.function.Predicate<BlockPos> ignored) {
+        BlockPos dig = step.dig();
+        return Stream.concat(Stream.of(dig), step.wanted().stream().filter(p -> p.getX() == dig.getX() && p.getZ() == dig.getZ()
+                        && p.getY() >= stand.getY() && p.getY() <= stand.getY() + REACH_UP && !ignored.test(p) && MineFinder.isSafe(level, p)))
+                .distinct()
+                .sorted(java.util.Comparator.comparingInt((BlockPos p) -> p.getY()).reversed())
+                .toList();
     }
 
     /** What breaking the block would drop (as an iron pickaxe would get it). */
@@ -199,25 +216,35 @@ public class MineRock extends TaskRunner<MineRock.MinePlan> {
         }
         holdStill(golem);
         Face.toward(golem, Vec3.atCenterOf(block)); // beside it: square up to the block and bring a fist down on it
-        // no crack while it winds up: the block gives way only when the fist lands
-        clip = ClipRun.play(golem, Anim.S_MINE, Anim.S_MINE_LEN).at(Anim.S_MINE_HIT, () -> strike(level, golem, block));
+        // no cracks while it winds up: each block gives way as the fist reaches it
+        int feet = golem.blockPosition().getY();
+        clip = ClipRun.play(golem, Anim.S_MINE, Anim.S_MINE_LEN)
+                .at(Anim.S_MINE_TOP, () -> strike(level, golem, feet + 2, Integer.MAX_VALUE))
+                .at(Anim.S_MINE_MID, () -> strike(level, golem, feet + 1, feet + 1))
+                .at(Anim.S_MINE_HIT, () -> {
+                    golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+                    strike(level, golem, Integer.MIN_VALUE, feet);
+                    machine.to(State.SETTLE);
+                });
         machine.to(State.SWING);
     }
 
-    private void strike(ServerLevel level, WorkGolem golem, BlockPos block) {
-        BlockState state = level.getBlockState(block);
-        golem.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-        level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
-        dig(level, golem, block, state);
-        machine.to(State.SETTLE);
+    /** Breaks what is left of the column between these heights. */
+    private void strike(ServerLevel level, WorkGolem golem, int from, int to) {
+        for (BlockPos block : plan.column()) {
+            if (block.getY() < from || block.getY() > to || !MineFinder.isSafe(level, block)) continue;
+            BlockState state = level.getBlockState(block);
+            level.playSound(null, block, state.getSoundType().getHitSound(), SoundSource.BLOCKS, 1.0F, 0.7F);
+            dig(level, golem, block, state);
+        }
     }
 
-    private static boolean inReach(ServerLevel level, WorkGolem golem, BlockPos block) {
+    private boolean inReach(ServerLevel level, WorkGolem golem, BlockPos block) {
         Vec3 eye = golem.getEyePosition();
         Vec3 center = Vec3.atCenterOf(block);
         if (eye.distanceTo(center) > MineFinder.REACH || !MineFinder.fistReaches(golem, block)) return false;
         HitResult hit = level.clip(new ClipContext(eye, center, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, golem));
-        return hit.getType() == HitResult.Type.MISS || (hit instanceof BlockHitResult b && b.getBlockPos().equals(block));
+        return hit.getType() == HitResult.Type.MISS || (hit instanceof BlockHitResult b && plan.column().contains(b.getBlockPos())); // (its own column is no obstacle)
     }
 
     /** Breaks the block; what it drops is what an iron pickaxe would get from it. */

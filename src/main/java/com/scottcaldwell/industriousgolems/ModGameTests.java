@@ -146,6 +146,8 @@ public class ModGameTests {
         strictly("miner_pack_slots", ModGameTests::minerPackSlots);
         strictly("miner_builds_support", ModGameTests::minerBuildsSupport);
         strictly("miner_path_through_brace", ModGameTests::minerPathThroughBrace);
+        strictly("miner_takes_a_column_per_swing", ModGameTests::minerTakesAColumnPerSwing);
+        strictly("miner_clears_a_solid_hub", ModGameTests::minerClearsASolidHub);
         strictly("golem_meets_chest_face_on_and_opens_it", ModGameTests::golemMeetsChestFaceOn);
         strictly("lumberjack_plants_spaced_saplings", ModGameTests::lumberjackPlantsSpacedSaplings);
         strictly("lumberjack_fells_branches", ModGameTests::lumberjackFellsBranchingTree);
@@ -2173,6 +2175,48 @@ public class ModGameTests {
             helper.assertTrue(helper.getBlockState(new BlockPos(8, 3, 6)).is(Blocks.WALL_TORCH), "the arm's first brace gets its torch" + describe(helper, miner, chest));
             helper.assertTrue(miner.pack().count(Kit.COBBLE.match()) >= 6, "the rock is picked up into its pack as cobblestone, got " + miner.pack().count(Kit.COBBLE.match()) + describe(helper, miner, chest));
             helper.assertTrue(helper.getBlockState(HUB.below()).is(Blocks.STONE) && helper.getBlockState(new BlockPos(6, 0, 5)).is(Blocks.STONE), "the floor stays");
+        });
+    }
+
+    /** A column three high in the hub comes down in one swing, top first. */
+    private static void minerTakesAColumnPerSwing(GameTestHelper helper) {
+        buildMine(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
+        stockKit(chest, 8);
+        BlockPos[] column = {new BlockPos(8, 1, 6), new BlockPos(8, 2, 6), new BlockPos(8, 3, 6)};
+        for (BlockPos pos : column) helper.setBlock(pos, Blocks.STONE);
+        WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.east());
+        long[] gone = new long[3];
+        helper.onEachTick(() -> {
+            for (int i = 0; i < 3; i++) {
+                if (gone[i] == 0 && helper.getBlockState(column[i]).isAir()) gone[i] = helper.getTick();
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(gone[0] != 0 && gone[1] != 0 && gone[2] != 0, "the column should come down" + describe(helper, miner, chest));
+            helper.assertTrue(gone[2] <= gone[1] && gone[1] <= gone[0] && gone[0] - gone[2] <= 8, "in one swing, top first: ticks " + gone[2] + ", " + gone[1] + ", " + gone[0]);
+        });
+    }
+
+    /** A hub of solid rock, four high, is cleared completely: no block of the top row is left out of reach. */
+    private static void minerClearsASolidHub(GameTestHelper helper) {
+        buildMine(helper);
+        ChestBlockEntity chest = helper.getBlockEntity(HUB, ChestBlockEntity.class);
+        stockKit(chest, 8);
+        List<BlockPos> rock = new java.util.ArrayList<>();
+        for (int dx = -Trunk.HUB; dx <= Trunk.HUB; dx++) {
+            for (int dz = -Trunk.HUB; dz <= Trunk.HUB; dz++) {
+                for (int h = 0; h < Trunk.HUB_HEIGHT; h++) {
+                    if (dx == 0 && dz == 0 && h < 3) continue; // the chest, and room for the golem standing on it
+                    rock.add(HUB.offset(dx, h, dz));
+                }
+            }
+        }
+        for (BlockPos pos : rock) helper.setBlock(pos, Blocks.STONE);
+        WorkGolem miner = spawnWorker(helper, ModProfessions.MINER, HUB, HUB.above());
+        helper.succeedWhen(() -> {
+            List<BlockPos> left = rock.stream().filter(p -> !helper.getBlockState(p).isAir()).toList();
+            helper.assertTrue(left.isEmpty(), left.size() + " left, for one " + (left.isEmpty() ? "" : left.get(0).subtract(HUB)) + describe(helper, miner, chest));
         });
     }
 

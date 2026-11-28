@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_takes_a_column_per_swing",
+  "environment": "industriousgolems:alone_miner_takes_a_column_per_swing",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 6000
+}

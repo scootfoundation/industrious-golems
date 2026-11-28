@@ -53,8 +53,10 @@ public final class Anim {
                         double dist, double landX, double landZ) { }
 
     // ---- stone golem (miner) ----
-    public static final String S_MINE = "mine-block", S_COWER = "cower", S_FUME = "fume";
-    public static final float S_MINE_LEN = 7.0F, S_MINE_HIT = 3.55F, S_RECEIVE_LEN = 7.0F;
+    public static final String S_MINE = "mine-block", S_PLACE = "place-block", S_COWER = "cower", S_FUME = "fume";
+    /** One swing takes a column: the fist passes the third block up, then the second, then lands on the one level with its feet. */
+    public static final float S_MINE_LEN = 6.6F, S_MINE_TOP = 3.7F, S_MINE_MID = 3.825F, S_MINE_HIT = 3.95F;
+    public static final float S_PLACE_LEN = 2.2F, S_PLACE_AT = 1.1F, S_RECEIVE_LEN = 7.0F;
 
     // ---- terracotta golem (herder) ----
     public static final String T_RECEIVE = "receive-offering", T_SHOO = "shoo";

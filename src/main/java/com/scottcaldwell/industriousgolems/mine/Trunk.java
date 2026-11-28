@@ -56,9 +56,10 @@ public final class Trunk {
 
     /**
      * What to do next: dig {@code dig}, or (when it is null) place the {@code builds}; {@code plug} says they seal liquid, which comes before
-     * everything else.
+     * everything else. {@code wanted} is all the digging the same part of the mine still asks for, {@code dig} among it: the golem takes
+     * those in one column with the same swing.
      */
-    public record Step(BlockPos dig, List<Placement> builds, boolean plug, Direction arm, int slice) {
+    public record Step(BlockPos dig, List<Placement> builds, boolean plug, Direction arm, int slice, List<BlockPos> wanted) {
         public boolean digs() {
             return dig != null;
         }
@@ -100,7 +101,14 @@ public final class Trunk {
     /** @param taken blocks another golem is digging or placing: left to it, and an arm with nothing else to do is passed over */
     public static Step next(ServerLevel level, BlockPos chest, BlockPos from, Predicate<BlockPos> ignored, Predicate<BlockPos> taken) {
         BlockPos vein = vein(level, chest, from, ignored.or(taken));
-        if (vein != null) return new Step(vein, List.of(), false, null, -1);
+        if (vein != null) { // with whatever ore is stacked above or below it
+            List<BlockPos> stacked = new ArrayList<>();
+            for (int dy = -2; dy <= 2; dy++) {
+                BlockPos at = vein.above(dy);
+                if (at.getY() >= chest.getY() && level.getBlockState(at).is(com.scottcaldwell.industriousgolems.ModTags.MINER_ORES) && !ignored.or(taken).test(at)) stacked.add(at);
+            }
+            return new Step(vein, List.of(), false, null, -1, stacked);
+        }
         Result hub = assess(level, hubCells(chest), () -> true, ignored);
         if (!hub.done()) return step(level, hub, null, 0, from, taken);
 
@@ -161,12 +169,12 @@ public final class Trunk {
     private static Step step(ServerLevel level, Result result, Direction arm, int slice, BlockPos from, Predicate<BlockPos> taken) {
         if (busy(result, taken)) return null;
         // liquid in or beside the slice is sealed with cobblestone before anything else is done, even where it ends the arm
-        if (!result.plugs().isEmpty()) return new Step(null, result.plugs(), true, arm, slice);
+        if (!result.plugs().isEmpty()) return new Step(null, result.plugs(), true, arm, slice, List.of());
         if (result.blocked()) return null;
-        if (result.dig().isEmpty()) return new Step(null, result.builds(), false, arm, slice);
+        if (result.dig().isEmpty()) return new Step(null, result.builds(), false, arm, slice, List.of());
         // some of the rock may not be dug yet from where it lies (it has to be open to the air on a side): take the ones that can be
         BlockPos dig = result.dig().stream().filter(p -> !taken.test(p) && MineFinder.isMineable(level, p, true) && MineFinder.fistSpot(level, p, from) != null).min(Comparator.comparingDouble(p -> p.distSqr(from))).orElse(null);
-        return dig == null ? null : new Step(dig, List.of(), false, arm, slice);
+        return dig == null ? null : new Step(dig, List.of(), false, arm, slice, result.dig().stream().filter(p -> !taken.test(p)).toList());
     }
 
     /** Whether {@code pos} is in the arm's trunk, past the hub (so the golem is out in it rather than around the chest). */

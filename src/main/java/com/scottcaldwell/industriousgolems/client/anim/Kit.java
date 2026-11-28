@@ -7,7 +7,10 @@ public record Kit(String name, Map<String, Clip> clips, String walk, String walk
 
     public Clip get(String id) {
         if (id == null) return null;
-        Clip file = ClipData.find(name, id); // a clip kept as a resource file wins over the code one of the same name
-        return file != null ? file : clips.get(id);
+        // the kit's own resource file wins over its code clip of the same name, and that over a file written for every kit
+        Clip file = ClipData.own(name, id);
+        if (file != null) return file;
+        Clip code = clips.get(id);
+        return code != null ? code : ClipData.shared(id);
     }
 }

@@ -11,6 +11,9 @@ import java.util.Map;
  * The stone golem's clips, ported from the animation workshop (the miner: built like a boulder, heavy, slow and deliberate, and it moves like a
  * gorilla). On the move it knuckle-walks, hunched over with its fists on the ground; its arms are rigid, so a fist can only leave the ground by rolling
  * the shoulders. To carry something it hugs the load in its right arm. Where the clips need to know where a fist or the ground is, {@link Kin} answers.
+ *
+ * <p>It never stands upright on its hind legs: every clip keeps it leaning well forward, as a gorilla does, even when it rears to beat its chest
+ * or holds something up in both hands.
  */
 public final class StoneAnims {
     private StoneAnims() { }
@@ -230,9 +233,10 @@ public final class StoneAnims {
         sGround(P, a * wr, a * wl, 0.3 + 0.7 * up, 0.3 + 0.7 * up, true);
     }
 
-    private static final double[] S_TRAY = pose("th", -0.08, "rp", 0.95, "lp", 0.95, "rs", 0.22, "ls", 0.22, "fo", 0.75, "hx", 0.1);
-    private static final double[] S_HUG = pose("th", -0.1, "rp", 0.55, "lp", 0.55, "rs", 0.42, "ls", 0.42, "fo", 1.15, "hx", 0.12);
-    private static final double[] S_UPRIGHT = pose("th", -0.15, "rp", 0.35, "lp", 0.35, "rf", -0.45, "lf", -0.45, "rs", 0.1, "ls", 0.1, "rl", 0, "ll", 0, "hp", 0, "hx", 0.12, "hj", 0.25);
+    private static final double[] S_TRAY = pose("th", 0.55, "rp", 1.1, "lp", 1.1, "rs", 0.22, "ls", 0.22, "fo", 0.75, "hx", 0.1, "hj", 0.8, "rl", -0.4, "ll", -0.4, "hp", 0.2);
+    private static final double[] S_HUG = pose("th", 0.5, "rp", 0.75, "lp", 0.75, "rs", 0.42, "ls", 0.42, "fo", 1.15, "hx", 0.12, "hj", 0.8, "rl", -0.4, "ll", -0.4, "hp", 0.2);
+    /** Up off its fists to beat its chest: still a crouch, shoulders well forward of its hips. */
+    private static final double[] S_REARED = pose("th", 0.55, "rp", 0.6, "lp", 0.6, "rf", -0.45, "lf", -0.45, "rs", 0.1, "ls", 0.1, "rl", -0.45, "ll", -0.45, "hp", 0.2, "hx", 0.12, "hj", 0.7);
 
     // ---- an arm worked out to put a fist at a point: a small solver ----
     private static void setArm(Pose P, double th, double[] x, boolean left) {
@@ -448,9 +452,10 @@ public final class StoneAnims {
     }
 
     // ---- mining a block and picking up the ore ----
-    private static final double STMINE = 7.0, S_GRAB = 1.5, S_ARR = 2.9;
-    private static final double SM_W0 = 0.6, SM_W1 = 2.5, SM_S0 = 3.3, SM_HIT = 3.55, SM_REC0 = 4.4, SM_REC1 = 6.2;
-    private static final double[] S_WIND = {3.45, -0.5, -0.25, 0.95}, S_SMASH = {1.45, 0.05, -0.02, -0.3}, S_THRU = {1.0, 0.2, -0.05, -0.45};   // rp, rs, rf, by
+    private static final double STMINE = 6.6, S_GRAB = 1.5, S_ARR = 2.9;
+    // the swing breaks a column three blocks high: a long wind-up, a spring off the ground, and the fist brought down through all three
+    private static final double SM_W0 = 0.5, SM_W1 = 2.8, SM_SPRING = 3.1, SM_S0 = 3.55, SM_HIT = 3.95, SM_REC0 = 4.5, SM_REC1 = 5.9, SM_LEAP = 15, SM_SIDE = 7;
+    private static final double[] S_WIND = {3.45, -0.5, -0.25, 0.95}, S_SMASH = {0.55, 0.42, -0.02, -0.45}, S_THRU = {0.4, 0.5, -0.05, -0.55};   // rp, rs, rf, by
 
     private static double[] blend4(double[] a, double[] b, double k) {
         return new double[]{lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k), lerp(a[3], b[3], k)};
@@ -480,7 +485,7 @@ public final class StoneAnims {
         }).hold("tuck", (float) S_ARR, 1e9F);
 
         add("mine-block", STMINE, false, 0, (P, t, c) -> {
-            double w = sstep(SM_W0, SM_W1, t), sl = Math.pow(Math.max(0, Math.min(1, (t - SM_S0) / (SM_HIT - SM_S0))), 1.3), rec = sstep(SM_REC0, SM_REC1, t), d = t - SM_HIT;
+            double w = sstep(SM_W0, SM_W1, t), sl = Math.pow(Math.max(0, Math.min(1, (t - SM_S0) / (SM_HIT - SM_S0))), 1.15), rec = sstep(SM_REC0, SM_REC1, t), d = t - SM_HIT;
             double ft = sstep(SM_HIT, SM_HIT + 0.4, t);
             double[] A = t < SM_S0 ? blend4(new double[]{0, 0, 0, 0}, S_WIND, w) : blend4(blend4(S_WIND, S_SMASH, sl), S_THRU, ft);
             double trem = win(t, SM_W1, SM_W1 + 0.3, SM_S0 - 0.05, SM_S0) * Math.sin(t * 38), sh = d > 0 ? Math.exp(-d * 7) * Math.cos(d * 34) : 0;
@@ -497,14 +502,42 @@ public final class StoneAnims {
             H[TH] += 0.012 * trem + 0.05 * sh + 0.03 * ft * (1 - rec);
             H[RP] += 0.03 * trem;
             place(P, H, 0, sstep(SM_REC0 + 0.8, SM_REC1, t), 1);
+            P.offX -= SM_SIDE * sstep(SM_W0, SM_W1, t) * (1 - rec); // it squares its striking shoulder to the block
+            P.offY += SM_LEAP * (t < SM_S0 ? sstep(SM_SPRING, SM_S0, t) : 1 - Math.pow(sl, 1.5));
             P.body.sy -= 0.03 * w * (1 - sl);
             P.offY += d > 0 ? -0.5 * Math.exp(-d * 8) * Math.abs(Math.cos(d * 20)) : 0;
+        });
+
+        // ---- placing a block: down on its knuckles, one hand reaching out to set it in place and give it a pat ----
+        add("place-block", 2.2, false, 0, (P, t, c) -> {
+            double reach = sstep(0.1, 0.9, t) * (1 - sstep(1.4, 2.1, t)), pat = win(t, 0.95, 1.1, 1.15, 1.35);
+            double[] H = hunch(S_IZ, S_IZ, -0.25 * reach, 0, 1 - reach, 1);
+            H[RP] = lerp(H[RP], 1.35, reach) + 0.18 * pat;
+            H[RF] = lerp(H[RF], -0.35, reach);
+            H[RS] = lerp(H[RS], 0.3, reach);
+            H[TH] += 0.06 * pat;
+            H[HX] = 0.15 * reach;
+            H[HY] = 0.2 * reach;
+            place(P, H, 0, 1 - reach, 1);
+            P.offX -= 5 * reach;
+        });
+
+        // ---- between jobs: still on its knuckles, looking about ----
+        add("look-around", 9.0, true, 0, (P, t, c) -> {
+            double turn = kf(t, k(0, 0), k(0.7, 0.85), k(1.9, 0.85), k(2.5, -0.7), k(3.9, -0.7), k(4.5, 0), k(6.0, 0), k(6.6, 0.5), k(7.4, 0.5), k(8.0, -0.3), k(9, 0));
+            double nod = kf(t, k(0, 0), k(0.7, -0.15), k(1.9, -0.15), k(2.5, 0.05), k(3.9, 0.05), k(4.5, 0.3), k(5.4, 0.3), k(6.0, 0), k(9, 0));
+            double[] H = hunch(S_IZ, S_IZ, 0.2 * turn, 0, 1, 1);
+            H[HY] = turn;
+            H[HX] = nod;
+            H[HZ] = 0.04 * Math.sin(t * 0.9);
+            H[TH] += 0.012 * Math.sin(t * 1.4);
+            place(P, H, 0, 1, 1);
         });
 
         // ---- afraid: crouched, arms crossed over its head, shaking ----
         add("cower", 1.2, true, 0, (P, t, c) -> {
             double sh = Math.sin(S2 * t * 6), sh2 = Math.sin(S2 * t * 6 + 1.3), flinch = 0.5 + 0.5 * Math.sin(S2 * t / 1.2);
-            sPose(P, pose("th", 0.45 + 0.03 * sh2, "rp", 2.9, "lp", 2.9, "rs", -0.35, "ls", -0.35, "rf", -2.0, "lf", -2.0, "hx", 0.75, "bz", 0.05 * sh,
+            sPose(P, pose("th", 0.75 + 0.03 * sh2, "rp", 2.9, "lp", 2.9, "rs", -0.35, "ls", -0.35, "rf", -2.0, "lf", -2.0, "hx", 0.75, "bz", 0.05 * sh,
                     "by", 0.05 * sh2, "hz", 0.07 * sh, "rl", -0.5, "ll", -0.5));
             sGround(P, 0, 0, 1, 1, true);
             P.body.sy -= 0.03 * flinch;
@@ -514,9 +547,9 @@ public final class StoneAnims {
         // ---- fuming: out of something it needs. Stamping from foot to foot, fists pumping, head shaking ----
         add("fume", 1.0, true, 0, (P, t, c) -> {
             double st = Math.sin(S2 * t * 2), no = Math.sin(S2 * t * 3);
-            sPose(P, pose("th", 0.18, "hy", 0.55 * no, "hx", 0.15, "by", 0.12 * st, "bz", 0.04 * st,
+            sPose(P, pose("th", 0.65, "hj", 0.8, "hp", 0.2, "hy", 0.55 * no, "hx", 0.15, "by", 0.12 * st, "bz", 0.04 * st,
                     "rp", 0.5 + 0.5 * Math.max(0, st), "lp", 0.5 + 0.5 * Math.max(0, -st), "rs", -0.15, "ls", -0.15, "rf", -0.9, "lf", -0.9,
-                    "rl", 0.5 * Math.max(0, st), "ll", 0.5 * Math.max(0, -st)));
+                    "rl", -0.35 + 0.5 * Math.max(0, st), "ll", -0.35 + 0.5 * Math.max(0, -st)));
             sGround(P, 0, 0, 1, 1, false);
             P.offY += -0.04 * Math.abs(st);
         });
@@ -559,7 +592,7 @@ public final class StoneAnims {
             double yawn = win(t, yawn0, yawn0 + 0.8, yawn0 + 1.3, yawn0 + 2.0);
             double kb = win(t, up0 + 0.9, beat0, beatEnd, beatEnd + 0.4), tb = t - beat0, amp = sstep(0, 0.3, tb) * (1 - sstep(beatEnd - beat0 - 0.5, beatEnd - beat0, tb));
             double[] H = hunch(S_IZ + 0.4 * sway, S_IZ - 0.4 * sway, 0.04 * sway, 0.035 * sway, 0.3 + 0.7 * (1 - kS), 1);
-            double[] o = blend(H, S_UPRIGHT, up);
+            double[] o = blend(H, S_REARED, up);
             o[TH] += 0.012 * br + 0.08 * yawn * (1 - up);
             o[HP] += 0.01 * br;
             o[BZ] += 0.03 * Math.sin(S2 * t / 7) * (1 - up);
@@ -571,9 +604,9 @@ public final class StoneAnims {
             Aim R = new Aim(Math.max(kS * (1 - up), kb * amp > 0 ? kb : 0), new double[]{5.2 + 0.9 * scr * Math.sin(t * 15), 17.6 + 0.6 * scr * Math.sin(t * 15 + 1.2), -8.5}), L = NONE;
             double wr = 1 - kS;
             if (kb > 0.001) {
-                double cyc = S2 * tb / (bp * 2), yR = 16.6 + 2.9 * Math.cos(cyc) * amp, yL = 16.6 + 2.9 * Math.cos(cyc + Math.PI) * amp;
-                R = new Aim(kb, new double[]{5.6, yR, -9.6 + 0.6 * Math.cos(cyc)});
-                L = new Aim(kb, new double[]{-5.6, yL, -9.6 + 0.6 * Math.cos(cyc + Math.PI)});
+                double cyc = S2 * tb / (bp * 2), yR = 12.5 + 2.9 * Math.cos(cyc) * amp, yL = 12.5 + 2.9 * Math.cos(cyc + Math.PI) * amp;
+                R = new Aim(kb, new double[]{5.6, yR, -13 + 0.6 * Math.cos(cyc)});
+                L = new Aim(kb, new double[]{-5.6, yL, -13 + 0.6 * Math.cos(cyc + Math.PI)});
                 double hs = Math.exp(-7 * (((tb % bp) + bp) % bp)) * amp;
                 o[TH] += 0.05 * hs;
                 P.body.sy -= 0.03 * hs;

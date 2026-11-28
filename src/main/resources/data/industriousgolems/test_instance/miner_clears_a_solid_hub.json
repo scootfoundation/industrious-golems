@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "function": "industriousgolems:miner_clears_a_solid_hub",
+  "environment": "industriousgolems:alone_miner_clears_a_solid_hub",
+  "structure": "industriousgolems:arena",
+  "max_ticks": 14000
+}

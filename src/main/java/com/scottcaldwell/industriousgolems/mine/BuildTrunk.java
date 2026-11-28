@@ -28,7 +28,7 @@ import java.util.Queue;
 
 /**
  * Finishes the slice of the mine the golem has just dug: bridges missing floor, stands the fence posts and lays the plank beam of a support,
- * hangs the torch. Each block is placed from the pack, one blow of the same arm swing the golem digs with.
+ * hangs the torch. Each block is placed from the pack, with a quick, gentle reach of the arm.
  */
 public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
 
@@ -48,15 +48,15 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
             .start(State.SEEK)
             .state(State.SEEK, "Taking the next block to place.")
             .state(State.APPROACH, "Walking to a spot within reach of it (not standing where it goes).")
-            .state(State.PLACE, "In reach: the arm comes down and the block goes in at the hit moment, taken from the pack.")
-            .state(State.SETTLE, "The block is in and the golem is settling from the swing.")
+            .state(State.PLACE, "In reach: the golem reaches out and sets the block in place, taken from the pack, partway through the clip.")
+            .state(State.SETTLE, "The block is in and the golem is drawing its arm back.")
             .state(State.DONE, "(end) Task over.")
             .edge(State.SEEK, State.APPROACH, "a block still needs placing and the pack has it")
             .edge(State.SEEK, State.DONE, "nothing left to place, or the pack ran out")
             .edge(State.APPROACH, State.PLACE, "within reach with the block's place free of the golem")
             .edge(State.APPROACH, State.SEEK, "the place is already filled, or unreachable for 8 s (ignored for 5 min)")
-            .edge(State.PLACE, State.SETTLE, "hit moment: the block is placed")
-            .edge(State.SETTLE, State.SEEK, "the swing has settled")
+            .edge(State.PLACE, State.SETTLE, "the hand reaches the spot: the block is placed")
+            .edge(State.SETTLE, State.SEEK, "the arm is back")
             .anyTo(State.DONE, "a hostile mob comes near: the golem drops what it is doing to cower", State.DONE);
 
     private final Machine.Run<State> machine = GRAPH.run();
@@ -146,7 +146,7 @@ public class BuildTrunk extends TaskRunner<BuildTrunk.Plan> {
         }
         holdStill(golem);
         Face.toward(golem, Vec3.atCenterOf(at));
-        clip = ClipRun.play(golem, Anim.S_MINE, Anim.S_MINE_LEN).at(Anim.S_MINE_HIT, () -> place(level, golem));
+        clip = ClipRun.play(golem, Anim.S_PLACE, Anim.S_PLACE_LEN).at(Anim.S_PLACE_AT, () -> place(level, golem));
         machine.to(State.PLACE);
     }
 

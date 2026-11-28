@@ -39,9 +39,18 @@ public final class ClipData extends SimplePreparableReloadListener<Map<String, C
 
     /** The file clip for a kit (or for every kit), or null. */
     public static Clip find(String kit, String id) {
-        Map<String, Clip> all = clips;
-        Clip c = all.get(kit + "/" + id);
-        return c != null ? c : all.get("all/" + id);
+        Clip c = own(kit, id);
+        return c != null ? c : shared(id);
+    }
+
+    /** The kit's own file clip, or null. */
+    public static Clip own(String kit, String id) {
+        return clips.get(kit + "/" + id);
+    }
+
+    /** The file clip for every kit, or null. */
+    public static Clip shared(String id) {
+        return clips.get("all/" + id);
     }
 
     /**
